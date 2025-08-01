@@ -1,0 +1,469 @@
+/* static/style.css */
+body {
+    font-family: "Inter Tight", Arial, sans-serif;
+    margin: 10px;
+    background-color: #f5f7fa; /* Lighter background */
+    color: #333;
+}
+
+h1 {
+    color: #2c3e50; /* Darker header color */
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    background-color: #fff;
+    /*! table-layout: auto; */
+}
+
+td {
+    /*! border-right: 1px solid #2224; */
+    padding: 8px; 
+    text-align: left;
+    /*! border-left: 1px solid #2224; */
+    min-width: 25px;
+}
+
+/* --- Rotated Header Styles --- */
+th.rotate-header {
+     /* Fixed height for the header row */
+    white-space: nowrap; /* Prevent text wrapping in header */
+    padding: 0; /* Remove default padding */
+}
+th.rotate-header > div {
+    transform: rotate(-90deg) translateX(-40px); /* Rotate the content */
+    width: 30px; /* Width becomes the "height" after rotation */
+    /*! padding: 5px; */
+    margin: 60px 0; /* Center vertically within the 120px height */
+}
+th.rotate-header > div > span {
+    display: block;
+    text-align: center;
+}
+
+
+th {
+    vertical-align: bottom; /* Align text to top */
+    background-color: #427982; /* Blue header */
+    color: white;
+    cursor: pointer;
+    position: sticky;
+    top:0;
+    font-weight: bold;
+    /*! height: 10px !important; */
+    box-shadow: inset 0 -0px 0px 1px #115e5a66;
+    padding: 8px; /* Adjusted padding */
+    text-align: left;
+    min-width: 29px;
+    z-index: 999;
+    font-size: 9.5pt;
+}
+
+th:hover {
+    background-color: #266767; /* Darker blue on hover */
+}
+
+tr:nth-child(4n+1) {
+    background-color: #0000000a; /* Very light gray for even rows */
+}
+tr:nth-child(4n+2) {
+    background-color: #0000000a; /* Very light gray for even rows */
+}
+
+/* Style for status summary cells */
+.detail-row {
+    display: none;
+    background-color: #ffffff; /* Ensure detail row background is white */
+}
+.secondary-text-cell {
+    font-size: 10pt;
+    font-family: "Arial Narrow";
+}
+.detail-content {
+    /*! padding: 15px; */
+    /*! border: 1px solid #e0e0e0; */
+    /*! border-radius: 5px; */
+    /*! background-color: #fdfdfd; */
+    margin: 10px auto;
+    /*! box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); */
+    /*! white-space: normal; */ /* Allow text wrapping inside details */
+    /*! max-width: 650px; */
+    text-align: justify;
+}
+
+.toggle-btn {
+    cursor: pointer;
+    text-decoration: none;
+    /*! display: inline-block; */
+    color: #000b;
+    background: linear-gradient(180deg, hsl(210, 20%, 83%) 0%, hsl(210, 25%, 92%) 100%);
+    border: 1px solid #0004;
+    font-size: 9.5pt;
+    font-weight: 400;
+    border-top: 0;
+    transition: 0.33s all ease-in-out;
+}
+
+.toggle-btn:hover {
+    transition: 0.5s all ease-in-out; /* Teal on hover */
+    filter: saturate(200%) contrast(110% );
+}
+
+.sort-indicator {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9em;
+}
+
+.editable {
+    padding: 4px;
+    border-radius: 3px;
+    min-width: 150px; /* Better minimum width */
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.editable:focus {
+    border: 1px solid #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+select, input[type="text"] {
+    width: calc(100% - 12px); /* Adjust for padding/border */
+    box-sizing: border-box;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit; /* Match font */
+    font-size: 1em;
+}
+
+/* --- Radio Button Styles --- */
+.radio-container {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens if needed */
+}
+
+.radio-container label:not(.radio-inline) {
+    font-weight: bold;
+    margin-right: 10px;
+    min-width: 150px; /* Give labels some space */
+    display: inline-block;
+}
+
+.radio-inline {
+    display: inline-flex; /* Align items nicely */
+    align-items: center;
+    margin-right: 15px; /* Space between radio groups */
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.radio-inline input[type="radio"] {
+    margin-right: 5px;
+    transform: scale(1.2); /* Slightly larger radio buttons */
+}
+
+
+.save-btn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background-color: #27ae60; /* Green save button */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s, transform 0.1s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.save-btn:hover {
+    background-color: #219653; /* Darker green on hover */
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.save-btn:active {
+     transform: translateY(1px); /* Subtle click effect */
+}
+
+.json-display {
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre-wrap;
+    background-color: #f0f0f0;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 10px;
+}
+
+.edit-section {
+    /*! border-top: 1px solid #eee; */
+    margin-top: 15px;
+    padding-top: 15px;
+}
+
+.edit-section h3, .edit-section h4 {
+    color: #2c3e50;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+/* Improve form layout */
+form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+form input[type="text"] {
+    margin-bottom: 10px;
+}
+
+.changed-cell, .changed-by-cell {
+    font-size: 0.9em; /* Slightly smaller font for audit info */
+    color: #7f8c8d; /* Gray color */
+}
+
+
+
+
+
+/* Style for status summary cells */
+.status-cell{
+    text-align: center;
+    font-size: 1.5em; /* Make symbols larger */
+    padding: 4px;   /* Reduce padding for tighter cells */
+    width: 25px;    /* Fixed width for status cells */
+}
+
+/* --- New styles for clickable status cells --- */
+/* Add a class to headers that are for editable columns */
+
+/* Make status cells look clickable */
+.editable-status {
+    cursor: pointer; /* Pointer cursor */
+    transition: background-color 0.2s, transform 0.1s; /* Smooth transition */
+    border-radius: 3px; /* Slightly rounded corners */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Hover effect for clickable status cells */
+.editable-status:hover {
+    background-color: #d6eaf8; /* Light blue background on hover */
+    transform: scale(1.1); /* Slightly enlarge on hover */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Active/click effect */
+.editable-status:active {
+    transform: scale(0.95); /* Slightly shrink on click */
+    background-color: #aed6f1; /* Darker blue on active */
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* --- Styles for Detail Row Grid Layout (Replaces Flexbox) --- */
+
+/* The container for the detail content, now using grid */
+.detail-flex-container {
+    /* Initial collapsed state */
+    max-height: 0;
+    overflow: hidden; /* Crucial for clipping content */
+    /* Animation definition */
+    transition: max-height 0.25s ease-in-out, opacity 0.3s ease-in-out;
+    
+    /* Grid setup */
+    display: grid;
+    /* Define explicit columns: two fractions (adjust fr values as needed) */
+    grid-template-columns: 640px 1fr 1fr;
+    /* Adjust rows as needed, auto for flexible height */
+    grid-template-rows: auto; 
+    /* Optional: Define named grid areas for clarity */
+    /*
+    grid-template-areas: 
+        "content edit";
+    */
+    gap: 15px; /* Space between grid items */
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0 20px; /* Keep side padding */
+    margin: 0;
+}
+
+/* Make each section fit into the grid */
+.detail-content, .detail-edit {
+    /* If using grid-template-areas, assign areas */
+    /*
+    grid-area: content; 
+    */
+    /* Or simply let them flow into columns */
+    /* Flex properties are removed as we are using Grid */
+    
+    /* Keep styling */
+    min-width: 0; /* Allows text to shrink/overflow correctly */
+    padding: 10px;
+    box-sizing: border-box;
+    /* Optional individual section styling (uncomment if needed) */
+    /* border: 1px solid #eee;
+    border-radius: 4px;
+    background-color: #fafafa; */
+}
+
+/* Assign the .detail-edit section to the second column if using grid-area */
+/*
+.detail-edit {
+    grid-area: edit;
+}
+*/
+
+/* Ensure text within detail sections wraps correctly */
+.detail-content p, .detail-edit p, .detail-edit label {
+    text-align: justify; /* Or left, as preferred */
+    white-space: normal; /* Allow text wrapping */
+    margin-bottom: 0.5em; /* Add space between paragraphs/labels */
+}
+
+/* Ensure input and button widths behave nicely */
+.detail-edit input[type="text"] {
+    width: 100%; /* Make input take full width of its grid cell */
+    min-width: 150px; /* Ensure a minimum width */
+    box-sizing: border-box; /* Include padding/border in width */
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1em;
+}
+
+.detail-edit .save-btn {
+    width: auto; /* Let button size to content or be defined by padding */
+    margin-top: 10px; /* Add space above the button */
+    padding: 10px 20px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s, transform 0.1s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-edit .save-btn:hover {
+    background-color: #219653;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.detail-edit .save-btn:active {
+    transform: translateY(1px);
+}
+
+/* Base style for the detail row - it's always a table row */
+.detail-row {
+    display: table-row;
+    background-color: #ffffff;
+    padding: 0; /* Remove any default padding */
+}
+
+/* The cell inside the detail row needs overflow hidden to clip content */
+.detail-row > td {
+    padding: 0; /* Important: Remove default padding */
+}
+
+/* Expanded state for the container */
+.detail-row.expanded .detail-flex-container {
+    /* Set a large enough max-height for your content.
+       You might need to adjust this based on typical content height.
+       Consider if 1000px is enough. */
+    max-height: 1000px; 
+    opacity: 1;
+    /* Optional: Different transition for expansion */
+    transition: max-height 0.5s ease-in-out, opacity 0.4s ease-in-out;
+    border-bottom: 1px solid #e0e0e0; 
+    padding: 0 20px; /* Ensure padding is applied when expanded */
+}
+
+/* --- Keep other existing styles like .detail-row, .detail-content p, etc. --- */
+/* (They remain the same as in your original CSS) */
+.detail-content, .detail-edit {
+    flex: 1 1 300px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.detail-content p, .detail-edit p, .detail-edit label {
+    text-align: justify;
+    white-space: normal;
+    margin-bottom: 0.5em;
+}
+
+.detail-edit input[type="text"] {
+    width: 100%;
+    min-width: 150px;
+    box-sizing: border-box;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 1em;
+}
+
+.detail-edit .save-btn {
+    width: auto;
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s, transform 0.1s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-edit .save-btn:hover {
+    background-color: #219653;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.detail-edit .save-btn:active {
+    transform: translateY(1px);
+}
+
+a{
+    text-decoration: none;
+    color: #227
+}
+
+ .table-container { /*não funciona junto com sticky*/
+    /*border-radius: 8px;
+    overflow: hidden;
+    */ box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    border: 1px solid #427982;
+} 
