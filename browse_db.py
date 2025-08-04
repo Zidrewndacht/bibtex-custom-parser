@@ -19,7 +19,6 @@ TYPE_EMOJIS = {
     'mastersthesis': '🎓',  # Graduation cap (using the same for simplicity)
     'techreport': '📋',     # Clipboard
     'misc': '📁',           # File folder
-    'unpublished': ' drafts: ' # Draft symbol (closest standard emoji)
 }
 # Default emoji for unknown types
 DEFAULT_TYPE_EMOJI = '📄' # Using article as default

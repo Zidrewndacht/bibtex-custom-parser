@@ -105,6 +105,7 @@ tr:nth-child(4n+2) {
     font-weight: 400;
     border-top: 0;
     transition: 0.33s all ease-in-out;
+    text-align: center;
 }
 
 .toggle-btn:hover {
