@@ -1,0 +1,110 @@
+
+Read the following paper title, abstract and keywords:
+Title: {title}
+Abstract: {abstract}
+Keywords: {keywords}
+Authors: {authors}
+Publication Year: {year}
+Publication Type: {type}
+Publication Name: {journal}
+Given the contents of the paper, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
+Only write 'true' or 'false' if the contents above make it clear that it is the case. If unsure, fill the field with null:
+
+research_area: null #broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
+is_survey: null #true for survey/review/etc., false for implementations, new research, etc.
+is_offtopic: null #We are looking for PCB defect detection papers. Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper only talks about anything else entirely, it is offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. If offtopic, answer null for all fields following this one. Only set this to false if at least one feature from the 'features' list (including "other") can be set to true.
+is_through_hole: null #true for papers that specify PTH, THT, etc., through-hole component mounting
+is_smt: null #true for papers that specify surface-mount compoent mounting (SMD, SMT)
+is_x_ray: null  #true for X-ray inspection, false for standard optical (visible light) inspection
+features:  # true, false, null for unknown. Identify the types of defect which are detected by the implementation(s) described in the paper.
+    solder: null
+    polarity: null
+    wrong_component: null
+    missing_component: null
+    tracks: null	#any track error detection: split, short, etc.
+    holes: null
+    other: null 	#"string with other types of error detection"
+technique: # 
+    classic_computer_graphics_based: null # for general pattern recognition techniques that do not leveraga machine learning
+    machine_learning_based: null
+    hybrid: null
+    model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
+available_dataset: null #true if authors provide the datasets for the public, false if there are no datasets or if they're not provided
+
+Below are some example outputs, from random papers, for structure reference only:
+{{
+  "research_area": "electronics manufacturing industry",
+  "is_survey": false,
+  "is_offtopic": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "solder": true,
+    "polarity": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "tracks": null,
+    "holes": null,
+    "other": null
+  }},
+  "technique": {{
+    "classic_computer_graphics_based": false,
+    "machine_learning_based": true,
+    "hybrid": null,
+    "model": "SP-YOLO"
+  }},
+  "available_dataset": null
+}}
+
+{{
+  "research_area": "computer sciences",
+  "is_survey": false,
+  "is_offtopic": false,
+  "is_through_hole": true,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "solder": true,
+    "polarity": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "tracks": null,
+    "holes": null,
+    "other": null
+  }},
+  "technique": {{
+    "classic_computer_graphics_based": false,
+    "machine_learning_based": true,
+    "hybrid": true,
+    "model": "YOLOv2, ResNet-101, Faster RCNN, Feature Pyramid Network (FPN)"
+  }},
+  "available_dataset": null
+}}
+
+{{
+  "research_area": "computer sciences",
+  "is_survey": false,
+  "is_offtopic": false,
+  "is_through_hole": true,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "solder": true,
+    "polarity": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "tracks": null,
+    "holes": null,
+    "other": null
+  }},
+  "technique": {{
+    "classic_computer_graphics_based": false,
+    "machine_learning_based": true,
+    "hybrid": false,
+    "model": "beta-variational autoencoder (beta-VAE)"
+  }},
+  "available_dataset": null
+}}
+
+Your response is not being read by a human, it is grammar-locked via GBNF and goes directly to an automated parser. Answer with nothing but the structure itself directly. Output in JSON format

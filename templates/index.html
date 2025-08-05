@@ -61,7 +61,7 @@
             <td class="secondary-text-cell">{{ paper.journal }}</td>
 
             <!-- Classification Summary Cells -->
-            <td class="research-area-cell">{{ paper.research_area or '' }}</td>
+            <td class="secondary-text-cell research-area-cell">{{ paper.research_area or '' }}</td>
             <!-- Add data-field and editable-status class -->
             <td class="status-cell editable-status" data-field="is_survey">{{ paper.is_survey | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_offtopic">{{ paper.is_offtopic | render_status }}</td>

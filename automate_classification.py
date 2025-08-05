@@ -4,7 +4,6 @@ import json
 import argparse
 import requests
 import time
-import sys
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -31,63 +30,47 @@ DEFAULT_TECHNIQUE = {
     "available_dataset": None
 }
 
-YAML_TEMPLATE = """research_area: null #broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as contents.
-is_survey: false #true for survey/review/etc., false for implementations, new research, etc.
-is_offtopic: false #true if paper seems entirely unrelated to the field (e.g. an exobiology paper that got through by mistake).  If offtopic, answer null for all fields following this one.
-is_through_hole: true #true for papers that specify PTH, THT, etc., through-hole component mounting
-is_smt: true #true for papers that specify surface-mount compoent mounting (SMD, SMT)
-is_x_ray: null  #true for X-ray inspection, false for standard optical (visible light) inspection
-features:  # true, false, null for unknown
-    solder: null
-    polarity: null
-    wrong_component: null
-    missing_component: null
-    tracks: null	#any track error detection: split, short, etc.
-    holes: null
-    other: null 	#"string with other types of error detection"
-technique:
-    classic_computer_graphics_based: null
-    machine_learning_based: null
-    hybrid: null
-    model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
-available_dataset: null #true if authors provide the datasets for the public, false if there are no datasets or if they're not provided
-"""
-
+# --- Constants ---
 LLM_SERVER_URL = "http://localhost:8080/v1/chat/completions" # Default endpoint
 MAX_CONCURRENT_WORKERS = 18 # Match your server slots
 
 # --- Global Flag for Shutdown ---
 shutdown_event = threading.Event()
 
-# --- Functions from build_prompt.py (adapted for direct use) ---
-def build_prompt(paper_data):
-    """Builds the prompt string for a single paper."""
-    title = paper_data.get('title', '')
-    abstract = paper_data.get('abstract', '')
-    keywords = paper_data.get('keywords', '')
-    authors = paper_data.get('authors', '')
-    year = paper_data.get('year', '')
-    type = paper_data.get('type', '')
-    journal = paper_data.get('journal', '')
+# --- Functions ---
 
-    prompt_lines = [
-        "Read the following paper title, abstract and keywords:",
-        f"Title: {title}",
-        f"Abstract: {abstract}",
-        f"Keywords: {keywords}",
-        f"Authors: {authors}",
-        f"Publication Year: {str(year)}",
-        f"Publication Type: {type}",
-        f"Publication Name: {journal}",
-        "Given the contents of the paper, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.",
-        "Only write 'true' or 'false' if the contents above make it clear that it is the case. If unsure, fill the field with null:",
-        "The example below is not related to the paper above, use it only as a reference for the structure itself.",
-        "",
-        YAML_TEMPLATE.strip(),
-        "",
-        "Your response is not being read by a human, it is grammar-locked via GBNF and goes directly to an automated parser. Answer with nothing but the structure itself directly. Output in JSON format"
-    ]
-    return "\n".join(prompt_lines)
+def load_prompt_template(template_path):
+    """Loads the prompt template from a file."""
+    try:
+        with open(template_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Error: Prompt template file '{template_path}' not found.")
+        raise
+    except Exception as e:
+        print(f"Error reading prompt template file '{template_path}': {e}")
+        raise
+
+def build_prompt(paper_data, template_content):
+    """Builds the prompt string for a single paper using a loaded template."""
+    # The template now contains the instructions and YAML structure.
+    # We just need to format it with the paper data.
+    # Ensure all potential keys from paper_data are available, even if None
+    format_data = {
+        'title': paper_data.get('title', ''),
+        'abstract': paper_data.get('abstract', ''),
+        'keywords': paper_data.get('keywords', ''),
+        'authors': paper_data.get('authors', ''),
+        'year': paper_data.get('year', ''),
+        'type': paper_data.get('type', ''),
+        'journal': paper_data.get('journal', ''),
+        # Add other fields if needed in the template
+    }
+    try:
+        return template_content.format(**format_data)
+    except KeyError as e:
+        print(f"Error formatting prompt: Missing key {e} in paper data or template expects it.")
+        raise
 
 def get_paper_by_id(db_path, paper_id):
     """Fetches a single paper's data from the database by its ID."""
@@ -99,18 +82,14 @@ def get_paper_by_id(db_path, paper_id):
     conn.close()
     return dict(row) if row else None
 
-# --- Database Update Function (adapted from browse_db.py) ---
 def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
     """Updates paper classification fields in the database based on LLM output."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
-
     # --- Prepare fields for update ---
     update_fields = []
     update_values = []
-
     # --- Handle Main Boolean Fields ---
     main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
     for field in main_bool_fields:
@@ -126,12 +105,10 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
             else: # None or unexpected
                 update_fields.append(f"{field} = ?")
                 update_values.append(None)
-
     # --- Handle Research Area ---
     if 'research_area' in llm_data:
         update_fields.append("research_area = ?")
         update_values.append(llm_data['research_area'])
-
     # --- Handle Features ---
     # Fetch current features to merge
     cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
@@ -145,7 +122,6 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
         current_features.update(llm_data['features'])
         update_fields.append("features = ?")
         update_values.append(json.dumps(current_features))
-
     # --- Handle Techniques ---
     # Fetch current technique to merge
     cursor.execute("SELECT technique FROM papers WHERE id = ?", (paper_id,))
@@ -159,13 +135,11 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
         current_technique.update(llm_data['technique'])
         update_fields.append("technique = ?")
         update_values.append(json.dumps(current_technique))
-
     # --- Always update audit fields for any change made by LLM ---
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
     update_fields.append("changed_by = ?")
     update_values.append(changed_by)
-
     # --- Perform Update ---
     if update_fields:
         update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
@@ -175,11 +149,9 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
         rows_affected = cursor.rowcount
     else:
         rows_affected = 0
-
     conn.close()
     return rows_affected > 0
 
-# --- LLM Interaction Function ---
 def send_prompt_to_llm(prompt_text, grammar_text=None, server_url=LLM_SERVER_URL, model_name="default"):
     """Sends a prompt to the LLM via the OpenAI-compatible API."""
     headers = {"Content-Type": "application/json"}
@@ -192,7 +164,6 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url=LLM_SERVER_URL
     }
     if grammar_text:
         payload["grammar"] = grammar_text
-
     try:
         # Check for shutdown before sending request
         if shutdown_event.is_set():
@@ -225,13 +196,11 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url=LLM_SERVER_URL
         print(f"Response Data: {response_data}")
         return None
 
-# --- Signal Handler for Graceful Shutdown ---
 def signal_handler(sig, frame):
     print("\nReceived interrupt signal (Ctrl+C). Requesting shutdown...")
     shutdown_event.set() # Signal all threads to stop
 
-# --- Worker Function for ThreadPoolExecutor ---
-def process_paper_worker(db_path, grammar_content, paper_id_queue, progress_lock, processed_count, total_papers):
+def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers):
     """Worker function executed by each thread."""
     while not shutdown_event.is_set():
         try:
@@ -240,11 +209,9 @@ def process_paper_worker(db_path, grammar_content, paper_id_queue, progress_lock
         except queue.Empty:
             # If queue is empty for timeout duration, check if we should exit
             continue # Go back to the loop condition check
-
         if shutdown_event.is_set():
             paper_id_queue.task_done() # Ensure task is marked done even if skipped
             break
-
         print(f"[Thread-{threading.get_ident()}] Processing paper ID: {paper_id}")
         try:
             paper_data = get_paper_by_id(db_path, paper_id)
@@ -252,21 +219,16 @@ def process_paper_worker(db_path, grammar_content, paper_id_queue, progress_lock
                 print(f"[Thread-{threading.get_ident()}] Error: Paper {paper_id} not found in DB.")
                 paper_id_queue.task_done()
                 continue
-
-            prompt_text = build_prompt(paper_data)
-            
+            prompt_text = build_prompt(paper_data, prompt_template_content) # Pass the loaded template
             # Check for shutdown before sending
             if shutdown_event.is_set():
                 paper_id_queue.task_done()
                 break
-
             json_result_str = send_prompt_to_llm(prompt_text, grammar_text=grammar_content, server_url=LLM_SERVER_URL, model_name="default")
-
             # Check for shutdown after sending
             if shutdown_event.is_set():
                 paper_id_queue.task_done()
                 break
-
             if json_result_str:
                 try:
                     # Attempt to parse the LLM's output as JSON
@@ -285,11 +247,9 @@ def process_paper_worker(db_path, grammar_content, paper_id_queue, progress_lock
             else:
                 if not shutdown_event.is_set(): # Only report failure if not shutting down
                     print(f"[Thread-{threading.get_ident()}] Failed to get valid response from LLM for paper ID: {paper_id}")
-
         except Exception as e:
             if not shutdown_event.is_set(): # Only report unexpected errors if not shutting down
                 print(f"[Thread-{threading.get_ident()}] Unexpected error processing paper {paper_id}: {e}")
-
         finally:
             # Mark the task as done in the queue
             paper_id_queue.task_done()
@@ -303,12 +263,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate LLM classification for all papers in the database.')
     parser.add_argument('db_file', help='SQLite database file path')
     parser.add_argument('--grammar_file', '-g', help='Path to the GBNF grammar file to constrain the output format')
+    parser.add_argument('--prompt_template', '-t', default='prompt_template.txt', help='Path to the prompt template file (default: prompt_template.txt)')
     parser.add_argument('--server_url', default=LLM_SERVER_URL, help='URL of the LLM server endpoint (default: http://localhost:8080/v1/chat/completions)')
     args = parser.parse_args()
 
     if not os.path.exists(args.db_file):
         print(f"Error: Database file '{args.db_file}' not found.")
         exit(1)
+
+    # --- Load Prompt Template ---
+    try:
+        prompt_template_content = load_prompt_template(args.prompt_template)
+        print(f"Loaded prompt template from '{args.prompt_template}'")
+    except Exception:
+        exit(1) # Error message printed by load_prompt_template
 
     # --- Register signal handler for Ctrl+C ---
     signal.signal(signal.SIGINT, signal_handler)
@@ -344,7 +312,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error fetching paper IDs from database: {e}")
         exit(1)
-
     if total_papers == 0:
         print("No papers found in the database matching criteria. Exiting.")
         exit(0)
@@ -361,14 +328,21 @@ if __name__ == "__main__":
     # --- Start ThreadPoolExecutor ---
     print(f"Starting ThreadPoolExecutor with max {MAX_CONCURRENT_WORKERS} workers...")
     start_time = time.time()
-    
     try:
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
-            # Submit worker tasks
+            # Submit worker tasks - pass the loaded template content
             futures = []
             for i in range(MAX_CONCURRENT_WORKERS):
-                # Pass necessary arguments to the worker function
-                 future = executor.submit(process_paper_worker, args.db_file, grammar_content, paper_id_queue, progress_lock, processed_count, total_papers)
+                 future = executor.submit(
+                     process_paper_worker,
+                     args.db_file,
+                     grammar_content,
+                     prompt_template_content, # Pass the loaded template
+                     paper_id_queue,
+                     progress_lock,
+                     processed_count,
+                     total_papers
+                 )
                  futures.append(future)
 
             # Wait for all tasks in the queue to be completed OR for shutdown signal
@@ -380,12 +354,11 @@ if __name__ == "__main__":
 
             # Wait for all threads to finish (they should finish once the queue is empty or shutdown)
             # Use a timeout to ensure we don't wait forever if a thread hangs
-            for future in as_completed(futures, timeout=60): 
+            for future in as_completed(futures, timeout=60):
                 try:
                     future.result() # This will raise exceptions if the worker did
                 except Exception as e:
                     print(f"Worker thread raised an exception: {e}")
-
     except Exception as e:
         print(f"An error occurred in the main execution block: {e}")
     finally:
