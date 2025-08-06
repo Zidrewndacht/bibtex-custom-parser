@@ -5,24 +5,10 @@ import argparse
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, url_for
 
+import globals
+
 app = Flask(__name__)
 DATABASE = None # Will be set from command line argument
-
-
-# --- Define emoji mapping for publication types ---
-TYPE_EMOJIS = {
-    'article': '📄',        # Page facing up
-    'inproceedings': '📚',  # Books (representing conference proceedings)
-    'incollection': '📖',   # Open book (representing book chapters/collections)
-    'inbook': '📘',         # Blue book
-    'phdthesis': '🎓',      # Graduation cap
-    'mastersthesis': '🎓',  # Graduation cap (using the same for simplicity)
-    'techreport': '📋',     # Clipboard
-    'misc': '📁',           # File folder
-}
-# Default emoji for unknown types
-DEFAULT_TYPE_EMOJI = '📄' # Using article as default
-
 
 # --- Helper Functions ---
 
@@ -98,9 +84,98 @@ def fetch_papers(sort_by=None, sort_order='ASC'):
         paper_list.append(paper_dict)
     return paper_list
 
+
+
+
+
+
+def update_paper_verified_by(paper_id, changed_by="Web app"):
+    """
+    Cycles the 'verified_by' status for a paper and updates audit fields.
+    Cycle Logic (based on CURRENT DB value):
+    1. If current is 'user': Next is NULL (Unknown)
+    2. If current is NULL or '': Next is 'user'
+    3. If current is anything else (a model name): Next is 'user'
+       (Human cannot set it to a model name, only override a model name to 'user' or NULL)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 1. Get the current 'verified_by' value
+    cursor.execute("SELECT verified_by FROM papers WHERE id = ?", (paper_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return {'status': 'error', 'message': 'Paper ID not found'}
+
+    current_verified_by = row['verified_by']
+    new_verified_by = None # Default
+
+    # 2. Determine the next value based on the current one
+    if current_verified_by == 'user':
+        new_verified_by = None # Cycle to Unknown
+    elif current_verified_by is None or current_verified_by == '':
+        new_verified_by = 'user' # Cycle to User
+    else:
+        # Current value is a model name (e.g., 'some_model_v1')
+        # Human action overrides it to 'user'
+        new_verified_by = 'user'
+
+    # 3. Get current timestamp for audit
+    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+
+    # 4. Perform the update
+    update_query = """
+        UPDATE papers 
+        SET verified_by = ?, changed = ?, changed_by = ? 
+        WHERE id = ?
+    """
+    cursor.execute(update_query, (new_verified_by, changed_timestamp, changed_by, paper_id))
+    conn.commit()
+    rows_affected = cursor.rowcount
+    conn.close()
+
+    if rows_affected > 0:
+        # Fetch the updated paper data to return
+        conn = get_db_connection()
+        updated_paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        conn.close()
+        if updated_paper:
+            updated_dict = dict(updated_paper)
+            # Format the changed timestamp for display
+            updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
+            
+            # Prepare return data for frontend update
+            return_data = {
+                'status': 'success',
+                'changed': updated_dict.get('changed'),
+                'changed_formatted': updated_dict['changed_formatted'],
+                'changed_by': updated_dict.get('changed_by'),
+                'verified_by': updated_dict.get('verified_by'), # This is the raw DB value
+                # Include other fields that might be updated by audit
+                # (though unlikely for verified_by alone)
+            }
+            return return_data
+        else:
+            return {'status': 'error', 'message': 'Paper not found after update.'}
+    else:
+        return {'status': 'error', 'message': 'No rows updated. Paper ID might not exist.'}
+
+
+
+
+
 def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
     """Update the custom classification fields for a paper and audit fields.
        Handles partial updates based on keys present in `data`."""
+    # --- Check if this is a verified_by update request ---
+    # If 'verified_by' key exists in data (even if value is None), 
+    # handle it with the specific function and return early.
+    if 'verified_by' in data:
+        # The presence of the key triggers the cycling logic on the server
+        # We don't actually use the value from `data` for verified_by cycling.
+        return update_paper_verified_by(paper_id, changed_by)
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -140,6 +215,23 @@ def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
     if 'research_area' in data:
         update_fields.append("research_area = ?")
         update_values.append(data['research_area'])
+
+    # --- NEW: Handle Page Count (Partial Update) ---
+    # Add 'page_count' to the list of fields that can be partially updated
+    if 'page_count' in data:
+        page_count_value = data['page_count']
+        # Ensure the value is either an integer or None (to set NULL in DB)
+        # The frontend JS should have handled string parsing/validation
+        if page_count_value is not None:
+            try:
+                page_count_value = int(page_count_value)
+            except (ValueError, TypeError):
+                # If conversion fails, set to None to represent NULL in DB
+                page_count_value = None
+
+        update_fields.append("page_count = ?")
+        update_values.append(page_count_value)
+    # --- END NEW ---
 
     # --- Handle Features (Partial Update) ---
     # Fetch current features JSON from DB to merge changes
@@ -249,8 +341,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
         rows_affected = cursor.rowcount
     else:
         rows_affected = 0 # No fields to update
-
     conn.close()
+
     
     # --- Prepare data to return for updating the frontend table ---
     if rows_affected > 0:
@@ -273,7 +365,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
             # Format the changed timestamp for display
             updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
             
-            # Prepare return data
+            # Prepare return data - include page_count
             return_data = {
                 'status': 'success',
                 'changed': updated_dict.get('changed'),
@@ -281,6 +373,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
                 'changed_by': updated_dict.get('changed_by'),
                 # Include updated fields for frontend refresh
                 'research_area': updated_dict.get('research_area'),
+                'page_count': updated_dict.get('page_count'), # <-- Add this line
                 'is_survey': updated_dict.get('is_survey'),
                 'is_offtopic': updated_dict.get('is_offtopic'),
                 'is_through_hole': updated_dict.get('is_through_hole'),
@@ -304,14 +397,14 @@ def index():
     sort_by = request.args.get('sort_by')
     sort_order = request.args.get('sort_order', 'ASC')
     papers = fetch_papers(sort_by, sort_order)
-    # Pass the render_status function and TYPE_EMOJIS to the template
+    # Pass the render_status function and globals.TYPE_EMOJIS to the template
     return render_template(
         'index.html', 
         papers=papers, 
         sort_by=sort_by, 
         sort_order=sort_order,
-        type_emojis=TYPE_EMOJIS,
-        default_type_emoji=DEFAULT_TYPE_EMOJI
+        type_emojis=globals.TYPE_EMOJIS,
+        default_type_emoji=globals.DEFAULT_TYPE_EMOJI
     )
 
 @app.route('/update_paper', methods=['POST'])
@@ -331,8 +424,11 @@ def update_paper():
         print(f"Error updating paper {paper_id}: {e}") # Log error
         return jsonify({'status': 'error', 'message': 'Failed to update database'}), 500
 
-# --- Jinja2-like filter for status rendering ---
 
+
+
+
+# --- Jinja2-like filter for status rendering ---
 def render_status(value):
     """Render status value as emoji/symbol"""
     if value == 1 or value is True:
@@ -342,10 +438,42 @@ def render_status(value):
     else: # None or unknown
         return '❔' # Question mark for Unknown/Null
 
-# Register the filter globally for templates
+# --- Jinja2-like filter for verified_by rendering (MODIFIED) ---
+def render_verified_by(value):
+    """
+    Render verified_by value as emoji.
+    Accepts the raw database value.
+    Returns HTML string with emoji and tooltip if needed.
+    """
+    if value == 'user':
+        return '👤' # Human emoji
+    elif value is None or value == '':
+        return '❔' # Question mark for unverified/unknown
+    else:
+        # Value is a model name, show computer emoji with tooltip
+        # Escape the model name for HTML attribute safety
+        escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")
+        return f'<span title="{escaped_model_name}">🖥️</span>'
+    
+# Register the filter globally for templates (MODIFIED to handle HTML)
+from markupsafe import Markup # Import Markup for safe HTML rendering
+
 @app.template_filter('render_status')
 def render_status_filter(value):
     return render_status(value)
+
+# Register the new filter (MODIFIED)
+@app.template_filter('render_verified_by')
+def render_verified_by_filter(value):
+    # Use Markup to tell Jinja2 that the output is safe HTML
+    return Markup(render_verified_by(value)) 
+
+
+
+
+
+
+
 
 
 # --- Main Execution ---

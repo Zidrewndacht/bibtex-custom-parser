@@ -1,4 +1,3 @@
-# automate_classification.py
 import sqlite3
 import json
 import argparse
@@ -10,34 +9,61 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import queue
 import threading
 import signal
+import globals
 
-# --- Configuration ---
-# These match the structures from your other scripts
-DEFAULT_FEATURES = {
-    "solder": None,
-    "polarity": None,
-    "wrong_component": None,
-    "missing_component": None,
-    "tracks": None,
-    "holes": None,
-    "other": None
-}
-DEFAULT_TECHNIQUE = {
-    "classic_computer_graphics_based": None,
-    "machine_learning_based": None,
-    "hybrid": None,
-    "model": None,
-    "available_dataset": None
-}
+# --- Global Flag for Instant Shutdown (using Lock for atomicity) ---
+# Using a simple boolean guarded by a lock for absolute immediacy
+shutdown_lock = threading.Lock()
+shutdown_flag = False
 
-# --- Constants ---
-LLM_SERVER_URL = "http://localhost:8080/v1/chat/completions" # Default endpoint
-MAX_CONCURRENT_WORKERS = 18 # Match your server slots
+def set_shutdown_flag():
+    """Sets the global shutdown flag to True in a thread-safe manner."""
+    global shutdown_flag
+    with shutdown_lock:
+        shutdown_flag = True
 
-# --- Global Flag for Shutdown ---
-shutdown_event = threading.Event()
+def is_shutdown_flag_set():
+    """Checks the global shutdown flag in a thread-safe manner."""
+    global shutdown_flag
+    with shutdown_lock:
+        return shutdown_flag
 
-# --- Functions ---
+def get_model_alias(server_url_base):
+    """Fetches the model alias from the LLM server's /v1/models endpoint."""
+    models_url = f"{server_url_base.rstrip('/')}/v1/models" # Ensure correct URL construction
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        response = requests.get(models_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        models_data = response.json()
+
+        # Assuming the server returns a list under 'data' and there's only one model
+        if 'data' in models_data and isinstance(models_data['data'], list) and len(models_data['data']) > 0:
+            model_alias = models_data['data'][0].get('id')
+            if model_alias:
+                print(f"Detected model alias from server: '{model_alias}'")
+                return model_alias
+            else:
+                print(f"Warning: Model entry found but 'id' field is missing or empty: {models_data['data'][0]}")
+        else:
+             print(f"Warning: Unexpected response structure from /v1/models endpoint: {models_data}")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error connecting to LLM server models endpoint ({models_url}): {e}")
+        if hasattr(e, 'response') and e.response is not None:
+             print(f"Response Text: {e.response.text}")
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON response from LLM server models endpoint: {e}")
+        print(f"Response Text: {response.text}")
+    except KeyError as e:
+        print(f"Unexpected response structure from LLM server models endpoint, missing key: {e}")
+        print(f"Response Data: {models_data}")
+
+    fallback_alias = "Unknown_LLM"
+    print(f"Could not determine model alias. Using fallback: '{fallback_alias}'")
+    return fallback_alias
+
 
 def load_prompt_template(template_path):
     """Loads the prompt template from a file."""
@@ -53,9 +79,6 @@ def load_prompt_template(template_path):
 
 def build_prompt(paper_data, template_content):
     """Builds the prompt string for a single paper using a loaded template."""
-    # The template now contains the instructions and YAML structure.
-    # We just need to format it with the paper data.
-    # Ensure all potential keys from paper_data are available, even if None
     format_data = {
         'title': paper_data.get('title', ''),
         'abstract': paper_data.get('abstract', ''),
@@ -139,7 +162,7 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
     update_fields.append("changed_by = ?")
-    update_values.append(changed_by)
+    update_values.append(changed_by) # This will now be the actual model alias
     # --- Perform Update ---
     if update_fields:
         update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
@@ -152,137 +175,134 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
     conn.close()
     return rows_affected > 0
 
-def send_prompt_to_llm(prompt_text, grammar_text=None, server_url=LLM_SERVER_URL, model_name="default"):
-    """Sends a prompt to the LLM via the OpenAI-compatible API."""
+def send_prompt_to_llm(prompt_text, grammar_text=None, server_url=globals.LLM_SERVER_URL, model_name="default"):
+    """Sends a prompt to the LLM via the OpenAI-compatible API. Returns (content_str, model_name_used)."""
+    # Note: model_name is now passed correctly from the main script
     headers = {"Content-Type": "application/json"}
     payload = {
-        "model": model_name,
+        "model": model_name, # Use the actual model name/alias
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.0, # Lower temp for more deterministic output
+        "temperature": 0.0,
         "max_tokens": 1000,
-        "stream": False # Ensure we get the full response at once
+        "stream": False
     }
     if grammar_text:
         payload["grammar"] = grammar_text
     try:
-        # Check for shutdown before sending request
-        if shutdown_event.is_set():
-            return None
-        response = requests.post(server_url, headers=headers, json=payload, timeout=300) # Add timeout
-        # Check for shutdown after receiving response
-        if shutdown_event.is_set():
-            return None
+        # Check for instant shutdown before sending request
+        if is_shutdown_flag_set():
+            return None, None
+        response = requests.post(server_url, headers=headers, json=payload, timeout=60)
+        if is_shutdown_flag_set():
+            return None, None
         response.raise_for_status()
         response_data = response.json()
+        # We still get the model name from the response, but now we also know it should match model_name
+        model_name_from_response = response_data.get('model', model_name) # Fallback to passed name if not in response
         if 'choices' in response_data and len(response_data['choices']) > 0:
-            return response_data['choices'][0]['message']['content'].strip()
+            content = response_data['choices'][0]['message']['content'].strip()
+            return content, model_name_from_response
         else:
             print(f"Warning: Unexpected LLM response structure: {response_data}")
-            return None
+            return None, model_name_from_response
     except requests.exceptions.RequestException as e:
-        if shutdown_event.is_set():
-             # Likely due to shutdown, suppress error
-             return None
+        if is_shutdown_flag_set():
+             return None, None
         print(f"Error sending request to LLM server: {e}")
         if hasattr(e, 'response') and e.response is not None:
              print(f"Response Text: {e.response.text}")
-        return None
+        return None, None
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON response from LLM server: {e}")
         print(f"Response Text: {response.text}")
-        return None
+        return None, None
     except KeyError as e:
         print(f"Unexpected response structure from LLM server, missing key: {e}")
         print(f"Response Data: {response_data}")
-        return None
+        return None, None
 
 def signal_handler(sig, frame):
-    print("\nReceived interrupt signal (Ctrl+C). Requesting shutdown...")
-    shutdown_event.set() # Signal all threads to stop
+    print("\nReceived Ctrl+C. Killing all threads...")
+    # Set the flag first so any threads that check it mid-execution know to stop
+    set_shutdown_flag()
+    os._exit(1)
 
-def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers):
-    """Worker function executed by each thread."""
-    while not shutdown_event.is_set():
+def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias):
+    """Worker function executed by each thread. Takes model_alias as an argument."""
+    while True:
+        if is_shutdown_flag_set():
+            return # Just return, the process will die anyway
         try:
-            # Non-blocking get with timeout to allow checking shutdown_event
-            paper_id = paper_id_queue.get(timeout=1)
+            # Non-blocking get, but check the flag instantly if empty
+            paper_id = paper_id_queue.get_nowait() # Use nowait to fail fast
         except queue.Empty:
-            # If queue is empty for timeout duration, check if we should exit
-            continue # Go back to the loop condition check
-        if shutdown_event.is_set():
-            paper_id_queue.task_done() # Ensure task is marked done even if skipped
-            break
+             if is_shutdown_flag_set():
+                 return
+             else:
+                 time.sleep(0.1)
+                 continue # Go back to the beginning of the loop to check flag again
+        if is_shutdown_flag_set(): return
         print(f"[Thread-{threading.get_ident()}] Processing paper ID: {paper_id}")
         try:
             paper_data = get_paper_by_id(db_path, paper_id)
             if not paper_data:
                 print(f"[Thread-{threading.get_ident()}] Error: Paper {paper_id} not found in DB.")
-                paper_id_queue.task_done()
-                continue
-            prompt_text = build_prompt(paper_data, prompt_template_content) # Pass the loaded template
-            # Check for shutdown before sending
-            if shutdown_event.is_set():
-                paper_id_queue.task_done()
-                break
-            json_result_str = send_prompt_to_llm(prompt_text, grammar_text=grammar_content, server_url=LLM_SERVER_URL, model_name="default")
-            # Check for shutdown after sending
-            if shutdown_event.is_set():
-                paper_id_queue.task_done()
-                break
+                if is_shutdown_flag_set(): return
+                continue # Go back to the top of the while loop
+            prompt_text = build_prompt(paper_data, prompt_template_content)
+            if is_shutdown_flag_set(): return
+            json_result_str, model_name_used = send_prompt_to_llm(prompt_text, grammar_text=grammar_content, server_url=globals.LLM_SERVER_URL, model_name=model_alias)
+            if is_shutdown_flag_set(): return # Check again after potentially long LLM call
             if json_result_str:
                 try:
-                    # Attempt to parse the LLM's output as JSON
                     llm_classification = json.loads(json_result_str)
-                    # Update the database with the parsed data
-                    success = update_paper_from_llm(db_path, paper_id, llm_classification, changed_by="LLM")
+                    # Pass the model_name_used (which should be the alias) as changed_by
+                    success = update_paper_from_llm(db_path, paper_id, llm_classification, changed_by=model_name_used)
                     if success:
-                        print(f"[Thread-{threading.get_ident()}] Successfully updated database for paper ID: {paper_id}")
+                        print(f"[Thread-{threading.get_ident()}] Successfully updated database for paper ID: {paper_id} (Model: {model_name_used})")
                     else:
-                        print(f"[Thread-{threading.get_ident()}] Database update reported no changes for paper ID: {paper_id}")
+                        print(f"[Thread-{threading.get_ident()}] Database update reported no changes for paper ID: {paper_id} (Model: {model_name_used})")
                 except json.JSONDecodeError as e:
                     print(f"[Thread-{threading.get_ident()}] Error parsing LLM JSON output for paper {paper_id}: {e}")
                     print(f"[Thread-{threading.get_ident()}] LLM Output was: {json_result_str}")
-                except Exception as e: # Catch potential DB errors
+                except Exception as e:
                      print(f"[Thread-{threading.get_ident()}] Unexpected error updating DB for paper {paper_id}: {e}")
             else:
-                if not shutdown_event.is_set(): # Only report failure if not shutting down
+                if not is_shutdown_flag_set():
                     print(f"[Thread-{threading.get_ident()}] Failed to get valid response from LLM for paper ID: {paper_id}")
         except Exception as e:
-            if not shutdown_event.is_set(): # Only report unexpected errors if not shutting down
+            if not is_shutdown_flag_set():
                 print(f"[Thread-{threading.get_ident()}] Unexpected error processing paper {paper_id}: {e}")
         finally:
-            # Mark the task as done in the queue
-            paper_id_queue.task_done()
-            # Safely increment and report progress
+            if is_shutdown_flag_set(): return
             with progress_lock:
-                processed_count[0] += 1 # Increment the shared counter
+                if is_shutdown_flag_set(): return # Flag checked again
+                processed_count[0] += 1
                 print(f"[Progress] Processed {processed_count[0]}/{total_papers} papers.")
+            # DO NOT call paper_id_queue.task_done() anymore, we ignore the queue's internal count now
 
-# --- Main Execution ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate LLM classification for all papers in the database.')
     parser.add_argument('db_file', help='SQLite database file path')
     parser.add_argument('--grammar_file', '-g', help='Path to the GBNF grammar file to constrain the output format')
     parser.add_argument('--prompt_template', '-t', default='prompt_template.txt', help='Path to the prompt template file (default: prompt_template.txt)')
-    parser.add_argument('--server_url', default=LLM_SERVER_URL, help='URL of the LLM server endpoint (default: http://localhost:8080/v1/chat/completions)')
+    # Note: server_url is used for chat completions, but base URL is needed for /models
+    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL, help='URL of the LLM server endpoint (default: http://localhost:8080/v1/chat/completions)')
     args = parser.parse_args()
 
     if not os.path.exists(args.db_file):
         print(f"Error: Database file '{args.db_file}' not found.")
         exit(1)
 
-    # --- Load Prompt Template ---
     try:
         prompt_template_content = load_prompt_template(args.prompt_template)
         print(f"Loaded prompt template from '{args.prompt_template}'")
     except Exception:
-        exit(1) # Error message printed by load_prompt_template
+        exit(1)
 
-    # --- Register signal handler for Ctrl+C ---
+    # --- Register the BRUTAL signal handler for Ctrl+C ---
     signal.signal(signal.SIGINT, signal_handler)
-    print("Press Ctrl+C to stop processing gracefully.")
 
-    # --- Read GBNF Grammar if file is provided ---
     grammar_content = None
     if args.grammar_file:
         try:
@@ -295,16 +315,23 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error reading grammar file '{args.grammar_file}': {e}")
             exit(1)
-    # --- End GBNF Reading ---
 
-    # --- Fetch all paper IDs ---
+    # --- Get Model Alias BEFORE processing ---
+    print("Fetching model alias from LLM server...")
+    # Derive base URL for /models endpoint from the chat completions URL
+    # This handles cases like http://localhost:8080/v1/chat/completions -> http://localhost:8080
+    base_server_url = args.server_url.split('/v1/chat/completions')[0] if '/v1/chat/completions' in args.server_url else args.server_url
+    model_alias = get_model_alias(base_server_url)
+    if not model_alias:
+         print("Critical Error: Could not determine model alias. Exiting.")
+         exit(1)
+
+
     print(f"Connecting to database '{args.db_file}'...")
     try:
         conn = sqlite3.connect(args.db_file)
         cursor = conn.cursor()
-        # Select only papers that haven't been changed by LLM yet, or select all if you want to re-process
-        # cursor.execute("SELECT id FROM papers WHERE changed_by != 'LLM' OR changed_by IS NULL")
-        cursor.execute("SELECT id FROM papers") # Process all
+        cursor.execute("SELECT id FROM papers")
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
@@ -312,6 +339,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error fetching paper IDs from database: {e}")
         exit(1)
+
     if total_papers == 0:
         print("No papers found in the database matching criteria. Exiting.")
         exit(0)
@@ -323,54 +351,38 @@ if __name__ == "__main__":
 
     # --- Shared variables for progress tracking ---
     progress_lock = threading.Lock()
-    processed_count = [0] # Use a list to make it mutable across threads
+    processed_count = [0]
 
-    # --- Start ThreadPoolExecutor ---
-    print(f"Starting ThreadPoolExecutor with max {MAX_CONCURRENT_WORKERS} workers...")
+    # --- Start ThreadPoolExecutor (NO WAITING LOGIC) ---
+    print(f"Starting ThreadPoolExecutor with max {globals.MAX_CONCURRENT_WORKERS} workers...")
     start_time = time.time()
     try:
-        with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
-            # Submit worker tasks - pass the loaded template content
-            futures = []
-            for i in range(MAX_CONCURRENT_WORKERS):
-                 future = executor.submit(
+        with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
+            # Submit worker tasks, passing the model_alias
+            for i in range(globals.MAX_CONCURRENT_WORKERS):
+                 executor.submit(
                      process_paper_worker,
                      args.db_file,
                      grammar_content,
-                     prompt_template_content, # Pass the loaded template
+                     prompt_template_content,
                      paper_id_queue,
                      progress_lock,
                      processed_count,
-                     total_papers
+                     total_papers,
+                     model_alias # Pass the model alias to workers
                  )
-                 futures.append(future)
-
-            # Wait for all tasks in the queue to be completed OR for shutdown signal
-            while not paper_id_queue.empty() and not shutdown_event.is_set():
-                time.sleep(0.1) # Small sleep to avoid busy waiting
-
-            # Once queue is empty or shutdown is requested, wait for threads to finish current tasks
-            paper_id_queue.join()
-
-            # Wait for all threads to finish (they should finish once the queue is empty or shutdown)
-            # Use a timeout to ensure we don't wait forever if a thread hangs
-            for future in as_completed(futures, timeout=60):
-                try:
-                    future.result() # This will raise exceptions if the worker did
-                except Exception as e:
-                    print(f"Worker thread raised an exception: {e}")
+            print("Processing started. Press Ctrl+C to kill all threads.")
+            while True:
+                time.sleep(0.1) # Sleep to prevent busy-waiting in the main thread
     except Exception as e:
         print(f"An error occurred in the main execution block: {e}")
+        os._exit(1)
     finally:
-        # --- Final Status ---
         end_time = time.time()
         with progress_lock:
             final_count = processed_count[0]
         print(f"\n--- Automation Summary ---")
         print(f"Papers processed: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds.")
-        if shutdown_event.is_set():
-            print("Processing was stopped by user (Ctrl+C).")
-        else:
-            print("Automation complete.")
+        print("Automation complete (if you see this, it exited normally).")
         print("--------------------------")

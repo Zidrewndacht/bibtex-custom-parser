@@ -1,0 +1,29 @@
+OK  Remove bogus DOI links from papers that lack so
+
+OK  Add column for "page count" (to filter out short papers)
+OK  Add columns on DB for "verified by":         User        Computer        null
+    Also add a tooltip for LLM namme
+OK  Add new column to table and/or detail row:
+OK      Verified by
+
+OK  Add missing columns to table and/or detail row:
+OK        Model name
+OK        Page count
+    
+    Add quick stats (totals at the end of the table)
+    Add client-side filters:
+        Instant search keywords
+            Ensure detail row stays linked to corresponding article row
+        Filter out short papers
+        Filter out offtopic
+
+    Add verification pass (LLM reads each DB line and checks if the according inferred values are sane)
+    Try to import full text of papers?
+
+    Identify LLM by name from the API
+    It never reaches final status, stuck at processed 524/524 papers
+
+
+    Import from GUI
+    Send to LLM from GUI
+    Config from file instead of commandline
