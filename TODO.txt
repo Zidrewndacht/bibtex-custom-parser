@@ -1,6 +1,8 @@
 OK  Identify LLM by name from the API
 OK  Remove bogus DOI links from papers that lack so.
-    Change LLM endpoint URL to go to the server itself instead of /v1/chat/completions
+OK  Change LLM endpoint URL to go to the server itself instead of /v1/chat/completions
+        Ensure correct usage on all files.
+OK  Use Config from file instead of requiring commandline
 
 OK  Add column for "page count" (to filter out short papers)
 OK  Add columns on DB for "verified by":         User        Computer        null
@@ -14,7 +16,7 @@ OK        Page count
     
 !   Redo from scratch verification pass (LLM reads each DB line and checks if the according inferred values are sane)
         Use shared functions from globals.py
-        
+
 !   Fix page count parser for Zotero exports
 
     Add quick stats (totals at the end of the table)
@@ -26,8 +28,10 @@ OK        Page count
 
     Try to import full text of papers?
 
-    It never reaches final status, stuck at 'processed 524/524' papers after finishing.
+    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
 
-    Import from GUI
+    Import from GUI?
     Send to LLM from GUI
-    Config from file instead of commandline
+        Reprocess all?
+        Reprocess this line from detail row?
+    Export stats to Excel?
