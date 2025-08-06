@@ -3,7 +3,10 @@ import sqlite3
 import json
 import argparse
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, url_for
+from flask import Flask, render_template, request, jsonify
+import argparse
+import os
+import sys
 
 import globals
 
@@ -475,19 +478,43 @@ def render_verified_by_filter(value):
 
 
 
-
-# --- Main Execution ---
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Browse and edit PCB inspection papers database.')
-    parser.add_argument('db_file', help='SQLite database file path')
+    parser.add_argument('db_file', nargs='?', help='SQLite database file path (optional)')
     args = parser.parse_args()
-    DATABASE = args.db_file
+    
+    # Determine which database file to use
+    if args.db_file:
+        DATABASE = args.db_file
+    elif hasattr(globals, 'DATABASE_FILE'):
+        DATABASE = globals.DATABASE_FILE
+    else:
+        print("Error: No database file specified and no default in globals.DATABASE_FILE")
+        sys.exit(1)
+
+    # Check if database exists before starting server
+    if not os.path.exists(DATABASE):
+        print(f"Error: Database file not found: {DATABASE}")
+        print("Please provide a valid database file.")
+        sys.exit(1)
+
+    # Verify the database has the required tables
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='papers'")
+        if not cursor.fetchone():
+            print(f"Error: Database '{DATABASE}' does not contain required 'papers' table")
+            sys.exit(1)
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"Error verifying database: {e}")
+        sys.exit(1)
 
     print(f"Starting server, database: {DATABASE}")
     print(" * Visit http://127.0.0.1:5000 to view the table.")
+    
     # Ensure the templates and static folders exist
-    import os
     if not os.path.exists('templates'):
         os.makedirs('templates')
     if not os.path.exists('static'):
