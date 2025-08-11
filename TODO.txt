@@ -14,18 +14,21 @@ OK  Add missing columns to table and/or detail row:
 OK        Model name
 OK        Page count
     
-!   Redo from scratch verification pass (LLM reads each DB line and checks if the according inferred values are sane)
-        Use shared functions from globals.py
+OK   Redo from scratch verification pass (LLM reads each DB line and checks if the according inferred values are sane)
+OK      Use shared functions from globals.py
 
-!   Fix page count parser for Zotero exports
+!    Add support to reasoning models
+
+OK   Fix page count parser for Zotero exports
+
+OK  Add client-side filters:
+OK      Instant search keywords
+OK            Ensure detail row still stays linked to corresponding article row
+OK        Filter out short papers
+OK        Filter out offtopic
 
     Add quick stats (totals at the end of the table)
-    Add client-side filters:
-        Instant search keywords
-            Ensure detail row still stays linked to corresponding article row
-        Filter out short papers
-        Filter out offtopic
-
+    
     Try to import full text of papers?
 
     automate never reaches final status, stuck at 'processed 524/524' papers after finishing.

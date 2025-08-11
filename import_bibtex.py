@@ -42,9 +42,13 @@ def create_database(db_path):
         technique TEXT,
         -- Audit fields
         changed TEXT,                      -- ISO 8601 timestamp, NULL if never changed
-        changed_by TEXT,                    -- Identifier of the changer (e.g., 'Web app')
+        changed_by TEXT,                   -- Identifier of the changer (e.g., 'Web app')
         verified INTEGER,                  -- 1=true, 0=false, NULL=unknown
-        verified_by TEXT                   -- Identifier of the verifier (e.g., 'user')
+        estimated_score INTEGER,
+        verified_by TEXT,                  -- Identifier of the verifier (e.g., 'user')
+        reasoning_trace TEXT,              -- New column to store evaluator reasoning traces
+        verifier_trace TEXT,                -- New column to store verifier reasoning traces
+        user_trace TEXT                     -- User comments.
     )
     ''')
     # Enable WAL mode for better concurrency (optional)
@@ -107,6 +111,7 @@ def clean_latex_commands(text):
 def parse_pages(pages_str):
     """
     Normalize pages string to "start - end" format and return start, end, and count.
+    Handles formats like '276--279', '276-279', '276', '276+', etc.
     Returns:
         tuple: (normalized_pages_str, page_count) or (None, None)
     """
@@ -115,15 +120,10 @@ def parse_pages(pages_str):
 
     # Clean LaTeX commands first
     pages_str = clean_latex_commands(pages_str).strip()
-    
-    # Remove any remaining LaTeX artifacts
-    pages_str = re.sub(r'\\[a-zA-Z]+', '', pages_str)  # Remove any remaining LaTeX commands
-    
-    # Clean up extra whitespace
-    pages_str = re.sub(r'\s+', ' ', pages_str).strip()
 
-    # Match common formats like "123--456", "123-456", "123", "123+", etc.
-    match = re.match(r'^(\d+)(?:\s*[-–—]\s*(\d+))?$', pages_str)
+    # Match common formats including double hyphens
+    # Covers: "123--456", "123-456", "123–456", "123—456"
+    match = re.match(r'^(\d+)\s*[-–—]*\s*(\d+)?$', pages_str.replace('--', '-'))
     if match:
         start_page = int(match.group(1))
         end_page = int(match.group(2)) if match.group(2) else start_page
@@ -131,9 +131,8 @@ def parse_pages(pages_str):
         count = end_page - start_page + 1
         return normalized, count
     else:
-        # Handle special cases like "123+" or single pages
+        # Handle "123+" format
         if re.match(r'^\d+\+$', pages_str):
-            # Handle "123+" format - treat as single page for now
             page = int(pages_str[:-1])
             return f"{page} - {page}", 1
         elif pages_str.isdigit():
@@ -144,7 +143,6 @@ def parse_pages(pages_str):
             # Fallback: return as-is if parsing fails
             return pages_str, None
         
-
 def import_bibtex(bib_file, db_path):
     """Import BibTeX file into SQLite database"""
     # Configure BibTeX parser
@@ -204,7 +202,11 @@ def import_bibtex(bib_file, db_path):
             'changed': None,
             'changed_by': None,
             'verified': None,
-            'verified_by': None
+            'estimated_score': None,
+            'verified_by': None,
+            'reasoning_trace': None,  
+            'verifier_trace': None,  
+            'user_trace': None, 
         }
 
         # Insert into database
@@ -214,12 +216,12 @@ def import_bibtex(bib_file, db_path):
                 id, type, title, authors, year, month, journal, 
                 volume, pages, page_count, doi, issn, abstract, keywords,
                 research_area, is_survey, is_offtopic, is_through_hole, 
-                is_smt, is_x_ray, features, technique, changed, changed_by, verified, verified_by
+                is_smt, is_x_ray, features, technique, changed, changed_by, verified, estimated_score, verified_by, reasoning_trace, verifier_trace, user_trace
             ) VALUES (
                 :id, :type, :title, :authors, :year, :month, :journal, 
                 :volume, :pages, :page_count, :doi, :issn, :abstract, :keywords,
                 :research_area, :is_survey, :is_offtopic, :is_through_hole, 
-                :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :verified_by
+                :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :estimated_score, :verified_by, :reasoning_trace, :verifier_trace, :user_trace
             )
             ''', data)
         except sqlite3.IntegrityError as e:

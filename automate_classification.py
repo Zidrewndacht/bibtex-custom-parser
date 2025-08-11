@@ -1,3 +1,4 @@
+#automate_classification
 import sqlite3
 import json
 import argparse
@@ -46,7 +47,7 @@ def build_prompt(paper_data, template_content):
         print(f"Error formatting prompt: Missing key {e} in paper data or template expects it.")
         raise
 
-def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
+def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None):
     """Updates paper classification fields in the database based on LLM output."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -54,6 +55,10 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM"):
     update_fields = []
     update_values = []
     
+    if reasoning_trace is not None:
+        update_fields.append("reasoning_trace = ?")
+        update_values.append(reasoning_trace)
+
     # Main Boolean Fields
     main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
     for field in main_bool_fields:
@@ -109,8 +114,11 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=globals.L
     payload = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.0,
-        "max_tokens": 1000,
+        "temperature": 0.6,
+        "top_p": 0.95, 
+        "top_k": 20, 
+        "min_p":0,
+        "max_tokens": 32768,
         "stream": False
     }
     if grammar_text:
@@ -119,15 +127,16 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=globals.L
     try:
         if is_shutdown_flag_set():
             return None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=60)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=600)
         if is_shutdown_flag_set():
             return None, None
         response.raise_for_status()
         response_data = response.json()
         model_name_from_response = response_data.get('model', model_name)
         if 'choices' in response_data and response_data['choices']:
+            reasoning_content = response_data['choices'][0]['message'].get('reasoning_content', '').strip()
             content = response_data['choices'][0]['message']['content'].strip()
-            return content, model_name_from_response
+            return content, model_name_from_response, reasoning_content
         else:
             print(f"Warning: Unexpected LLM response structure: {response_data}")
             return None, model_name_from_response
@@ -177,7 +186,7 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
             if is_shutdown_flag_set():
                 return
                 
-            json_result_str, model_name_used = send_prompt_to_llm(
+            json_result_str, model_name_used, reasoning_trace = send_prompt_to_llm(
                 prompt_text, 
                 grammar_text=grammar_content, 
                 server_url_base=globals.LLM_SERVER_URL, 
@@ -190,7 +199,13 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
             if json_result_str:
                 try:
                     llm_classification = json.loads(json_result_str)
-                    success = update_paper_from_llm(db_path, paper_id, llm_classification, changed_by=model_name_used)
+                    success = update_paper_from_llm(
+                        db_path, 
+                        paper_id, 
+                        llm_classification, 
+                        changed_by=model_name_used,
+                        reasoning_trace=reasoning_trace
+                    )
                     if success:
                         print(f"[Thread-{threading.get_ident()}] Updated paper {paper_id} (Model: {model_name_used})")
                     else:
@@ -257,15 +272,16 @@ if __name__ == "__main__":
     try:
         conn = sqlite3.connect(args.db_file)
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM papers")
+        # Only fetch papers that have not been processed yet (changed_by IS NULL or blank)
+        cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = ''")
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
-        print(f"Found {total_papers} papers to process.")
+        print(f"Found {total_papers} unprocessed papers to process.")
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
         exit(1)
-
+        
     if not paper_ids:
         print("No papers found in database. Exiting.")
         exit(0)

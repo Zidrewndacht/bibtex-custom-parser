@@ -1,16 +1,21 @@
+# globals.py
+
 import requests
 import json
 import sqlite3
+
+import threading
+import os
 
 # BIBTEX_FILE = "all.bib" # não implementado em import_bibtex
 
 # LLM_SERVER_URL = "http://localhost:8080/v1/chat/completions" # Default endpoint
 LLM_SERVER_URL = "http://localhost:8080" # Default endpoint
 
-MAX_CONCURRENT_WORKERS = 24 # Match your server slots
+MAX_CONCURRENT_WORKERS = 8 # Match your server slots
 DATABASE_FILE = "all.sqlite"
-GRAMMAR_FILE = "output.gbnf"
-PROMPT_TEMPLATE = "prompt_template.txt"
+GRAMMAR_FILE = "" #"output.gbnf"
+PROMPT_TEMPLATE = "prompt_template-think.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
 
 # Define default JSON structures for features and technique
@@ -45,6 +50,33 @@ TYPE_EMOJIS = {
 }
 # Default emoji for unknown types
 DEFAULT_TYPE_EMOJI = '📄' # Using article as default
+
+
+
+# --- Global Shutdown Flag for Instant Shutdown (using Lock for atomicity) ---
+# This provides a common mechanism for scripts to handle Ctrl+C gracefully.
+shutdown_lock = threading.Lock()
+shutdown_flag = False
+
+def set_shutdown_flag():
+    """Sets the global shutdown flag to True in a thread-safe manner."""
+    global shutdown_flag
+    with shutdown_lock:
+        shutdown_flag = True
+
+def is_shutdown_flag_set():
+    """Checks the global shutdown flag in a thread-safe manner."""
+    global shutdown_flag
+    with shutdown_lock:
+        return shutdown_flag
+
+def signal_handler(sig, frame):
+    """Standard signal handler for SIGINT (Ctrl+C). Sets shutdown flag and forces exit."""
+    print("\nReceived Ctrl+C. Killing all threads...")
+    set_shutdown_flag()
+    # Use os._exit for immediate shutdown across all threads
+    os._exit(1)
+    
 
 
 #usado por automate and verify:
@@ -102,3 +134,16 @@ def get_paper_by_id(db_path, paper_id):
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def load_grammar(grammar_path):
+    """Loads the GBNF grammar from a file."""
+    try:
+        with open(grammar_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Error: Grammar file '{grammar_path}' not found.")
+        raise
+    except Exception as e:
+        print(f"Error reading grammar file '{grammar_path}': {e}")
+        raise
