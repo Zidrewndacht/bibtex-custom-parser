@@ -17,7 +17,9 @@ OK        Page count
 OK   Redo from scratch verification pass (LLM reads each DB line and checks if the according inferred values are sane)
 OK      Use shared functions from globals.py
 
-!    Add support to reasoning models
+OK    Add support to reasoning models
+OK        Save reasoning to DB
+OK        Show reasoning in detail row
 
 OK   Fix page count parser for Zotero exports
 
@@ -27,7 +29,7 @@ OK            Ensure detail row still stays linked to corresponding article row
 OK        Filter out short papers
 OK        Filter out offtopic
 
-    Add quick stats (totals at the end of the table)
+OK    Add quick stats (totals at the end of the table)
     
     Try to import full text of papers?
 
