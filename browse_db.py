@@ -4,6 +4,7 @@ import json
 import argparse
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
+from markupsafe import Markup # Import Markup for safe HTML rendering
 import argparse
 import os
 import sys
@@ -73,7 +74,7 @@ def fetch_papers():
     return paper_list
 
 
-def update_paper_custom_fields(paper_id, data, changed_by="Web app"):
+def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """Update the custom classification fields for a paper and audit fields.
        Handles partial updates based on keys present in `data`."""
 
@@ -312,8 +313,8 @@ def update_paper():
         return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
 
     try:
-        # Use 'Web app' as the identifier for changes made via this interface
-        result = update_paper_custom_fields(paper_id, data, changed_by="Web app")
+        # Use 'user' as the identifier for changes made via this interface
+        result = update_paper_custom_fields(paper_id, data, changed_by="user")
         # The result dict already contains status and other data
         return jsonify(result)
     except Exception as e:
@@ -347,8 +348,27 @@ def render_verified_by(value):
         # Escape the model name for HTML attribute safety
         escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")
         return f'<span title="{escaped_model_name}">🖥️</span>'
-    
-from markupsafe import Markup # Import Markup for safe HTML rendering
+
+def render_changed_by(value):
+    """
+    Render changed_by value as emoji.
+    Accepts the raw database value.
+    Returns HTML string with emoji and tooltip if needed.
+    """
+    if value == 'user':
+        return f'<span title="User">👤</span>' # Human emoji
+    elif value is None or value == '':
+        return f'<span title="Unknown">❔</span>' # Question mark for null/empty
+    else:
+        # For any other string, value is a model name, show computer emoji with tooltip
+        escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")
+        return f'<span title="{escaped_model_name}">🖥️</span>'
+
+@app.template_filter('render_changed_by')
+def render_changed_by_filter(value):
+    # Use Markup to tell Jinja2 that the output is safe HTML
+    return Markup(render_changed_by(value))
+
 @app.template_filter('render_status')
 def render_status_filter(value):
     return render_status(value)

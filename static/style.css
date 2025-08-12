@@ -1,103 +1,97 @@
 /* static/style.css */
+
 body {
     font-family: "Inter Tight", Arial, sans-serif;
-    margin: 10px;
-    background-color: #f5f7fa; /* Lighter background */
+    margin: 4px;
+    background-color: #f5f7fa; 
     color: #333;
 }
 
-h1 {
-    color: #2c3e50; /* Darker header color */
-    text-align: center;
-    margin-bottom: 20px;
+/* Ensure the table container allows internal scrolling for the sticky footer */
+ .table-container { 
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    border: 1px solid hsl(188, 33%, 38%);
+    overflow-y: auto; /* Allow vertical scrolling if needed */
+    max-height: calc(100vh - 10px); /* Example: limit height to 95% of viewport height */
+    position: relative; /* Needed for sticky positioning within */
 }
 
 table {
     border-collapse: collapse;
     width: 100%;
     background-color: #fff;
-    /*! table-layout: auto; */
 }
 
 td {
-    /*! border-right: 1px solid #2224; */
     padding: 8px; 
     text-align: left;
-    /*! border-left: 1px solid #2224; */
     min-width: 25px;
 }
 
 /* --- Rotated Header Styles --- */
 th.rotate-header {
-     /* Fixed height for the header row */
-    white-space: nowrap; /* Prevent text wrapping in header */
-    padding: 0; /* Remove default padding */
+    white-space: nowrap;
+    padding: 0; 
 }
 th.rotate-header > div {
-    transform: rotate(-90deg) translateX(-40px); /* Rotate the content */
-    width: 30px; /* Width becomes the "height" after rotation */
-    /*! padding: 5px; */
-    margin: 60px 0; /* Center vertically within the 120px height */
+    transform: rotate(-90deg) translateX(-40px); 
+    width: 30px; 
+    margin: 60px 0; 
 }
 th.rotate-header > div > span {
     display: block;
     text-align: center;
 }
 
-
 th {
-    vertical-align: bottom; /* Align text to top */
-    background-color: #427982; /* Blue header */
+    vertical-align: bottom; 
+    background-color: #427982; 
     color: white;
-    cursor: pointer;
     position: sticky;
     top:0;
     font-weight: bold;
-    /*! height: 10px !important; */
     box-shadow: inset 0 -0px 0px 1px #115e5a66;
-    padding: 8px; /* Adjusted padding */
+    padding: 8px;
     text-align: left;
     min-width: 29px;
     z-index: 999;
     font-size: 9.5pt;
 }
 
-th:hover {
-    background-color: #266767; /* Darker blue on hover */
+th[data-sort]:hover {    
+    filter: contrast(1.25) brightness(0.9); 
+    cursor: pointer; 
 }
 
-tr:nth-child(4n+1) {
-    background-color: #0000000a; /* Very light gray for even rows */
-}
-tr:nth-child(4n+2) {
-    background-color: #0000000a; /* Very light gray for even rows */
+/* tr:nth-child(4n+1) {    background-color: #0000000a; } */
+/* tr:nth-child(4n+2) {    background-color: #0000000a;} */
+
+/* Add new classes for alternating shades */
+.alt-shade-1 {
+    background-color: #0000000a; /* Light grey */
 }
 
-/* Style for status summary cells */
+.alt-shade-2 {
+    background-color: #ffffff; /* White (or your default row color) */
+}
+
 .detail-row {
-    display: none;
-    background-color: #ffffff; /* Ensure detail row background is white */
+    display: table-row;
+    /* background-color: #ffffff; */
+    padding: 0; 
 }
 .secondary-text-cell {
     font-size: 10pt;
     font-family: "Arial Narrow";
 }
 .detail-content {
-    /*! padding: 15px; */
-    /*! border: 1px solid #e0e0e0; */
-    /*! border-radius: 5px; */
-    /*! background-color: #fdfdfd; */
     margin: 10px auto;
-    /*! box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05); */
-    /*! white-space: normal; */ /* Allow text wrapping inside details */
-    /*! max-width: 650px; */
     text-align: justify;
 }
 
 .toggle-btn {
     cursor: pointer;
     text-decoration: none;
-    /*! display: inline-block; */
     color: #000b;
     background: linear-gradient(180deg, hsl(210, 20%, 83%) 0%, hsl(210, 25%, 92%) 100%);
     border: 1px solid #0004;
@@ -124,7 +118,7 @@ tr:nth-child(4n+2) {
 .editable {
     padding: 4px;
     border-radius: 3px;
-    min-width: 150px; /* Better minimum width */
+    min-width: 150px;
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -135,48 +129,42 @@ tr:nth-child(4n+2) {
 }
 
 select, input[type="text"] {
-    width: calc(100% - 12px); /* Adjust for padding/border */
+    width: calc(100% - 12px);
     box-sizing: border-box;
     padding: 6px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    font-family: inherit; /* Match font */
-    font-size: 1em;
+    font-family: inherit; 
 }
 
-/* --- Radio Button Styles --- */
-.radio-container {
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens if needed */
+input[type="search"] {
+    width: calc(100% - 12px);
+    box-sizing: border-box;
+    padding: 6px;
+    border: none;
+    font-family: inherit; 
+    height: 40px;
+    background: #fff2;
+    color: white;
+    font-size: 11pt;
+    font-style: italic;
+    margin: 6px
 }
-
-.radio-container label:not(.radio-inline) {
-    font-weight: bold;
-    margin-right: 10px;
-    min-width: 150px; /* Give labels some space */
-    display: inline-block;
+input[type="number"] {
+    height: 28px;
+    width: 60px;
+    background: #fff2;
+    color: white;
+    font-size: 10.5pt;
+    border: none;
+    padding: 4px 8px;
+    margin: 0 6px;
 }
-
-.radio-inline {
-    display: inline-flex; /* Align items nicely */
-    align-items: center;
-    margin-right: 15px; /* Space between radio groups */
-    cursor: pointer;
-    font-weight: normal;
-}
-
-.radio-inline input[type="radio"] {
-    margin-right: 5px;
-    transform: scale(1.2); /* Slightly larger radio buttons */
-}
-
 
 .save-btn {
     margin-top: 15px;
     padding: 10px 20px;
-    background-color: #27ae60; /* Green save button */
+    background-color: #27ae60; 
     color: white;
     border: none;
     border-radius: 4px;
@@ -193,165 +181,87 @@ select, input[type="text"] {
 }
 
 .save-btn:active {
-     transform: translateY(1px); /* Subtle click effect */
-}
-
-.json-display {
-    font-family: 'Courier New', Courier, monospace;
-    white-space: pre-wrap;
-    background-color: #f0f0f0;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    max-height: 200px;
-    overflow-y: auto;
-    margin-top: 10px;
+     transform: translateY(1px); 
 }
 
 .edit-section {
-    /*! border-top: 1px solid #eee; */
     margin-top: 15px;
     padding-top: 15px;
 }
 
-.edit-section h3, .edit-section h4 {
-    color: #2c3e50;
-    margin-top: 10px;
-    margin-bottom: 10px;
-}
-
-/* Improve form layout */
 form label {
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
 }
-
 form input[type="text"] {
     margin-bottom: 10px;
 }
 
 .changed-cell, .changed-by-cell {
-    font-size: 0.9em; /* Slightly smaller font for audit info */
-    color: #7f8c8d; /* Gray color */
+    font-size: 0.9em; 
+    color: #7f8c8d; 
 }
 
-
-
-
-
-/* Style for status summary cells */
 .status-cell{
     text-align: center;
-    font-size: 1.5em; /* Make symbols larger */
-    padding: 4px;   /* Reduce padding for tighter cells */
-    width: 25px;    /* Fixed width for status cells */
+    font-size: 1.5em;
+    padding: 4px;  
+    width: 25px;   
 }
 
-/* --- New styles for clickable status cells --- */
-/* Add a class to headers that are for editable columns */
 
-/* Make status cells look clickable */
-.editable-status {
-    cursor: pointer; /* Pointer cursor */
-    transition: background-color 0.2s, transform 0.1s; /* Smooth transition */
-    border-radius: 3px; /* Slightly rounded corners */
+.editable-status, .editable-verify {
+    cursor: pointer; 
+    transition: background-color 0.2s, transform 0.1s; 
+    border-radius: 3px; 
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    -webkit-user-select: none; /* Prevent text selection */
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
-
-/* Hover effect for clickable status cells */
-.editable-status:hover {
-    background-color: #d6eaf8; /* Light blue background on hover */
-    transform: scale(1.1); /* Slightly enlarge on hover */
+.editable-status:hover, .editable-verify:hover  {
+    background-color: #d6eaf8; 
+    transform: scale(1.1);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
-/* Active/click effect */
-.editable-status:active {
-    transform: scale(0.95); /* Slightly shrink on click */
-    background-color: #aed6f1; /* Darker blue on active */
+.editable-status:active, .editable-verify:active  {
+    transform: scale(0.95); 
+    background-color: #aed6f1; 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* --- Styles for Detail Row Grid Layout (Replaces Flexbox) --- */
-
-/* The container for the detail content, now using grid */
 .detail-flex-container {
-    /* Initial collapsed state */
     max-height: 0;
-    overflow: hidden; /* Crucial for clipping content */
-    /* Animation definition */
+    overflow: hidden;
     transition: max-height 0.25s ease-in-out, opacity 0.3s ease-in-out;
     
-    /* Grid setup */
     display: grid;
-    /* Define explicit columns: two fractions (adjust fr values as needed) */
     grid-template-columns: 640px 1fr 1fr;
-    /* Adjust rows as needed, auto for flexible height */
     grid-template-rows: auto; 
-    /* Optional: Define named grid areas for clarity */
-    /*
-    grid-template-areas: 
-        "content edit";
-    */
-    gap: 15px; /* Space between grid items */
+    
+    gap: 15px; 
     box-sizing: border-box;
     width: 100%;
-    padding: 0 20px; /* Keep side padding */
+    padding: 0 20px;
     margin: 0;
 }
 
-/* Make each section fit into the grid */
 .detail-content, .detail-edit {
-    /* If using grid-template-areas, assign areas */
-    /*
-    grid-area: content; 
-    */
-    /* Or simply let them flow into columns */
-    /* Flex properties are removed as we are using Grid */
-    
-    /* Keep styling */
-    min-width: 0; /* Allows text to shrink/overflow correctly */
+    min-width: 0; 
     padding: 10px;
     box-sizing: border-box;
-    /* Optional individual section styling (uncomment if needed) */
-    /* border: 1px solid #eee;
-    border-radius: 4px;
-    background-color: #fafafa; */
 }
 
-/* Assign the .detail-edit section to the second column if using grid-area */
-/*
-.detail-edit {
-    grid-area: edit;
-}
-*/
-
-/* Ensure text within detail sections wraps correctly */
-.detail-content p, .detail-edit p, .detail-edit label {
-    text-align: justify; /* Or left, as preferred */
-    white-space: normal; /* Allow text wrapping */
-    margin-bottom: 0.5em; /* Add space between paragraphs/labels */
+.detail-content p, .detail-edit p{
+    text-align: justify; 
+    white-space: normal;
+    margin-bottom: 0.5em; 
 }
 
-/* Ensure input and button widths behave nicely */
 .detail-edit input[type="text"] {
-    width: 100%; /* Make input take full width of its grid cell */
-    min-width: 150px; /* Ensure a minimum width */
-    box-sizing: border-box; /* Include padding/border in width */
+    width: 100%; 
+    min-width: 150px; 
+    box-sizing: border-box; 
     padding: 6px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -360,8 +270,8 @@ form input[type="text"] {
 }
 
 .detail-edit .save-btn {
-    width: auto; /* Let button size to content or be defined by padding */
-    margin-top: 10px; /* Add space above the button */
+    width: auto; 
+    margin-top: 10px; 
     padding: 10px 20px;
     background-color: #27ae60;
     color: white;
@@ -383,45 +293,39 @@ form input[type="text"] {
     transform: translateY(1px);
 }
 
-/* Base style for the detail row - it's always a table row */
-.detail-row {
-    display: table-row;
-    background-color: #ffffff;
-    padding: 0; /* Remove any default padding */
-}
-
-/* The cell inside the detail row needs overflow hidden to clip content */
 .detail-row > td {
-    padding: 0; /* Important: Remove default padding */
+    padding: 0;
 }
 
-/* Expanded state for the container */
 .detail-row.expanded .detail-flex-container {
-    /* Set a large enough max-height for your content.
-       You might need to adjust this based on typical content height.
-       Consider if 1000px is enough. */
-    max-height: 1000px; 
+    max-height: 3000px; 
     opacity: 1;
-    /* Optional: Different transition for expansion */
     transition: max-height 0.5s ease-in-out, opacity 0.4s ease-in-out;
     border-bottom: 1px solid #e0e0e0; 
-    padding: 0 20px; /* Ensure padding is applied when expanded */
+    padding: 0 20px; 
 }
 
-/* --- Keep other existing styles like .detail-row, .detail-content p, etc. --- */
-/* (They remain the same as in your original CSS) */
 .detail-content, .detail-edit {
-    flex: 1 1 300px;
     min-width: 0;
     box-sizing: border-box;
 }
 
-.detail-content p, .detail-edit p, .detail-edit label {
+.detail-edit{
+    grid-column: 3/4;
+    grid-row: 1/3;
+}
+.detail-content p, .detail-edit p {
     text-align: justify;
     white-space: normal;
     margin-bottom: 0.5em;
 }
 
+textarea{
+    display: block;
+    width: 100%;
+    min-width: 100%;
+    
+}
 .detail-edit input[type="text"] {
     width: 100%;
     min-width: 150px;
@@ -462,9 +366,98 @@ a{
     color: #227
 }
 
- .table-container { /*não funciona junto com sticky*/
-    /*border-radius: 8px;
-    overflow: hidden;
-    */ box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    border: 1px solid #427982;
-} 
+
+th.inferred-header {
+    background-color: hsl(167, 22%, 44%);
+    box-shadow: inset 0 -0px 0px 1px #21504466;
+}
+
+/* --- Filter Item Styles --- */
+
+.filter-item {
+    display: inline-flex; /* Use flexbox for better alignment control */
+    align-items: center;  /* Align items vertically in the center */
+    white-space: nowrap;  /* Prevent wrapping within a single filter item */
+    /* Add padding if needed for internal spacing */
+    padding: 5px;
+    font-size: 11pt;
+}
+
+/* Optional: Adjust vertical alignment of the checkbox itself if needed */
+.filter-item input[type="checkbox"] {
+    /* transform: translateY(16px); */ /* You might be able to reduce or remove this */
+    margin-right: 5px; /* Add a small space between checkbox and label */
+    /* Adjust height/width if necessary, or remove the large height if it causes misalignment */
+    width: 36px;
+    height: 36px;
+    opacity: 0.2;
+}
+.filter-item input[type="checkbox"]:checked {
+    opacity: 1;
+    filter: invert() hue-rotate(120deg)
+}
+
+/* Optional: Adjust label alignment if needed */
+.filter-item label {
+    margin-bottom: 0; /* Override any default margin-bottom on labels */
+    /* line-height can help align text with the checkbox if needed */
+    /* line-height: 1.5; */
+}
+
+
+/* --- Add this rule for filtering --- */
+tr.filter-hidden {
+    display: none;
+}
+/* --- End of new rule --- */
+
+
+/* --- Sticky Footer Styles --- */
+#counts-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 998; /* Below header */
+}
+
+#counts-footer tr {
+    background-color: #427982; /* Match header background */
+    color: white;
+    font-weight: bold;
+}
+
+#counts-footer td {
+    padding: 8px;
+    text-align: center; /* Center the counts */
+    box-shadow: inset 0 0px 0px 1px #115e5a66; /* Match header border */
+    font-size: 9.5pt;
+    min-width: 29px; /* Match header min-width */
+}
+
+
+/* --- Styles for Reasoning Traces --- */
+
+/* Container for the trace content within the detail row */
+.trace-content {
+    /* Preserves whitespace and line breaks like <pre> */
+    white-space: pre-wrap;
+    /* Allows long lines to wrap within the container */
+    word-wrap: break-word; /* For older browser support, though word-break is often sufficient now */
+    word-break: break-word; /* Breaks long words if necessary to fit container width */
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+/* Ensures the trace container gets enough space in the flex/grid layout */
+.detail-evaluator-trace,
+.detail-verifier-trace {
+    /* You might adjust flex-basis or width if needed, e.g., flex-basis: 100%; */
+    /* For grid, you might need grid-column: span X; depending on your grid setup */
+    /* Let's assume the parent flex container handles wrapping adequately for now */
+    /* If traces need more specific sizing, add it here */
+    flex-basis: 100%; /* Forces full width on new line(s) within flex container, adjust if needed */
+    min-width: 0; /* Allows the content to shrink below its intrinsic width if necessary */
+}

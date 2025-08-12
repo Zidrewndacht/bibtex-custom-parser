@@ -9,12 +9,11 @@ import os
 
 # BIBTEX_FILE = "all.bib" # não implementado em import_bibtex
 
-# LLM_SERVER_URL = "http://localhost:8080/v1/chat/completions" # Default endpoint
-LLM_SERVER_URL = "http://localhost:8080" # Default endpoint
+LLM_SERVER_URL = "http://localhost:8080"
 
 MAX_CONCURRENT_WORKERS = 8 # Match your server slots
-DATABASE_FILE = "all.sqlite"
-GRAMMAR_FILE = "" #"output.gbnf"
+DATABASE_FILE = "acm.sqlite"
+GRAMMAR_FILE = "" #"output.gbnf" #disabled for reasoning models.
 PROMPT_TEMPLATE = "prompt_template-think.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
 
@@ -147,3 +146,66 @@ def load_grammar(grammar_path):
     except Exception as e:
         print(f"Error reading grammar file '{grammar_path}': {e}")
         raise
+
+def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, model_name="default", is_verification=False):
+    """
+    Sends a prompt to the LLM via the OpenAI-compatible API. 
+    Returns (content_str, model_name_used, reasoning_trace).
+    """
+    if server_url_base is None:
+        server_url_base = LLM_SERVER_URL  # Now this will work
+    
+    chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt_text}],
+        "temperature": 0.6,
+        "top_p": 0.95, 
+        "top_k": 20, 
+        "min_p": 0,
+        "max_tokens": 32768,
+        "stream": False
+    }
+    if grammar_text:
+        payload["grammar"] = grammar_text
+    
+    context = "verification " if is_verification else ""
+    
+    try:
+        if is_shutdown_flag_set():
+            return None, None, None
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=600)
+        if is_shutdown_flag_set():
+            return None, None, None
+        response.raise_for_status()
+        response_data = response.json()
+        
+        model_name_from_response = response_data.get('model', model_name)
+        if 'choices' in response_data and response_data['choices']:
+            # Extract reasoning_content safely
+            reasoning_content = None
+            message = response_data['choices'][0]['message']
+            if 'reasoning_content' in message:
+                reasoning_content = message.get('reasoning_content', '').strip()
+            content = message.get('content', '').strip()
+            return content, model_name_from_response, reasoning_content
+        else:
+            print(f"Warning: Unexpected LLM {context}response structure: {response_data}")
+            return None, model_name_from_response, None
+    except requests.exceptions.RequestException as e:
+        if is_shutdown_flag_set():
+            return None, None, None
+        print(f"Error sending {context}request to LLM server: {e}")
+        if hasattr(e, 'response') and e.response:
+            print(f"Response Text: {e.response.text}")
+        return None, None, None
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON {context}response: {e}")
+        if 'response' in locals():
+            print(f"Response Text: {response.text}")
+        return None, None, None
+    except KeyError as e:
+        print(f"Unexpected {context}response structure, missing key: {e}")
+        print(f"Response Data: {response_data}")
+        return None, None, None

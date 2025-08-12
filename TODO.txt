@@ -30,13 +30,22 @@ OK        Filter out short papers
 OK        Filter out offtopic
 
 OK    Add quick stats (totals at the end of the table)
-    
-    Try to import full text of papers?
+OK        Also add counter of total papers and total filtered papers
+OK    Remove signal handler + set_flags, etc. from automate_classification.py
+OK    Change "changed by" to icon instead of model name, consistent with "verified by"
+OK    Fix bogus table shading after filtering
 
-    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
 
     Import from GUI?
     Send to LLM from GUI
         Reprocess all?
-        Reprocess this line from detail row?
+        Reprocess remaining?
+        Verify remaining
+        "Classify this paper" from detail row?
+        "Verify this paper" from detail row?
     Export stats to Excel?
+
+    Try to import full text of papers?
+        Maybe not, even if technically feasible, due to copyright concerns, etc.
+
+    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.

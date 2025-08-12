@@ -16,7 +16,7 @@ features:  # true, false, null for unknown/unclear. Identify the types of defect
     holes: null
     other: null 	#"string with other types of error detection"
 technique: # 
-    classic_computer_graphics_based: null # for general pattern recognition techniques that do not leverage machine learning
+    classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning
     machine_learning_based: null
     hybrid: null
     model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
@@ -41,12 +41,12 @@ Below are some example outputs, from random papers, for structure reference only
     "other": null
   }},
   "technique": {{
-    "classic_computer_graphics_based": false,
+    "classic_computer_vision_based": false,
     "machine_learning_based": true,
     "hybrid": true,
     "model": "YOLOv2, ResNet-101, Faster RCNN, Feature Pyramid Network (FPN)"
   }},
-  "available_dataset": null
+  "available_dataset": true
 }}
 
 {{
@@ -66,7 +66,7 @@ Below are some example outputs, from random papers, for structure reference only
     "other": null
   }},
   "technique": {{
-    "classic_computer_graphics_based": false,
+    "classic_computer_vision_based": false,
     "machine_learning_based": true,
     "hybrid": false,
     "model": "beta-variational autoencoder (beta-VAE)"
@@ -91,7 +91,7 @@ Below are some example outputs, from random papers, for structure reference only
     "other": null
   }},
   "technique": {{
-    "classic_computer_graphics_based": null,
+    "classic_computer_vision_based": null,
     "machine_learning_based": null,
     "hybrid": null,
     "model": null

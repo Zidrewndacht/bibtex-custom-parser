@@ -2,7 +2,6 @@
 import sqlite3
 import json
 import argparse
-import requests
 import time
 import os
 from datetime import datetime
@@ -17,18 +16,6 @@ import globals  #globals.py for global settings and variables used by multiple f
 # Using a simple boolean guarded by a lock for absolute immediacy
 shutdown_lock = threading.Lock()
 shutdown_flag = False
-
-def set_shutdown_flag():
-    """Sets the global shutdown flag to True in a thread-safe manner."""
-    global shutdown_flag
-    with shutdown_lock:
-        shutdown_flag = True
-
-def is_shutdown_flag_set():
-    """Checks the global shutdown flag in a thread-safe manner."""
-    global shutdown_flag
-    with shutdown_lock:
-        return shutdown_flag
 
 def build_prompt(paper_data, template_content):
     """Builds the prompt string for a single paper using a loaded template."""
@@ -107,70 +94,15 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
     conn.close()
     return rows_affected > 0
 
-def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=globals.LLM_SERVER_URL, model_name="default"):
-    """Sends a prompt to the LLM via the OpenAI-compatible API. Returns (content_str, model_name_used)."""
-    chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "model": model_name,
-        "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6,
-        "top_p": 0.95, 
-        "top_k": 20, 
-        "min_p":0,
-        "max_tokens": 32768,
-        "stream": False
-    }
-    if grammar_text:
-        payload["grammar"] = grammar_text
-    
-    try:
-        if is_shutdown_flag_set():
-            return None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=600)
-        if is_shutdown_flag_set():
-            return None, None
-        response.raise_for_status()
-        response_data = response.json()
-        model_name_from_response = response_data.get('model', model_name)
-        if 'choices' in response_data and response_data['choices']:
-            reasoning_content = response_data['choices'][0]['message'].get('reasoning_content', '').strip()
-            content = response_data['choices'][0]['message']['content'].strip()
-            return content, model_name_from_response, reasoning_content
-        else:
-            print(f"Warning: Unexpected LLM response structure: {response_data}")
-            return None, model_name_from_response
-    except requests.exceptions.RequestException as e:
-        if is_shutdown_flag_set():
-            return None, None
-        print(f"Error sending request to LLM server: {e}")
-        if hasattr(e, 'response') and e.response:
-            print(f"Response Text: {e.response.text}")
-        return None, None
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON response: {e}")
-        if 'response' in locals():
-            print(f"Response Text: {response.text}")
-        return None, None
-    except KeyError as e:
-        print(f"Unexpected response structure, missing key: {e}")
-        print(f"Response Data: {response_data}")
-        return None, None
-
-def signal_handler(sig, frame):
-    print("\nReceived Ctrl+C. Killing all threads...")
-    set_shutdown_flag()
-    os._exit(1)
-
 def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias):
     """Worker function executed by each thread."""
     while True:
-        if is_shutdown_flag_set():
+        if globals.is_shutdown_flag_set():
             return
         try:
             paper_id = paper_id_queue.get_nowait()
         except queue.Empty:
-            if is_shutdown_flag_set():
+            if globals.is_shutdown_flag_set():
                 return
             time.sleep(0.1)
             continue
@@ -183,22 +115,29 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 continue
                 
             prompt_text = build_prompt(paper_data, prompt_template_content)
-            if is_shutdown_flag_set():
+            if globals.is_shutdown_flag_set():
                 return
                 
-            json_result_str, model_name_used, reasoning_trace = send_prompt_to_llm(
+            json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
                 prompt_text, 
                 grammar_text=grammar_content, 
                 server_url_base=globals.LLM_SERVER_URL, 
-                model_name=model_alias
+                model_name=model_alias,
+                is_verification=False
             )
             
-            if is_shutdown_flag_set():
+            if globals.is_shutdown_flag_set():
                 return
                 
             if json_result_str:
                 try:
                     llm_classification = json.loads(json_result_str)
+                    # Prepend model info to reasoning_trace
+                    if reasoning_trace:
+                        reasoning_trace = f"As classified by {model_name_used}\n\n{reasoning_trace}"
+                    else:
+                        reasoning_trace = f"As classified by {model_name_used}"
+
                     success = update_paper_from_llm(
                         db_path, 
                         paper_id, 
@@ -216,13 +155,13 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 except Exception as e:
                     print(f"[Thread-{threading.get_ident()}] Error updating DB for {paper_id}: {e}")
             else:
-                if not is_shutdown_flag_set():
+                if not globals.is_shutdown_flag_set():
                     print(f"[Thread-{threading.get_ident()}] No LLM response for {paper_id}")
         except Exception as e:
-            if not is_shutdown_flag_set():
+            if not globals.is_shutdown_flag_set():
                 print(f"[Thread-{threading.get_ident()}] Error processing {paper_id}: {e}")
         finally:
-            if is_shutdown_flag_set():
+            if globals.is_shutdown_flag_set():
                 return
             with progress_lock:
                 processed_count[0] += 1
@@ -250,7 +189,7 @@ if __name__ == "__main__":
     except Exception:
         exit(1)
 
-    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGINT, globals.signal_handler)
 
     grammar_content = None
     if args.grammar_file:
@@ -281,7 +220,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
         exit(1)
-        
+
     if not paper_ids:
         print("No papers found in database. Exiting.")
         exit(0)

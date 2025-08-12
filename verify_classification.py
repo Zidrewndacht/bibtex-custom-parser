@@ -2,10 +2,8 @@
 import sqlite3
 import json
 import argparse
-import requests
 import time
 import os
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import queue
 import threading
@@ -91,66 +89,6 @@ def update_paper_verification(db_path, paper_id, verification_result, verified_b
         conn.close()
     return rows_affected > 0
 
-def send_verification_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=globals.LLM_SERVER_URL, model_name="default"):
-    """
-    Sends a verification prompt to the LLM via the OpenAI-compatible API.
-    Returns (content_str, model_name_used, reasoning_trace).
-    """
-    chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "model": model_name,
-        "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6,
-        "top_p": 0.95, 
-        "top_k": 20, 
-        "min_p":0,
-        "max_tokens": 32768,
-        "stream": False
-    }
-    if grammar_text:
-        payload["grammar"] = grammar_text
-    try:
-        if globals.is_shutdown_flag_set():
-            return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=600)
-        if globals.is_shutdown_flag_set():
-            return None, None, None
-        response.raise_for_status()
-        response_data = response.json()
-        
-        # Print raw response for debugging
-        # print(f"[DEBUG] Raw LLM response: {json.dumps(response_data, indent=2)}")
-        
-        model_name_from_response = response_data.get('model', model_name)
-        if 'choices' in response_data and response_data['choices']:
-            # --- Extract reasoning_content more safely ---
-            reasoning_content = None
-            message = response_data['choices'][0]['message']
-            if 'reasoning_content' in message:
-                reasoning_content = message.get('reasoning_content', '').strip()
-            content = message.get('content', '').strip()
-            return content, model_name_from_response, reasoning_content
-        else:
-            print(f"Warning: Unexpected LLM verification response structure: {response_data}")
-            return None, model_name_from_response, None
-    except requests.exceptions.RequestException as e:
-        if globals.is_shutdown_flag_set():
-            return None, None, None
-        print(f"Error sending verification request to LLM server: {e}")
-        if hasattr(e, 'response') and e.response:
-            print(f"Response Text: {e.response.text}")
-        return None, None, None
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON verification response: {e}")
-        if 'response' in locals():
-            print(f"Response Text: {response.text}")
-        return None, None, None
-    except KeyError as e:
-        print(f"Unexpected verification response structure, missing key: {e}")
-        print(f"Response Data: {response_data}")
-        return None, None, None
-
 def process_paper_verification_worker(
     db_path, 
     grammar_content, 
@@ -220,11 +158,12 @@ def process_paper_verification_worker(
                 return
 
             # 3. Send prompt to LLM
-            json_result_str, model_name_used, reasoning_trace = send_verification_prompt_to_llm(
+            json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
                 prompt_text,
                 grammar_text=grammar_content,
                 server_url_base=globals.LLM_SERVER_URL,
-                model_name=model_alias
+                model_name=model_alias,
+                is_verification=True
             )
 
             if globals.is_shutdown_flag_set():
@@ -236,13 +175,18 @@ def process_paper_verification_worker(
                 try:
                     llm_verification_result = json.loads(json_result_str)
                     # 5. Update database with verification result
+                    # Prepend model info to reasoning_trace
+                    if reasoning_trace:
+                        reasoning_trace = f"As verified by {model_name_used}\n\n{reasoning_trace}"
+                    else:
+                        reasoning_trace = f"As verified by {model_name_used}"
 
                     success = update_paper_verification(
                         db_path,
                         paper_id,
                         llm_verification_result,
                         verified_by=model_name_used,
-                        reasoning_trace=reasoning_trace # Pass the reasoning_trace
+                        reasoning_trace=reasoning_trace
                     )
                     if success:
                         print(f"[Thread-{threading.get_ident()}] Verified paper {paper_id} (Model: {model_name_used})")

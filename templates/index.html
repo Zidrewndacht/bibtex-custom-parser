@@ -8,12 +8,34 @@
     <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
 </head>
 <body>
-    
+
+
 <div class="table-container"> <!-- Wrapper for horizontal scrolling -->
 <table id="papersTable">
     <thead>
         <tr>
-            <th colspan="6">PCB Inspection Papers Database</th><th colspan="6">Classification</th><th colspan="5">Features</th><th colspan="4">Techniques</th><th colspan="4">Status</th>
+            <th class="filter-header" colspan="2" rowspan="2">
+                <span class="filter-item">
+                    <input type="checkbox" id="hide-offtopic-checkbox">
+                    <label for="hide-offtopic-checkbox">Hide offtopic</label>
+                </span>
+            </th>
+            <th class="filter-header" colspan="4" rowspan="2">
+                <span class="filter-item">
+                    <input type="checkbox" id="hide-short-checkbox">
+                    <label for="hide-short-checkbox">Hide under</label> <input type="number" id="min-page-count" value="4" min="1"> <label for="min-page-count">pages</label>
+                </span>
+            </th>
+            <th class="inferred-header" colspan="15">NLP-Inferred data</th>
+            
+            <th colspan="6" rowspan="2">
+                <input type="search" id="search-input" placeholder="Type to search all fields...">
+            </th>
+        </tr>
+        <tr>
+            <th class="inferred-header" colspan="5">Classification</th>
+            <th class="inferred-header" colspan="6">Features</th>
+            <th class="inferred-header" colspan="4">Techniques</th>
         </tr>
         <tr>
             <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div></span><span class="sort-indicator"></span></th>
@@ -21,50 +43,59 @@
             <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
             <th data-sort="authors">Authors <span class="sort-indicator"></span></th>
             <th data-sort="year">Year <span class="sort-indicator"></span></th>
-            <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>
+            <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
+            <th data-sort="page_count">Page Count <span class="sort-indicator"></span></th>
+
 
             <!-- Classification Summary Columns -->
-            <th class="rotate-header" data-sort="research_area"><div><span>Research Area</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="is_survey"><div><span>Survey</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="is_offtopic"><div><span>Off-topic</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="is_through_hole"><div><span>THT</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="is_smt"><div><span>SMT</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="is_x_ray"><div><span>X-Ray</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><div><span>Off-topic</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><div><span>Survey</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><div><span>THT</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><div><span>SMT</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><div><span>X-Ray</span></div></th>
 
             <!-- Features Summary Columns -->
-            <th class="rotate-header status-header editable-header" data-sort="features_solder"><div><span>Solder</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="features_polarity"><div><span>Polarity</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_solder"><div><span>Solder</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_polarity"><div><span>Polarity</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes</span></div></th>
 
-            <!-- Techniques Summary Columns -->
-            <th class="rotate-header status-header editable-header" data-sort="technique_classic_computer_graphics_based"><div><span>Classic CG</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="technique_machine_learning_based"><div><span>ML</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
-            <th class="rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
+            <!-- Techniques Summary Columns --> 
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_classic_computer_vision_based"><div><span>Classic CV</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_machine_learning_based"><div><span>ML</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
 
             <th data-sort="changed" style="width:50px; min-width:50px; max-width:50px">Last Changed <span class="sort-indicator"></span></th>
             <th data-sort="changed_by" style="width:60px; min-width:60px; max-width:60px">Changed By <span class="sort-indicator"></span></th>
+            <th data-sort="verified" style="width:50px; min-width:50px; max-width:50px">Verified <span class="sort-indicator"></span></th>
+            <th data-sort="estimated_score" style="width:50px; min-width:50px; max-width:50px">Estimated Score <span class="sort-indicator"></span></th>
+            <th data-sort="verified_by" style="width:50px; min-width:50px; max-width:50px">Verified By <span class="sort-indicator"></span></th>
             <th style="width:50px; min-width:50px; max-width:50px">Actions</th>
         </tr>
     </thead>
     <tbody>
     {% for paper in papers %}
-        <tr data-paper-id="{{ paper.id }}">
+        <tr data-paper-id="{{ paper.id }}" >
             <!-- Use the emoji mapping passed from Python -->
-            <td class="status-cell title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }} </td>
-            <td class="title-cell"><a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a></td>
+            <td class="status-cell" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }} 
+            </td><td class="title-cell">
+                {% if paper.doi %}
+                    <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>
+                {% else %}
+                    {{ paper.title }}
+                {% endif %}
+            </td>
             <td class="secondary-text-cell">{{ paper.authors_truncated }}</td>
             <td class="secondary-text-cell">{{ paper.year or '' }}</td>
-            <td class="secondary-text-cell">{{ paper.journal }}</td>
+            <td class="secondary-text-cell">{{ paper.journal }}</td>        
+            <td class="secondary-text-cell">{{ paper.page_count or '' }}</td>
 
             <!-- Classification Summary Cells -->
-            <td class="secondary-text-cell research-area-cell">{{ paper.research_area or '' }}</td>
-            <!-- Add data-field and editable-status class -->
-            <td class="status-cell editable-status" data-field="is_survey">{{ paper.is_survey | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_offtopic">{{ paper.is_offtopic | render_status }}</td>
+            <td class="status-cell editable-status" data-field="is_survey">{{ paper.is_survey | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_through_hole">{{ paper.is_through_hole | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_smt">{{ paper.is_smt | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_x_ray">{{ paper.is_x_ray | render_status }}</td>
@@ -78,43 +109,115 @@
             <td class="status-cell editable-status" data-field="features_holes">{{ paper.features.holes | render_status }}</td>
 
             <!-- Techniques Summary Cells -->
-            <td class="status-cell editable-status" data-field="technique_classic_computer_graphics_based">{{ paper.technique.classic_computer_graphics_based | render_status }}</td>
+            <td class="status-cell editable-status" data-field="technique_classic_computer_vision_based">{{ paper.technique.classic_computer_vision_based | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_machine_learning_based">{{ paper.technique.machine_learning_based | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_hybrid">{{ paper.technique.hybrid | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_available_dataset">{{ paper.technique.available_dataset | render_status }}</td>
 
             <td class="secondary-text-cell changed-cell">{{ paper.changed_formatted }}</td> <!-- Use formatted timestamp -->
-            <td class="secondary-text-cell changed-by-cell">{{ paper.changed_by or '' }}</td>
-            <td class="toggle-btn"  onclick="toggleDetails(this)"><span>Expand</span></td>
+            <td class="status-cell changed-by-cell">{{ paper.changed_by | render_changed_by }}</td>            
+            <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
+            <td class="secondary-text-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
+            <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
+            <td class="toggle-btn" onclick="toggleDetails(this)"><span>Expand</span></td>
         </tr>
         <tr class="detail-row">
-            <td colspan="24"> <!-- Ensure colspan matches total header columns -->
-                <div class="detail-flex-container"> <!-- New wrapper for flex layout -->
+            <td colspan="27"> <!-- Ensure colspan matches total header columns -->
+                <div class="detail-flex-container">
                     <div class="detail-content detail-abstract">
                         <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
                     </div>
                     <div class="detail-content detail-metadata">
                         <p><strong>Keywords:</strong> {{ paper.keywords }}</p>
-                        <p><strong>DOI:</strong> <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a></p>
+                        <p><strong>Type:</strong> {{ paper.type }}</p>
+                        <p><strong>DOI:</strong>
+                            {% if paper.doi %}
+                                <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>
+                            {% else %}
+                                {{ paper.doi }}
+                            {% endif %}
+                        </p>
                         <p><strong>ISSN:</strong> {{ paper.issn }}</p>
                         <p><strong>Pages:</strong> {{ paper.pages }}</p>
                         <p><strong>ID:</strong> {{ paper.id }}</p> <!-- Show ID in details -->
                         <p><strong>Full Authors:</strong> {{ paper.authors }}</p> <!-- Show full authors in details -->
                     </div>
                     <div class="edit-section detail-edit">
-                        <h3>Edit Classification</h3>
                         <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
                             <label>Research Area:
                                 <input type="text" class="editable" name="research_area" value="{{ paper.research_area or '' }}">
-                            </label><br>
+                            </label>
+                            <label>Model Name:
+                                <input type="text" class="editable" name="model_name" value="{{ paper.model or '' }}">
+                            </label>
+                            <label>Other error detection features:
+                                <input type="text" class="editable" name="features_other" value="{{ paper.features_other or '' }}">
+                            </label>
+                            <label>Page count:
+                                <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
+                            </label>
+                            <label>User comments:
+                                <textarea class="editable" name="user_trace" value="{{ paper.user_trace or '' }}"></textarea>
+                            </label>
                             <button type="button" class="save-btn" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
                         </form>
                     </div>
+
+                    <!-- NEW (Updated): Evaluator Reasoning Trace Section -->
+                    <div class="detail-content detail-trace detail-evaluator-trace">
+                        <p><strong>Evaluator Reasoning Trace:</strong> </p>
+                        <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
+                        <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div>
+                    </div>
+
+                    <!-- NEW (Updated): Verifier Reasoning Trace Section -->
+                    <div class="detail-content detail-trace detail-verifier-trace">
+                        <p><strong>Verifier Reasoning Trace:</strong></p>
+                        <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
+                        <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div>
+                    </div>
+
                 </div>
             </td>
         </tr>
     {% endfor %}
     </tbody>
+    <tfoot id="counts-footer">
+        <tr>
+            <!-- Empty cells to align with non-count columns -->
+            <td></td> <!-- Type -->
+            <td id="visible-count-cell">Totals:</td> <!-- Title -->
+            <td></td> <!-- Authors -->
+            <td></td> <!-- Year -->
+            <td></td> <!-- Journal -->
+            <td></td> <!-- Page Count -->
+            <!-- Classification Counts -->
+            <td id="count-is_offtopic" class="count-cell"></td>
+            <td id="count-is_survey" class="count-cell"></td>
+            <td id="count-is_through_hole" class="count-cell"></td>
+            <td id="count-is_smt" class="count-cell"></td>
+            <td id="count-is_x_ray" class="count-cell"></td>
+            <!-- Features Counts -->
+            <td id="count-features_solder" class="count-cell"></td>
+            <td id="count-features_polarity" class="count-cell"></td>
+            <td id="count-features_wrong_component" class="count-cell"></td>
+            <td id="count-features_missing_component" class="count-cell"></td>
+            <td id="count-features_tracks" class="count-cell"></td>
+            <td id="count-features_holes" class="count-cell"></td>
+            <!-- Techniques Counts -->
+            <td id="count-technique_classic_computer_vision_based" class="count-cell"></td>
+            <td id="count-technique_machine_learning_based" class="count-cell"></td>
+            <td id="count-technique_hybrid" class="count-cell"></td>
+            <td id="count-technique_available_dataset" class="count-cell"></td>
+            <!-- Empty cells for remaining columns -->
+            <td></td> <!-- Last Changed -->
+            <td></td> <!-- Changed By -->
+            <td></td> <!-- Verified -->
+            <td></td> <!-- Estimated Score -->
+            <td></td> <!-- Verified By -->
+            <td></td> <!-- Actions -->
+        </tr>
+    </tfoot>
 </table>
 </div> <!-- End table-container -->
 
