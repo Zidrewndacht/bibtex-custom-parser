@@ -779,6 +779,8 @@ document.addEventListener('DOMContentLoaded', function () {
                              // Assuming render_verified_by function exists or create one based on Python logic
                              verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                         }
+                        const estimatedScoreCell = row.cells[24];
+                        if (estimatedScoreCell) estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
 
                         const pageCountCell = row.cells[5]; // Assuming page_count is column index 5
                         if (pageCountCell) pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
@@ -868,6 +870,12 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
                 }
                 if (data.changed_by !== undefined) {
                     mainRow.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
+                }
+                if (data.estimated_score !== undefined) {
+                     const estimatedScoreCell = mainRow.cells[24]; 
+                     if (estimatedScoreCell) {
+                         estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
+                     }
                 }
             }
             updateCounts();

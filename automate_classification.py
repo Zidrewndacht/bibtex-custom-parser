@@ -12,7 +12,6 @@ import signal
 
 import globals  #globals.py for global settings and variables used by multiple files.
 
-# --- Global Flag for Instant Shutdown (using Lock for atomicity) ---
 # Using a simple boolean guarded by a lock for absolute immediacy
 shutdown_lock = threading.Lock()
 shutdown_flag = False
@@ -106,7 +105,7 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 return
             continue
 
-        # Poison pill - time to exit
+        # Poison pill - time to die
         if paper_id is None:
             return
 
@@ -256,7 +255,6 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
             print("No papers found matching the criteria. Nothing to process.")
             return True
 
-        # ✅ ONLY SET UP THE QUEUE ONCE
         paper_id_queue = queue.Queue()
         for pid in paper_ids:
             paper_id_queue.put(pid)
@@ -268,11 +266,6 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
         return False
-
-    # ✅ REMOVE THIS DUPLICATE QUEUE SETUP
-    # paper_id_queue = queue.Queue()  # ← DELETE THIS LINE
-    # for pid in paper_ids:           # ← DELETE THIS LINE  
-    #     paper_id_queue.put(pid)     # ← DELETE THIS LINE
 
     progress_lock = threading.Lock()
     processed_count = [0]
@@ -300,7 +293,6 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
             
             print("Processing started. Press Ctrl+C to abort.")
             
-            # Wait for completion
             while not globals.is_shutdown_flag_set():
                 if all(f.done() for f in futures):
                     break
@@ -327,7 +319,7 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
         print("Classification run finished.")
         return not globals.is_shutdown_flag_set()
     
-# --- UPDATED MAIN BLOCK ---
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate LLM classification for papers in the database.')
     parser.add_argument('--mode', '-m', choices=['all', 'remaining', 'id'], default='remaining',
@@ -343,13 +335,11 @@ if __name__ == "__main__":
                        help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
     args = parser.parse_args()
 
-    # --- CRITICAL: Set the global signal handler here ---
     signal.signal(signal.SIGINT, globals.signal_handler)
 
     if args.mode == 'id' and args.paper_id is None:
         parser.error("--mode 'id' requires --paper_id to be specified.")
 
-    # Call the extracted function with parsed arguments
     success = run_classification(
         mode=args.mode,
         paper_id=args.paper_id,

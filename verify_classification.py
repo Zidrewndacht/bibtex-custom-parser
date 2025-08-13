@@ -110,7 +110,7 @@ def process_paper_verification_worker(
                 return
             continue
 
-        # Poison pill - time to exit
+        # Poison pill - time to die
         if paper_id is None:
             return
 
@@ -158,9 +158,6 @@ def process_paper_verification_worker(
             # 2. Build the verification prompt
             prompt_text = build_verification_prompt(paper_data, classification_data, verification_prompt_template_content)
             
-            # Print prompt for debugging (first few chars)
-            # print(f"[DEBUG] Prompt for {paper_id}: {prompt_text[:200]}...")
-
             if globals.is_shutdown_flag_set():
                 return
 
@@ -218,7 +215,6 @@ def process_paper_verification_worker(
                 processed_count[0] += 1
                 print(f"[Progress] Verified {processed_count[0]}/{total_papers} papers.")
 
-# --- NEW: Extracted Main Logic into a Function (Fixed Abort) ---
 def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file=None, prompt_template=None, server_url=None):
     """
     Runs the LLM verification process.
@@ -251,8 +247,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
         print(f"Error loading verification prompt template: {e}")
         return False
 
-    # signal.signal(signal.SIGINT, globals.signal_handler) # Set by main
-
     grammar_content = None
     if grammar_file:
         try:
@@ -282,13 +276,11 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
                 conn.close()
                 return False
             print(f"Fetching specific paper ID: {paper_id} for verification...")
-            # ✅ FIX: Make it a tuple with comma
             cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
             if not cursor.fetchone():
                  print(f"Warning: Paper ID {paper_id} not found or not classified.")
                  conn.close()
                  return True
-            # ✅ FIX: Make it a tuple with comma (and remove duplicate query)
             cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
         else: # Default to 'remaining'
             print("Fetching classified but unverified papers...")
@@ -311,7 +303,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
         print("No papers found matching the verification criteria. Nothing to process.")
         return True
 
-    # ✅ ONLY SET UP THE QUEUE ONCE
     paper_id_queue = queue.Queue()
     for pid in paper_ids:
         paper_id_queue.put(pid)
@@ -345,7 +336,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
             
             print("Verification processing started. Press Ctrl+C to abort.")
             
-            # --- FIXED: Use a loop to wait, checking for shutdown flag ---
             while not globals.is_shutdown_flag_set():
                 if all(f.done() for f in futures):
                     break
@@ -369,7 +359,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
         print("Verification run finished.")
         return not globals.is_shutdown_flag_set()
     
-# --- UPDATED MAIN BLOCK ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Verify LLM classifications for papers in the database.')
     parser.add_argument('--mode', '-m', choices=['all', 'remaining', 'id'], default='remaining',
@@ -385,7 +374,6 @@ if __name__ == "__main__":
                        help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
     args = parser.parse_args()
 
-    # --- CRITICAL: Set the global signal handler here ---
     signal.signal(signal.SIGINT, globals.signal_handler)
 
     if args.mode == 'id' and args.paper_id is None:
