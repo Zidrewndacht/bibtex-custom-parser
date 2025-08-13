@@ -3,6 +3,12 @@
 // --- New Global Variables for Batch Status ---
 let isBatchRunning = false; // Simple flag to prevent multiple simultaneous batches
 
+// --- Filtering Logic ---
+const searchInput = document.getElementById('search-input');
+const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
+const hideShortCheckbox = document.getElementById('hide-short-checkbox');
+const minPageCountInput = document.getElementById('min-page-count');
+
 // --- Utility Functions ---
 function toggleDetails(element) {   //OK
     const row = element.closest('tr'); // Get the main row
@@ -291,7 +297,88 @@ function applyJournalShading(journalCounts, rows) {
 
 
 
+function applyFilters() {
+    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const hideOfftopic = hideOfftopicCheckbox ? hideOfftopicCheckbox.checked : false;
+    const hideShort = hideShortCheckbox ? hideShortCheckbox.checked : false;
+    const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
 
+    const tbody = document.querySelector('#papersTable tbody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr[data-paper-id]');
+
+    rows.forEach(row => {
+        let showRow = true;
+        const paperId = row.getAttribute('data-paper-id');
+        let detailRow = null;
+        if (paperId) {
+            let nextSibling = row.nextElementSibling;
+            while (nextSibling && !nextSibling.classList.contains('detail-row')) {
+                if (nextSibling.hasAttribute('data-paper-id')) break; // Stop if another main row is found
+                nextSibling = nextSibling.nextElementSibling;
+            }
+            if (nextSibling && nextSibling.classList.contains('detail-row')) {
+                detailRow = nextSibling;
+            }
+        }
+        if (showRow && searchTerm) {
+            let rowText = (row.textContent || '').toLowerCase();
+            let detailText = (detailRow ? detailRow.textContent || '' : '').toLowerCase();
+            if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
+                showRow = false;
+            }
+        }
+        if (showRow && hideOfftopic) {
+            const offtopicCell = row.querySelector('.editable-status[data-field="is_offtopic"]');
+            if (offtopicCell && offtopicCell.textContent.trim() === '✔️') {
+                showRow = false;
+            }
+        }
+        if (showRow && hideShort) {
+            const pageCountCell = row.cells[5]; // Assuming page_count is the 6th column (index 5)
+            if (pageCountCell) {
+                const pageCountText = pageCountCell.textContent.trim();
+                const pageCount = pageCountText ? parseInt(pageCountText, 10) : NaN;
+                if (!isNaN(pageCount) && pageCount < minPageCountValue) {
+                    showRow = false;
+                }
+                // Optional: Hide if page count is empty/unknown when filtering by page count?
+                // else if (pageCountText === '') {
+                //     showRow = false;
+                // }
+            }
+        }
+
+        // --- Show/Hide Row and Detail Row ---
+        // Use classList.toggle for cleaner, more readable code
+        if (row) {
+            row.classList.toggle('filter-hidden', !showRow);
+        }
+        if (detailRow) {
+            // Detail row visibility should ideally follow the main row,
+            // but only if it's explicitly hidden by filters.
+            // If the main row is shown, the detail row's visibility should depend on its own 'expanded' state.
+            // However, for simplicity and to ensure it's hidden when the main row is filtered out,
+            // we can hide it here. The toggleDetails function handles the 'expanded' class.
+            // Let's keep it simple: if main row is hidden by filter, detail row is hidden by filter.
+            // If main row is shown by filter, detail row is shown by filter (but might be collapsed).
+            detailRow.classList.toggle('filter-hidden', !showRow);
+            // Important: Ensure the 'expanded' state is respected if the row becomes visible again.
+            // The 'expanded' class controls display:block for detail rows.
+            // If the row is shown by filter, we don't force 'expanded' off here.
+            // toggleDetails will manage the 'expanded' class.
+        }
+    });
+    // --- End of existing filtering loop ---
+
+    // --- Apply Journal Shading based on visible rows ---
+    const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+    const currentJournalCounts = calculateJournalFrequencies(currentVisibleRows);
+    applyJournalShading(currentJournalCounts, currentVisibleRows);
+    // --- End of Journal Shading ---
+    updateCounts(); 
+    applyAlternatingShading();
+}
 
 
 
@@ -300,98 +387,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const headers = document.querySelectorAll('th[data-sort]');
     let currentClientSort = { column: null, direction: 'ASC' }; 
 
-    // --- Filtering Logic ---
-    const searchInput = document.getElementById('search-input');
-    const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
-    const hideShortCheckbox = document.getElementById('hide-short-checkbox');
-    const minPageCountInput = document.getElementById('min-page-count');
-
     if (hideOfftopicCheckbox) hideOfftopicCheckbox.checked = false;
     if (hideShortCheckbox) hideShortCheckbox.checked = false;
-
-    function applyFilters() {
-        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-        const hideOfftopic = hideOfftopicCheckbox ? hideOfftopicCheckbox.checked : false;
-        const hideShort = hideShortCheckbox ? hideShortCheckbox.checked : false;
-        const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
-
-        const tbody = document.querySelector('#papersTable tbody');
-        if (!tbody) return;
-        const rows = tbody.querySelectorAll('tr[data-paper-id]');
-
-        rows.forEach(row => {
-            let showRow = true;
-            const paperId = row.getAttribute('data-paper-id');
-            let detailRow = null;
-            if (paperId) {
-                let nextSibling = row.nextElementSibling;
-                while (nextSibling && !nextSibling.classList.contains('detail-row')) {
-                   if (nextSibling.hasAttribute('data-paper-id')) break; // Stop if another main row is found
-                   nextSibling = nextSibling.nextElementSibling;
-                }
-                if (nextSibling && nextSibling.classList.contains('detail-row')) {
-                    detailRow = nextSibling;
-                }
-            }
-            if (showRow && searchTerm) {
-                let rowText = (row.textContent || '').toLowerCase();
-                let detailText = (detailRow ? detailRow.textContent || '' : '').toLowerCase();
-                if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
-                    showRow = false;
-                }
-            }
-            if (showRow && hideOfftopic) {
-                const offtopicCell = row.querySelector('.editable-status[data-field="is_offtopic"]');
-                if (offtopicCell && offtopicCell.textContent.trim() === '✔️') {
-                    showRow = false;
-                }
-            }
-            if (showRow && hideShort) {
-                const pageCountCell = row.cells[5]; // Assuming page_count is the 6th column (index 5)
-                if (pageCountCell) {
-                    const pageCountText = pageCountCell.textContent.trim();
-                    const pageCount = pageCountText ? parseInt(pageCountText, 10) : NaN;
-                    if (!isNaN(pageCount) && pageCount < minPageCountValue) {
-                        showRow = false;
-                    }
-                    // Optional: Hide if page count is empty/unknown when filtering by page count?
-                    // else if (pageCountText === '') {
-                    //     showRow = false;
-                    // }
-                }
-            }
-
-            // --- Show/Hide Row and Detail Row ---
-            // Use classList.toggle for cleaner, more readable code
-            if (row) {
-                row.classList.toggle('filter-hidden', !showRow);
-            }
-            if (detailRow) {
-                // Detail row visibility should ideally follow the main row,
-                // but only if it's explicitly hidden by filters.
-                // If the main row is shown, the detail row's visibility should depend on its own 'expanded' state.
-                // However, for simplicity and to ensure it's hidden when the main row is filtered out,
-                // we can hide it here. The toggleDetails function handles the 'expanded' class.
-                // Let's keep it simple: if main row is hidden by filter, detail row is hidden by filter.
-                // If main row is shown by filter, detail row is shown by filter (but might be collapsed).
-                detailRow.classList.toggle('filter-hidden', !showRow);
-                // Important: Ensure the 'expanded' state is respected if the row becomes visible again.
-                // The 'expanded' class controls display:block for detail rows.
-                // If the row is shown by filter, we don't force 'expanded' off here.
-                // toggleDetails will manage the 'expanded' class.
-            }
-        });
-        // --- End of existing filtering loop ---
-
-        // --- Apply Journal Shading based on visible rows ---
-        const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-        const currentJournalCounts = calculateJournalFrequencies(currentVisibleRows);
-        applyJournalShading(currentJournalCounts, currentVisibleRows);
-        // --- End of Journal Shading ---
-
-        updateCounts(); 
-        applyAlternatingShading();
-    }
 
     if (searchInput) {           searchInput.addEventListener('input', applyFilters);    }
     if (hideOfftopicCheckbox) {  hideOfftopicCheckbox.addEventListener('change', applyFilters);    }
@@ -406,7 +403,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Although defaults are off, good practice.
     applyFilters();
     
-
     // --- Single Event Listener for Headers (Handles Client-Side Sorting) ---
     headers.forEach(header => {
         header.addEventListener('click', function () {
@@ -484,24 +480,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             });
-            // Now re-append them in the sorted order
+                        
+            const fragment = document.createDocumentFragment(); // Off-DOM container
             rows.forEach(mainRow => {
                 const paperId = mainRow.getAttribute('data-paper-id');
                 const detailRow = paperId ? allDetailRows[paperId] : null;
-                tbody.appendChild(mainRow);
+                fragment.appendChild(mainRow); // Add main row to fragment
                 if (detailRow) {
-                    tbody.appendChild(detailRow);
+                    fragment.appendChild(detailRow); // Add detail row to fragment
                 }
             });
-            updateCounts(); // This updates counts after sorting
-            // Re-calculate and re-apply shading based on the CURRENT state of the table.
-            // We need to consider ALL main rows to determine visibility and counts correctly.
-            const allMainRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-            const currentJournalCountsAfterSort = calculateJournalFrequencies(allMainRows); // Count based on *all* rows' current visibility (filter-hidden class)
-            applyJournalShading(currentJournalCountsAfterSort, allMainRows); // Apply shading to *all* main rows based on the new counts and current visibility
-            // --- End of Journal Shading after sorting ---
+            tbody.appendChild(fragment); // Add all rows at once
+            
             applyAlternatingShading();
             currentClientSort = { column: sortBy, direction: newDirection };
+
             document.querySelectorAll('th .sort-indicator').forEach(ind => {
                 if (ind) ind.textContent = '';
             });
