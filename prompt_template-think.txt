@@ -2,7 +2,7 @@ Given the data from the specific paper at the end, fill in the following YAML st
 Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null:
 
 research_area: null #broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
-is_offtopic: null #We are looking for PCB automated defect detection papers. Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one. Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
+is_offtopic: null #We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one. Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
 is_survey: null #true for survey/review/etc., false for implementations, new research, etc.
 is_through_hole: null #true for papers that specify PTH, THT, etc., through-hole component mounting.
 is_smt: null #true for papers that specify surface-mount component mounting (SMD, SMT).
@@ -14,13 +14,13 @@ features:  # true, false, null for unknown/unclear. Identify the types of defect
     missing_component: null
     tracks: null	#any track error detection: split, short, etc.
     holes: null
-    other: null 	#"string with other types of error detection"
+    other: null 	#"string with other types of defect detection"
 technique: # 
     classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning
     machine_learning_based: null
     hybrid: null
     model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
-available_dataset: null #true if authors explicitly provide the datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+available_dataset: null #true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 
 Below are some example outputs, from random papers, for structure reference only:
 

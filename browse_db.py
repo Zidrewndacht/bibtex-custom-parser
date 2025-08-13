@@ -8,8 +8,14 @@ from markupsafe import Markup # Import Markup for safe HTML rendering
 import argparse
 import os
 import sys
+import threading # Import for background threads
 
 import globals
+
+# Import the classification and verification modules
+import automate_classification
+import verify_classification
+
 
 app = Flask(__name__)
 DATABASE = None # Will be set from command line argument
@@ -287,6 +293,55 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         return {'status': 'error', 'message': 'No rows updated. Paper ID might not exist or no changes were made.'}
 
 
+
+# --- New Helper Function to Fetch Updated Paper Data ---
+def fetch_updated_paper_data(paper_id):
+    """Fetches the full paper data after classification/verification for client-side update."""
+    conn = get_db_connection()
+    try:
+        updated_paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        if updated_paper:
+            updated_dict = dict(updated_paper)
+            try:
+                updated_dict['features'] = json.loads(updated_dict['features'])
+            except (json.JSONDecodeError, TypeError):
+                updated_dict['features'] = {}
+            try:
+                updated_dict['technique'] = json.loads(updated_dict['technique'])
+            except (json.JSONDecodeError, TypeError):
+                updated_dict['technique'] = {}
+            updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
+            
+            # Prepare data for frontend refresh (matching update_paper_custom_fields structure)
+            return_data = {
+                'status': 'success',
+                'changed': updated_dict.get('changed'),
+                'changed_formatted': updated_dict['changed_formatted'],
+                'changed_by': updated_dict.get('changed_by'),
+                'verified_by': updated_dict.get('verified_by'), # Include verified_by
+                # Include updated fields for frontend refresh
+                'research_area': updated_dict.get('research_area'),
+                'page_count': updated_dict.get('page_count'),
+                'is_survey': updated_dict.get('is_survey'),
+                'is_offtopic': updated_dict.get('is_offtopic'),
+                'is_through_hole': updated_dict.get('is_through_hole'),
+                'is_smt': updated_dict.get('is_smt'),
+                'is_x_ray': updated_dict.get('is_x_ray'),
+                'verified': updated_dict.get('verified'), # Include verified
+                'estimated_score': updated_dict.get('estimated_score'), # Include estimated_score
+                'features': updated_dict['features'], # Parsed dict
+                'technique': updated_dict['technique'], # Parsed dict
+                'reasoning_trace': updated_dict.get('reasoning_trace'), # Include traces
+                'verifier_trace': updated_dict.get('verifier_trace'),
+                'user_trace': updated_dict.get('user_trace') # Include user_trace if needed
+            }
+            return return_data
+        else:
+            return {'status': 'error', 'message': 'Paper not found after update.'}
+    finally:
+        conn.close()
+
+
 # --- Routes ---
 @app.route('/', methods=['GET'])
 def index():
@@ -320,6 +375,115 @@ def update_paper():
     except Exception as e:
         print(f"Error updating paper {paper_id}: {e}") # Log error
         return jsonify({'status': 'error', 'message': 'Failed to update database'}), 500
+
+
+# --- New Routes for Classification and Verification ---
+@app.route('/classify', methods=['POST'])
+def classify_paper():
+    """Endpoint to handle classification requests (single or batch)."""
+    data = request.get_json()
+    mode = data.get('mode', 'id') # Default to 'id' for single paper
+    paper_id = data.get('paper_id')
+    
+    # Determine DB file (use command-line arg or global default)
+    db_file = DATABASE 
+
+    def run_classification_task():
+        """Background task to run classification."""
+        try:
+            print(f"Starting classification task: mode={mode}, paper_id={paper_id}")
+            # Call the appropriate function from automate_classification
+            # Pass db_file explicitly or rely on its internal defaults/globals
+            automate_classification.run_classification(
+                mode=mode,
+                paper_id=paper_id,
+                db_file=db_file
+                # grammar_file=..., prompt_template=..., server_url=... # Use defaults or override if needed
+            )
+            print(f"Classification task completed: mode={mode}, paper_id={paper_id}")
+        except Exception as e:
+            print(f"Error during background classification (mode={mode}, paper_id={paper_id}): {e}")
+            # Consider logging this error more formally
+
+    if mode in ['all', 'remaining']:
+        # Run batch classification in a background thread to avoid blocking
+        thread = threading.Thread(target=run_classification_task)
+        thread.daemon = True # Dies with main process
+        thread.start()
+        # Return immediately
+        return jsonify({'status': 'started', 'message': f'Batch classification ({mode}) initiated.'})
+    elif mode == 'id' and paper_id:
+        try:
+            # Run single paper classification synchronously
+            # The function updates the DB directly
+            automate_classification.run_classification(
+                mode=mode,
+                paper_id=paper_id,
+                db_file=db_file
+            )
+            # Fetch the updated data from the database
+            updated_data = fetch_updated_paper_data(paper_id)
+            if updated_data['status'] == 'success':
+                return jsonify(updated_data)
+            else:
+                return jsonify(updated_data), 404 # Or 500 if it's a server error fetching data
+        except Exception as e:
+            print(f"Error classifying paper {paper_id}: {e}")
+            return jsonify({'status': 'error', 'message': f'Classification failed: {str(e)}'}), 500
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid mode or missing paper_id for single classification.'}), 400
+
+@app.route('/verify', methods=['POST'])
+def verify_paper():
+    """Endpoint to handle verification requests (single or batch)."""
+    data = request.get_json()
+    mode = data.get('mode', 'id') # Default to 'id' for single paper
+    paper_id = data.get('paper_id')
+    
+    # Determine DB file (use command-line arg or global default)
+    db_file = DATABASE
+
+    def run_verification_task():
+        """Background task to run verification."""
+        try:
+            print(f"Starting verification task: mode={mode}, paper_id={paper_id}")
+            # Call the appropriate function from verify_classification
+            verify_classification.run_verification(
+                mode=mode,
+                paper_id=paper_id,
+                db_file=db_file
+            )
+            print(f"Verification task completed: mode={mode}, paper_id={paper_id}")
+        except Exception as e:
+            print(f"Error during background verification (mode={mode}, paper_id={paper_id}): {e}")
+            # Consider logging this error more formally
+
+    if mode in ['all', 'remaining']:
+        # Run batch verification in a background thread to avoid blocking
+        thread = threading.Thread(target=run_verification_task)
+        thread.daemon = True
+        thread.start()
+        # Return immediately
+        return jsonify({'status': 'started', 'message': f'Batch verification ({mode}) initiated.'})
+    elif mode == 'id' and paper_id:
+        try:
+            # Run single paper verification synchronously
+            verify_classification.run_verification(
+                mode=mode,
+                paper_id=paper_id,
+                db_file=db_file
+            )
+            # Fetch the updated data from the database
+            updated_data = fetch_updated_paper_data(paper_id)
+            if updated_data['status'] == 'success':
+                return jsonify(updated_data)
+            else:
+                return jsonify(updated_data), 404 # Or 500
+        except Exception as e:
+            print(f"Error verifying paper {paper_id}: {e}")
+            return jsonify({'status': 'error', 'message': f'Verification failed: {str(e)}'}), 500
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid mode or missing paper_id for single verification.'}), 400
 
 
 # --- Jinja2-like filter for status rendering ---

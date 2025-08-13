@@ -97,17 +97,25 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
 def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias):
     """Worker function executed by each thread."""
     while True:
-        if globals.is_shutdown_flag_set():
-            return
         try:
-            paper_id = paper_id_queue.get_nowait()
+            # Use timeout to periodically check for shutdown
+            paper_id = paper_id_queue.get(timeout=1)
         except queue.Empty:
+            # Check if we should shutdown periodically
             if globals.is_shutdown_flag_set():
                 return
-            time.sleep(0.1)
             continue
-            
+
+        # Poison pill - time to exit
+        if paper_id is None:
+            return
+
+        # Check for shutdown before processing
+        if globals.is_shutdown_flag_set():
+            return
+
         print(f"[Thread-{threading.get_ident()}] Processing paper ID: {paper_id}")
+        
         try:
             paper_data = globals.get_paper_by_id(db_path, paper_id)
             if not paper_data:
@@ -167,79 +175,119 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 processed_count[0] += 1
                 print(f"[Progress] Processed {processed_count[0]}/{total_papers} papers.")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Automate LLM classification for papers in the database.')
-    parser.add_argument('--db_file', default=globals.DATABASE_FILE, 
-                       help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
-    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE,
-                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
-    parser.add_argument('--prompt_template', '-t', default=globals.PROMPT_TEMPLATE, 
-                       help=f'Path to the prompt template file (default: {globals.PROMPT_TEMPLATE})')
-    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL, 
-                       help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
-    args = parser.parse_args()
+def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_file=None, prompt_template=None, server_url=None):
+    """
+    Runs the LLM classification process.
 
-    if not os.path.exists(args.db_file):
-        print(f"Error: Database file '{args.db_file}' not found.")
-        exit(1)
+    Args:
+        mode (str): 'all', 'remaining', or 'id'. Defaults to 'remaining'.
+        paper_id (int, optional): The specific paper ID to classify (required if mode='id').
+        db_file (str): Path to the SQLite database.
+        grammar_file (str): Path to the GBNF grammar file.
+        prompt_template (str): Path to the prompt template file.
+        server_url (str): Base URL of the LLM server.
+    """
+    # Use globals for defaults if not provided
+    if db_file is None:
+        db_file = globals.DATABASE_FILE
+    if grammar_file is None:
+        grammar_file = globals.GRAMMAR_FILE
+    if prompt_template is None:
+        prompt_template = globals.PROMPT_TEMPLATE
+    if server_url is None:
+        server_url = globals.LLM_SERVER_URL
+
+    if not os.path.exists(db_file):
+        print(f"Error: Database file '{db_file}' not found.")
+        return False
 
     try:
-        prompt_template_content = globals.load_prompt_template(args.prompt_template)
-        print(f"Loaded prompt template from '{args.prompt_template}'")
-    except Exception:
-        exit(1)
-
-    signal.signal(signal.SIGINT, globals.signal_handler)
+        prompt_template_content = globals.load_prompt_template(prompt_template)
+        print(f"Loaded prompt template from '{prompt_template}'")
+    except Exception as e:
+        print(f"Failed to load prompt template: {e}")
+        return False
 
     grammar_content = None
-    if args.grammar_file:
+    if grammar_file:
         try:
-            with open(args.grammar_file, 'r', encoding='utf-8') as f:
-                grammar_content = f.read()
-            print(f"Loaded GBNF grammar from '{args.grammar_file}'")
+            grammar_content = globals.load_grammar(grammar_file)
+            print(f"Loaded GBNF grammar from '{grammar_file}'")
         except Exception as e:
-            print(f"Error reading grammar file: {e}")
-            exit(1)
+            print(f"Error reading grammar file '{grammar_file}': {e}")
+            grammar_content = None
 
     print("Fetching model alias from LLM server...")
-    model_alias = globals.get_model_alias(args.server_url)
+    model_alias = globals.get_model_alias(server_url)
     if not model_alias:
         print("Error: Could not determine model alias. Exiting.")
-        exit(1)
+        return False
 
-    print(f"Connecting to database '{args.db_file}'...")
+    print(f"Connecting to database '{db_file}'...")
     try:
-        conn = sqlite3.connect(args.db_file)
+        conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
-        # Only fetch papers that have not been processed yet (changed_by IS NULL or blank)
-        cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = ''")
+        
+        if mode == 'all':
+            print("Fetching ALL papers for re-classification...")
+            cursor.execute("SELECT id FROM papers")
+        elif mode == 'id':
+            if paper_id is None:
+                print("Error: Mode 'id' requires a specific paper ID.")
+                conn.close()
+                return False
+            print(f"Fetching specific paper ID: {paper_id} for classification...")
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+            if not cursor.fetchone():
+                 print(f"Warning: Paper ID {paper_id} not found in the database.")
+                 conn.close()
+                 return True
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+        else: # Default to 'remaining'
+            print("Fetching unprocessed papers (changed_by IS NULL or blank)...")
+            cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = ''")
+            
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
-        print(f"Found {total_papers} unprocessed papers to process.")
+        print(f"Found {total_papers} paper(s) to process based on mode '{mode}'.")
+
+        if not paper_ids:
+            print("No papers found matching the criteria. Nothing to process.")
+            return True
+
+        # ✅ ONLY SET UP THE QUEUE ONCE
+        paper_id_queue = queue.Queue()
+        for pid in paper_ids:
+            paper_id_queue.put(pid)
+
+        # Add poison pills for each worker thread
+        for _ in range(globals.MAX_CONCURRENT_WORKERS):
+            paper_id_queue.put(None)
+
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
-        exit(1)
+        return False
 
-    if not paper_ids:
-        print("No papers found in database. Exiting.")
-        exit(0)
-
-    paper_id_queue = queue.Queue()
-    for pid in paper_ids:
-        paper_id_queue.put(pid)
+    # ✅ REMOVE THIS DUPLICATE QUEUE SETUP
+    # paper_id_queue = queue.Queue()  # ← DELETE THIS LINE
+    # for pid in paper_ids:           # ← DELETE THIS LINE  
+    #     paper_id_queue.put(pid)     # ← DELETE THIS LINE
 
     progress_lock = threading.Lock()
     processed_count = [0]
 
     print(f"Starting ThreadPoolExecutor with {globals.MAX_CONCURRENT_WORKERS} workers...")
     start_time = time.time()
+    
     try:
         with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
+            # Submit worker tasks
+            futures = []
             for _ in range(globals.MAX_CONCURRENT_WORKERS):
-                executor.submit(
+                future = executor.submit(
                     process_paper_worker,
-                    args.db_file,
+                    db_file,
                     grammar_content,
                     prompt_template_content,
                     paper_id_queue,
@@ -248,17 +296,72 @@ if __name__ == "__main__":
                     total_papers,
                     model_alias
                 )
+                futures.append(future)
+            
             print("Processing started. Press Ctrl+C to abort.")
-            while True:
+            
+            # Wait for completion
+            while not globals.is_shutdown_flag_set():
+                if all(f.done() for f in futures):
+                    break
                 time.sleep(0.1)
+            
+            if globals.is_shutdown_flag_set():
+                print("\nShutdown signal received. Waiting for threads to finish...")
+
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt caught in run_classification. Setting shutdown flag.")
+        globals.set_shutdown_flag()
     except Exception as e:
-        print(f"Error in main execution: {e}")
-        os._exit(1)
+        print(f"Error in main execution loop: {e}")
+        globals.set_shutdown_flag()
     finally:
         end_time = time.time()
-        with progress_lock:
-            final_count = processed_count[0]
-        print(f"\n--- Summary ---")
+        final_count = 0
+        if progress_lock:
+            with progress_lock:
+                final_count = processed_count[0] if processed_count else 0
+        print(f"\n--- Classification Summary ---")
         print(f"Papers processed: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")
-        print("Done.")
+        print("Classification run finished.")
+        return not globals.is_shutdown_flag_set()
+    
+# --- UPDATED MAIN BLOCK ---
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Automate LLM classification for papers in the database.')
+    parser.add_argument('--mode', '-m', choices=['all', 'remaining', 'id'], default='remaining',
+                        help="Processing mode: 'all' (classify everything), 'remaining' (classify unprocessed), 'id' (classify a specific paper). Default: 'remaining'.")
+    parser.add_argument('--paper_id', '-i', type=int, help='Paper ID to classify (required if --mode id).')
+    parser.add_argument('--db_file', default=globals.DATABASE_FILE,
+                       help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
+    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE,
+                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
+    parser.add_argument('--prompt_template', '-t', default=globals.PROMPT_TEMPLATE,
+                       help=f'Path to the prompt template file (default: {globals.PROMPT_TEMPLATE})')
+    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
+                       help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
+    args = parser.parse_args()
+
+    # --- CRITICAL: Set the global signal handler here ---
+    signal.signal(signal.SIGINT, globals.signal_handler)
+
+    if args.mode == 'id' and args.paper_id is None:
+        parser.error("--mode 'id' requires --paper_id to be specified.")
+
+    # Call the extracted function with parsed arguments
+    success = run_classification(
+        mode=args.mode,
+        paper_id=args.paper_id,
+        db_file=args.db_file,
+        grammar_file=args.grammar_file,
+        prompt_template=args.prompt_template,
+        server_url=args.server_url
+    )
+
+    # Exit code is less critical now as signal_handler does os._exit(1)
+    # But good practice to indicate success/failure for non-abort cases
+    if not success and not globals.is_shutdown_flag_set():
+        exit(1) 
+    # If shutdown_flag is set, signal_handler already called os._exit(1)
+    # Normal exit code 0 is implicit

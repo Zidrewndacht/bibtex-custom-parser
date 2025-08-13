@@ -118,7 +118,7 @@ th[data-sort]:hover {
 .editable {
     padding: 4px;
     border-radius: 3px;
-    min-width: 150px;
+    /*! min-width: 150px; */
     transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -138,50 +138,61 @@ select, input[type="text"] {
 }
 
 input[type="search"] {
-    width: calc(100% - 12px);
+    width: calc(100% - 0px);
     box-sizing: border-box;
-    padding: 6px;
-    border: none;
+    padding: 8px;
+    border: 1px solid #fff6;
     font-family: inherit; 
-    height: 40px;
+    height: 48px;
     background: #fff2;
     color: white;
     font-size: 11pt;
     font-style: italic;
-    margin: 6px
+    margin: 0px;
 }
-input[type="number"] {
+.filter-item input[type="number"] {
     height: 28px;
-    width: 60px;
-    background: #fff2;
-    color: white;
+    width: 40px;
+    background: transparent;
+    color: #444;
     font-size: 10.5pt;
     border: none;
-    padding: 4px 8px;
+    padding: 4px 4px;
     margin: 0 6px;
+    transition: 0.25s all ease;
 }
 
-.save-btn {
-    margin-top: 15px;
+
+.filter-item input[type="number"]:hover {
+    background: white;
+    border: 1px solid #ccc; /* Add border */
+    border-radius: 3px; /* Rounded corners */
+    transition: 0.25s all ease;
+}
+
+.action-btn {
+    margin: 0 2px;
     padding: 10px 20px;
-    background-color: #27ae60; 
+    background-color: #427982; 
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 1em;
-    font-weight: bold;
-    transition: background-color 0.3s, transform 0.1s;
+    transition: all 0.1s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.save-btn:hover {
-    background-color: #219653; /* Darker green on hover */
+.action-btn:hover {
+    filter: contrast(1.2) brightness(1.2);
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
 }
 
-.save-btn:active {
-     transform: translateY(1px); 
+.action-btn:active {
+    transform: translateY(1px); 
+    filter: contrast(1.2) brightness(0.8);
+    transition: all 0.1s ease;
 }
 
 .edit-section {
@@ -191,7 +202,7 @@ input[type="number"] {
 
 form label {
     display: block;
-    margin-bottom: 5px;
+    /*! margin-bottom: 5px; */
     font-weight: bold;
 }
 form input[type="text"] {
@@ -236,7 +247,7 @@ form input[type="text"] {
     transition: max-height 0.25s ease-in-out, opacity 0.3s ease-in-out;
     
     display: grid;
-    grid-template-columns: 640px 1fr 1fr;
+    grid-template-columns: 1fr 1fr 570px;
     grid-template-rows: auto; 
     
     gap: 15px; 
@@ -248,7 +259,7 @@ form input[type="text"] {
 
 .detail-content, .detail-edit {
     min-width: 0; 
-    padding: 10px;
+    /*! padding: 10px; */
     box-sizing: border-box;
 }
 
@@ -267,30 +278,6 @@ form input[type="text"] {
     border-radius: 4px;
     font-family: inherit;
     font-size: 1em;
-}
-
-.detail-edit .save-btn {
-    width: auto; 
-    margin-top: 10px; 
-    padding: 10px 20px;
-    background-color: #27ae60;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: bold;
-    transition: background-color 0.3s, transform 0.1s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.detail-edit .save-btn:hover {
-    background-color: #219653;
-    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
-}
-
-.detail-edit .save-btn:active {
-    transform: translateY(1px);
 }
 
 .detail-row > td {
@@ -320,11 +307,13 @@ form input[type="text"] {
     margin-bottom: 0.5em;
 }
 
-textarea{
+textarea.editable{
     display: block;
-    width: 100%;
-    min-width: 100%;
+    width: calc(100% - 12px);
+    min-width: calc(100% - 12px);
     
+    height: 400px;
+    border: 1px solid #ccc;
 }
 .detail-edit input[type="text"] {
     width: 100%;
@@ -336,32 +325,25 @@ textarea{
     font-family: inherit;
     font-size: 1em;
 }
-
-.detail-edit .save-btn {
-    width: auto;
-    margin-top: 10px;
-    padding: 10px 20px;
+.save-btn {
     background-color: #27ae60;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1em;
+    width: 170px;
     font-weight: bold;
-    transition: background-color 0.3s, transform 0.1s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.detail-edit .save-btn:hover {
-    background-color: #219653;
-    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+#classify-remaining-btn, #classify-all-btn, .classify-btn {
+    background: hsl(246, 22%, 44%);
 }
 
-.detail-edit .save-btn:active {
-    transform: translateY(1px);
+#verify-all-btn, #verify-remaining-btn, .verify-btn {
+    background: hsl(309, 22%, 44%);
 }
 
-a{
+#verify-all-btn strong, #classify-all-btn strong {
+    text-decoration: underline;
+}
+
+a {
     text-decoration: none;
     color: #227
 }
@@ -390,7 +372,7 @@ th.inferred-header {
     /* Adjust height/width if necessary, or remove the large height if it causes misalignment */
     width: 36px;
     height: 36px;
-    opacity: 0.2;
+    opacity: 0.5;
 }
 .filter-item input[type="checkbox"]:checked {
     opacity: 1;
@@ -460,4 +442,164 @@ tr.filter-hidden {
     /* If traces need more specific sizing, add it here */
     flex-basis: 100%; /* Forces full width on new line(s) within flex container, adjust if needed */
     min-width: 0; /* Allows the content to shrink below its intrinsic width if necessary */
+}
+
+
+
+/* --- New Main Header Styles --- */
+.main-header {
+    /*! width: calc(100% - 30px); */
+    display: grid;
+    grid-template-columns: 1fr auto; /* Title, Filters, Controls */
+    grid-template-rows: auto; /* Single row */
+    gap: 20px; /* Space between items */
+    align-items: center; /* Align items vertically */
+    /*! padding: 0px 15px; */
+    background-color: #e0e6ed; /* Example background */
+    border: 1px solid #c0cacc; /* Example border */
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.header-title h2 {
+    margin: 0; /* Remove default margin */
+    color: #2c3e50; /* Example text color */
+    font-size: 1.5em; /* Adjust title size if needed */
+}
+
+.header-filters {
+    display: flex;
+    flex-wrap: wrap; /* Allow items to wrap if needed */
+    gap: 15px; /* Space between filter items */
+    align-items: center; /* Align items vertically */
+    /* Optional: justify-content: center; or space-between; */
+}
+
+.filter-item {
+    display: inline-flex; /* Keep flex for alignment */
+    align-items: center;  /* Align items vertically */
+    white-space: nowrap;  /* Prevent wrapping within a single filter item */
+    padding: 5px; /* Keep padding */
+    font-size: 11pt; /* Keep font size */
+    /* background: #f0f0f0; */ /* Optional background for filter items */
+    /* border-radius: 4px; */ /* Optional rounded corners */
+}
+
+#batch-status-message {
+    font-size: 9.5pt;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* --- ONLY Modifications within .detail-edit using Grid --- */
+
+/* Ensure the edit section itself can participate in layout correctly */
+/* It's already positioned by the parent grid, so focus on internal layout */
+.detail-edit {
+    /* Make .detail-edit itself a grid container for its direct children (form) */
+    /* Or, make the form the grid container. Let's do that for cleaner structure. */
+    /* Ensure it takes the height allocated by the parent grid */
+    display: grid; /* Make it a grid if needed, but content dictates size */
+    height: 100%; /* Take full height of its grid cell */
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+/* --- Make the form the Grid Container --- */
+.detail-edit form {
+    display: grid;
+    /* Define explicit columns for the inputs/areas */
+    /* Two columns for the first row (Research Area, Model Name) */
+    /* One column for the full-width items below (Other, Page Count, Comments) */
+    /* One row for the top inputs, one for the expanding comments, one for buttons */
+    grid-template-columns: 1fr 1fr; /* Two equal flexible columns */
+    grid-template-rows: auto auto 1fr auto; /* Rows: labels, labels, textarea, buttons */
+    gap: 10px; /* Consistent gap between grid items */
+    height: calc(100% - 16px); /* Fill the .detail-edit area */
+}
+
+/* --- Place Research Area and Model Name on the first grid line --- */
+/* Target the first two labels directly */
+.detail-edit form > label:nth-of-type(1) { /* Research Area */
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+}
+.detail-edit form > label:nth-of-type(2) { /* Model Name */
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+}
+
+/* --- Ensure inputs within these labels expand to fill their grid cells --- */
+.detail-edit form > label:nth-of-type(1) > input[type="text"],
+.detail-edit form > label:nth-of-type(2) > input[type="text"] {
+    width: 100%; /* Expand to fill the label container */
+    box-sizing: border-box;
+}
+
+/* --- Place Other Defects and Page Count on the second grid line --- */
+.detail-edit form > label:nth-of-type(3) { /* Other Defects */
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+}
+.detail-edit form > label:nth-of-type(4) { /* Page Count */
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+}
+/* Ensure inputs for these expand */
+.detail-edit form > label:nth-of-type(3) > input[type="text"],
+.detail-edit form > label:nth-of-type(4) > input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+
+/* --- Make User Comments Textarea Expand --- */
+/* Target the label containing the textarea */
+.detail-edit form > label:nth-of-type(5) { /* Assuming 'User comments:' is the 5th label */
+    /* Span both columns */
+    grid-column: 1 / -1; /* From column 1 to the end */
+    /* Place it in the row designed for the expanding content */
+    grid-row: 3 / 4;
+    /* Make this label itself a flex column to manage the textarea inside */
+    display: flex;
+    flex-direction: column;
+}
+/* Make the textarea itself expand to fill the label's grid cell */
+.detail-edit form > label:nth-of-type(5) > textarea.editable {
+    /* flex-grow: 1; /* Expand within the flex label */
+    width: 100%;
+    min-width: 100%;
+    /* Make the textarea fill the label's grid cell */
+    height: 100%;
+    box-sizing: border-box;
+    /* Remove any fixed height from global styles if conflicting */
+    /* height: auto; /* Let grid handle height */
+    min-height: 150px; /* Optional: Set a minimum height */
+    resize: vertical; /* Allow user to resize vertically if needed */
+}
+
+.detail-edit form > .row-actions {
+    /* Span both columns */
+    grid-column: 1 / -1;
+    /* Place it in the last row */
+    grid-row: 4 / 5;
+    /* Optional: Align buttons */
+    text-align: left; /* Or use flexbox/grid inside .row-actions for button layout */
+    display: flex;
+    align-content: space-around;
+    justify-content: space-between;
+}
+
+.detail-edit form textarea.editable {
+    height: 100%; /* Use 100% height managed by grid/flex parent */
 }

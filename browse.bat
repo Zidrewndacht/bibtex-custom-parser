@@ -1,3 +1,3 @@
 @echo off
-D:\!staging\BibTeX-custom-parser\.venv\Scripts\python D:\!staging\BibTeX-custom-parser\browse_db.py
+E:\Mestrado\BibTeX-custom-parser\.venv\Scripts\python E:\Mestrado\BibTeX-custom-parser\browse_db.py
 pause

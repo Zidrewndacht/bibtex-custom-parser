@@ -1,4 +1,8 @@
 // static/scripts.js
+
+// --- New Global Variables for Batch Status ---
+let isBatchRunning = false; // Simple flag to prevent multiple simultaneous batches
+
 // --- Utility Functions ---
 function toggleDetails(element) {   //OK
     const row = element.closest('tr'); // Get the main row
@@ -79,6 +83,56 @@ const VERIFIED_BY_CYCLE = {
     // We assume the user wants to override/review it, not set it to computer.
     '🖥️': { next: '❔', value: 'unknown' } 
 };
+
+
+/**
+ * Helper to update a cell's status symbol based on boolean/null value.
+ * @param {Element} row - The main table row element.
+ * @param {string} selector - The CSS selector for the cell within the row.
+ * @param {*} value - The value (true, false, null, undefined) to determine the symbol.
+ */
+function updateRowCell(row, selector, value) {
+    const cell = row.querySelector(selector);
+    if (cell) {
+        cell.textContent = renderStatus(value); // Use the renderStatus function
+    }
+}
+
+/**
+ * Renders a status value (true, false, null, etc.) as an emoji.
+ * Replicates Python's render_status logic on the client.
+ * @param {*} value - The value to render.
+ * @returns {string} The emoji string.
+ */
+function renderStatus(value) {
+    if (value === 1 || value === true) {
+        return '✔️';
+    } else if (value === 0 || value === false) {
+        return '❌';
+    } else {
+        return '❔';
+    }
+}
+
+/**
+ * Renders a verified_by value (user, model_name, null) as an emoji with tooltip.
+ * Replicates Python's render_verified_by logic on the client.
+ * @param {*} value - The raw database value.
+ * @returns {string} The HTML string for the emoji span.
+ */
+function renderVerifiedBy(value) {
+     if (value === 'user') {
+        return '<span title="User">👤</span>';
+    } else if (value === null || value === undefined || value === '') {
+        return '<span title="Unverified">❔</span>';
+    } else {
+        // Escape the model name for HTML attribute safety (basic escaping)
+        let escapedModelName = String(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        return `<span title="${escapedModelName}">🖥️</span>`;
+    }
+}
+
+
 
 // --- Helper function to render changed_by value as emoji (Client-Side) ---
 function renderChangedBy(value) {
@@ -558,6 +612,231 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 3. Send AJAX request
         sendAjaxRequest(cell, dataToSend, currentSymbol, row, paperId, field);
+    });
+
+
+
+
+    // --- NEW: Batch Action Button Event Listeners ---
+    const classifyAllBtn = document.getElementById('classify-all-btn');
+    const classifyRemainingBtn = document.getElementById('classify-remaining-btn');
+    const verifyAllBtn = document.getElementById('verify-all-btn');
+    const verifyRemainingBtn = document.getElementById('verify-remaining-btn');
+    const batchStatusMessage = document.getElementById('batch-status-message');
+
+    function runBatchAction(mode, actionType) { // actionType: 'classify' or 'verify'
+        if (isBatchRunning) {
+            alert(`A ${actionType} batch is already running.`);
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to ${actionType} ${mode === 'all' ? 'ALL' : 'REMAINING'} papers? This might take a while.`)) {
+            return;
+        }
+
+        isBatchRunning = true;
+        const btnToDisable = mode === 'all' ? (actionType === 'classify' ? classifyAllBtn : verifyAllBtn) :
+                                              (actionType === 'classify' ? classifyRemainingBtn : verifyRemainingBtn);
+        const otherBtns = [classifyAllBtn, classifyRemainingBtn, verifyAllBtn, verifyRemainingBtn].filter(btn => btn !== btnToDisable);
+
+        if (btnToDisable) btnToDisable.disabled = true;
+        otherBtns.forEach(btn => btn.disabled = true);
+        if (batchStatusMessage) batchStatusMessage.textContent = `Starting ${actionType} (${mode})...`;
+
+        const endpoint = actionType === 'classify' ? '/classify' : '/verify';
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ mode: mode })
+        })
+        .then(response => {
+             if (!response.ok) {
+                 return response.json().then(errData => {
+                     throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+                 }).catch(() => {
+                     throw new Error(`HTTP error! status: ${response.status}`);
+                 });
+             }
+             return response.json();
+        })
+        .then(data => {
+            if (data.status === 'started') {
+                if (batchStatusMessage) batchStatusMessage.textContent = data.message;
+                // Batch started, it's running in the background.
+                // We could implement polling or websockets for status updates, but for now, just rely on the message.
+                // Re-enable buttons after a short delay or assume user knows it's running
+                 setTimeout(() => {
+                     isBatchRunning = false; // Allow new batches after a short time
+                     if (btnToDisable) btnToDisable.disabled = false;
+                     otherBtns.forEach(btn => btn.disabled = false);
+                    //  if (batchStatusMessage) batchStatusMessage.textContent += " (Background task running)";
+                 }, 2000); // Assume it started successfully after 2s
+            } else {
+                 // This shouldn't happen for batch actions, but handle if it does
+                 console.error(`Unexpected response for batch ${actionType}:`, data);
+                 if (batchStatusMessage) batchStatusMessage.textContent = `Error initiating ${actionType} (${mode}).`;
+                 isBatchRunning = false;
+                 if (btnToDisable) btnToDisable.disabled = false;
+                 otherBtns.forEach(btn => btn.disabled = false);
+            }
+        })
+        .catch(error => {
+            console.error(`Error initiating batch ${actionType} (${mode}):`, error);
+            alert(`Failed to start ${actionType} (${mode}): ${error.message}`);
+            isBatchRunning = false;
+            if (btnToDisable) btnToDisable.disabled = false;
+            otherBtns.forEach(btn => btn.disabled = false);
+            if (batchStatusMessage) batchStatusMessage.textContent = '';
+        });
+    }
+
+    if (classifyAllBtn) {
+        classifyAllBtn.addEventListener('click', () => runBatchAction('all', 'classify'));
+    }
+    if (classifyRemainingBtn) {
+        classifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'classify'));
+    }
+    if (verifyAllBtn) {
+        verifyAllBtn.addEventListener('click', () => runBatchAction('all', 'verify'));
+    }
+    if (verifyRemainingBtn) {
+        verifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'verify'));
+    }
+
+    // --- NEW: Per-Row Action Button Event Listeners ---
+    document.addEventListener('click', function(event) {
+        const classifyBtn = event.target.closest('.classify-btn');
+        const verifyBtn = event.target.closest('.verify-btn');
+
+        if (classifyBtn || verifyBtn) {
+            const paperId = (classifyBtn || verifyBtn).getAttribute('data-paper-id');
+            const actionType = classifyBtn ? 'classify' : 'verify';
+            const endpoint = classifyBtn ? '/classify' : '/verify';
+
+            if (!paperId) {
+                console.error(`Paper ID not found for ${actionType} button.`);
+                return;
+            }
+
+            // Disable the button temporarily
+            (classifyBtn || verifyBtn).disabled = true;
+            (classifyBtn || verifyBtn).textContent = 'Running...';
+
+            // Send AJAX request
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'id', paper_id: paperId })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {
+                         throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+                    }).catch(() => {
+                         throw new Error(`HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update the row with the received data
+                    const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
+                    const detailRow = row ? row.nextElementSibling : null;
+                    if (row) {
+                        // Update main row cells
+                        updateRowCell(row, '.editable-status[data-field="is_offtopic"]', data.is_offtopic);
+                        updateRowCell(row, '.editable-status[data-field="is_survey"]', data.is_survey);
+                        updateRowCell(row, '.editable-status[data-field="is_through_hole"]', data.is_through_hole);
+                        updateRowCell(row, '.editable-status[data-field="is_smt"]', data.is_smt);
+                        updateRowCell(row, '.editable-status[data-field="is_x_ray"]', data.is_x_ray);
+
+                        updateRowCell(row, '.editable-status[data-field="features_solder"]', data.features?.solder);
+                        updateRowCell(row, '.editable-status[data-field="features_polarity"]', data.features?.polarity);
+                        updateRowCell(row, '.editable-status[data-field="features_wrong_component"]', data.features?.wrong_component);
+                        updateRowCell(row, '.editable-status[data-field="features_missing_component"]', data.features?.missing_component);
+                        updateRowCell(row, '.editable-status[data-field="features_tracks"]', data.features?.tracks);
+                        updateRowCell(row, '.editable-status[data-field="features_holes"]', data.features?.holes);
+
+                        updateRowCell(row, '.editable-status[data-field="technique_classic_computer_vision_based"]', data.technique?.classic_computer_vision_based);
+                        updateRowCell(row, '.editable-status[data-field="technique_machine_learning_based"]', data.technique?.machine_learning_based);
+                        updateRowCell(row, '.editable-status[data-field="technique_hybrid"]', data.technique?.hybrid);
+                        updateRowCell(row, '.editable-status[data-field="technique_available_dataset"]', data.technique?.available_dataset);
+
+                        // Update audit/other fields
+                        const changedCell = row.querySelector('.changed-cell');
+                        if (changedCell) changedCell.textContent = data.changed_formatted || '';
+
+                        const changedByCell = row.querySelector('.changed-by-cell');
+                        if (changedByCell) changedByCell.innerHTML = renderChangedBy(data.changed_by);
+
+                        const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
+                        if (verifiedCell) {
+                            // Assuming render_status function exists or create one
+                            verifiedCell.textContent = renderStatus(data.verified);
+                        }
+
+                        const verifiedByCell = row.querySelector('.editable-verify[data-field="verified_by"]');
+                        if (verifiedByCell) {
+                             // Assuming render_verified_by function exists or create one based on Python logic
+                             verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                        }
+
+                        const pageCountCell = row.cells[5]; // Assuming page_count is column index 5
+                        if (pageCountCell) pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
+
+                        // Update detail row traces if expanded
+                        if (detailRow && detailRow.classList.contains('expanded')) {
+                            const evalTraceDiv = detailRow.querySelector('.detail-evaluator-trace .trace-content');
+                            if (evalTraceDiv) evalTraceDiv.textContent = data.reasoning_trace || 'No trace available.';
+                            const verifyTraceDiv = detailRow.querySelector('.detail-verifier-trace .trace-content');
+                            if (verifyTraceDiv) verifyTraceDiv.textContent = data.verifier_trace || 'No trace available.';
+                            // Update form fields if needed (e.g., model name, other defects might have changed)
+                            const form = detailRow.querySelector(`form[data-paper-id="${paperId}"]`);
+                            if(form){
+                                const modelNameInput = form.querySelector('input[name="technique_model"]');
+                                if(modelNameInput) modelNameInput.value = data.technique?.model || '';
+                                const otherDefectsInput = form.querySelector('input[name="features_other"]');
+                                if(otherDefectsInput) otherDefectsInput.value = data.features?.other || '';
+                                const researchAreaInput = form.querySelector('input[name="research_area"]');
+                                if(researchAreaInput) researchAreaInput.value = data.research_area || '';
+                                const pageCountInput = form.querySelector('input[name="page_count"]');
+                                if(pageCountInput) pageCountInput.value = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
+                                const userTraceTextarea = form.querySelector('textarea[name="user_trace"]');
+                                if(userTraceTextarea) userTraceTextarea.value = data.user_trace || ''; // Update textarea value
+                            }
+                        }
+
+                        updateCounts(); // Update counts if necessary
+                        console.log(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} successful for paper ${paperId}`);
+                    }
+                } else {
+                    console.error(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} error for paper ${paperId}:`, data.message);
+                    alert(`Failed to ${actionType} paper ${paperId}: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error(`Error during ${actionType} for paper ${paperId}:`, error);
+                alert(`An error occurred while ${actionType}ing paper ${paperId}: ${error.message}`);
+            })
+            .finally(() => {
+                // Re-enable the button
+                (classifyBtn || verifyBtn).disabled = false;
+                // Set text back to original based on actionType
+                if (actionType === 'classify') {
+                    (classifyBtn || verifyBtn).innerHTML = 'Classify <strong>this paper</strong>';
+                } else if (actionType === 'verify') {
+                    (classifyBtn || verifyBtn).innerHTML = 'Verify <strong>this paper</strong>'; // Assuming similar for verify
+                }
+                // Or, if you store the original text beforehand:
+                // (classifyBtn || verifyBtn).textContent = originalText; 
+            });
+        }
     });
 });
 

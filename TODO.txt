@@ -34,16 +34,21 @@ OK        Also add counter of total papers and total filtered papers
 OK    Remove signal handler + set_flags, etc. from automate_classification.py
 OK    Change "changed by" to icon instead of model name, consistent with "verified by"
 OK    Fix bogus table shading after filtering
+OK    Fix model_name not showing in GUI
+OK    Fix "other defects" not showing in GUI
 
-
-    Import from GUI?
+    Import bibTeX from GUI?
+        Automatic Dedup by DOI?
+    
     Send to LLM from GUI
-        Reprocess all?
+        Reprocess and verify all?
         Reprocess remaining?
-        Verify remaining
+        Verify remaining;
+            Prevent verifying unprocessed papers;
         "Classify this paper" from detail row?
         "Verify this paper" from detail row?
-    Export stats to Excel?
+
+    Export stats to CSV / Excel?
 
     Try to import full text of papers?
         Maybe not, even if technically feasible, due to copyright concerns, etc.

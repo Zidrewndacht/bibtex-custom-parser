@@ -9,23 +9,37 @@
 </head>
 <body>
 
-
 <div class="table-container"> <!-- Wrapper for horizontal scrolling -->
 <table id="papersTable">
     <thead>
         <tr>
-            <th class="filter-header" colspan="2" rowspan="2">
-                <span class="filter-item">
-                    <input type="checkbox" id="hide-offtopic-checkbox">
-                    <label for="hide-offtopic-checkbox">Hide offtopic</label>
-                </span>
-            </th>
-            <th class="filter-header" colspan="4" rowspan="2">
-                <span class="filter-item">
-                    <input type="checkbox" id="hide-short-checkbox">
-                    <label for="hide-short-checkbox">Hide under</label> <input type="number" id="min-page-count" value="4" min="1"> <label for="min-page-count">pages</label>
-                </span>
-            </th>
+            <div class="main-header">
+                <div class="header-filters">
+                    <div class="filter-item">
+                        <input type="checkbox" id="hide-offtopic-checkbox">
+                        <label for="hide-offtopic-checkbox">Hide offtopic</label>
+                    </div>
+                    <div class="filter-item">
+                        <input type="checkbox" id="hide-short-checkbox">
+                        <label for="hide-short-checkbox">Hide under</label>
+                        <input type="number" id="min-page-count" value="4" min="1">
+                        <label for="min-page-count">pages</label>
+                    </div>
+                </div>
+                <div class="header-controls">
+                    <div class="batch-actions">
+                        <span id="batch-status-message"></span> <!-- For feedback -->
+                        <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong></button>
+                        <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
+                        <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
+                        <button class="action-btn" id="verify-all-btn">Re-Verify <strong>All</strong></button>
+                    </div>
+                </div>
+            </div>
+
+        </tr>
+        <tr>
+            <th colspan="6" rowspan="2"> </th>
             <th class="inferred-header" colspan="15">NLP-Inferred data</th>
             
             <th colspan="6" rowspan="2">
@@ -148,10 +162,10 @@
                                 <input type="text" class="editable" name="research_area" value="{{ paper.research_area or '' }}">
                             </label>
                             <label>Model Name:
-                                <input type="text" class="editable" name="model_name" value="{{ paper.model or '' }}">
+                                <input type="text" class="editable" name="model_name" value="{{ paper.technique.model or '' }}">
                             </label>
-                            <label>Other error detection features:
-                                <input type="text" class="editable" name="features_other" value="{{ paper.features_other or '' }}">
+                            <label>Other defects:
+                                <input type="text" class="editable" name="features_other" value="{{ paper.features.other or '' }}">
                             </label>
                             <label>Page count:
                                 <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
@@ -159,7 +173,13 @@
                             <label>User comments:
                                 <textarea class="editable" name="user_trace" value="{{ paper.user_trace or '' }}"></textarea>
                             </label>
-                            <button type="button" class="save-btn" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
+                            <!-- NEW: Per-Row Action Buttons -->
+                            <div class="row-actions">
+                                <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
+                                <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
+                                <button type="button" class="action-btn save-btn" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
+                            </div>
+                            
                         </form>
                     </div>
 

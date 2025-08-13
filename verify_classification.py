@@ -101,15 +101,22 @@ def process_paper_verification_worker(
 ):
     """Worker function executed by each thread for verification."""
     while True:
-        if globals.is_shutdown_flag_set():
-            return
         try:
-            paper_id = paper_id_queue.get_nowait()
+            # Use timeout to periodically check for shutdown
+            paper_id = paper_id_queue.get(timeout=1)
         except queue.Empty:
+            # Check if we should shutdown periodically
             if globals.is_shutdown_flag_set():
                 return
-            time.sleep(0.1)
             continue
+
+        # Poison pill - time to exit
+        if paper_id is None:
+            return
+
+        # Check for shutdown before processing
+        if globals.is_shutdown_flag_set():
+            return
 
         print(f"[Thread-{threading.get_ident()}] Verifying paper ID: {paper_id}")
         try:
@@ -211,75 +218,107 @@ def process_paper_verification_worker(
                 processed_count[0] += 1
                 print(f"[Progress] Verified {processed_count[0]}/{total_papers} papers.")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Verify LLM classifications for papers in the database.')
-    parser.add_argument('--db_file', default=globals.DATABASE_FILE,
-                       help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
-    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE, # Might use same grammar or a different one
-                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
-    parser.add_argument('--prompt_template', '-t', default=globals.VERIFIER_TEMPLATE,
-                       help=f'Path to the verification prompt template file (default: {globals.VERIFIER_TEMPLATE})')
-    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
-                       help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
-    args = parser.parse_args()
+# --- NEW: Extracted Main Logic into a Function (Fixed Abort) ---
+def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file=None, prompt_template=None, server_url=None):
+    """
+    Runs the LLM verification process.
 
-    if not os.path.exists(args.db_file):
-        print(f"Error: Database file '{args.db_file}' not found.")
-        exit(1)
+    Args:
+        mode (str): 'all', 'remaining', or 'id'. Defaults to 'remaining'.
+        paper_id (int, optional): The specific paper ID to verify (required if mode='id').
+        db_file (str): Path to the SQLite database.
+        grammar_file (str): Path to the GBNF grammar file.
+        prompt_template (str): Path to the verification prompt template file.
+        server_url (str): Base URL of the LLM server.
+    """
+    if db_file is None:
+        db_file = globals.DATABASE_FILE
+    if grammar_file is None:
+        grammar_file = globals.GRAMMAR_FILE
+    if prompt_template is None:
+        prompt_template = globals.VERIFIER_TEMPLATE
+    if server_url is None:
+        server_url = globals.LLM_SERVER_URL
+
+    if not os.path.exists(db_file):
+        print(f"Error: Database file '{db_file}' not found.")
+        return False
 
     try:
-        verification_prompt_template_content = globals.load_prompt_template(args.prompt_template)
-        print(f"Loaded verification prompt template from '{args.prompt_template}'")
+        verification_prompt_template_content = globals.load_prompt_template(prompt_template)
+        print(f"Loaded verification prompt template from '{prompt_template}'")
     except Exception as e:
         print(f"Error loading verification prompt template: {e}")
-        exit(1)
+        return False
 
-    # Use the signal handler from globals for graceful shutdown
-    signal.signal(signal.SIGINT, globals.signal_handler)
+    # signal.signal(signal.SIGINT, globals.signal_handler) # Set by main
 
     grammar_content = None
-    if args.grammar_file:
+    if grammar_file:
         try:
-            grammar_content = globals.load_grammar(args.grammar_file)
-            print(f"Loaded GBNF grammar from '{args.grammar_file}' for verification")
+            grammar_content = globals.load_grammar(grammar_file)
+            print(f"Loaded GBNF grammar from '{grammar_file}' for verification")
         except Exception as e:
             print(f"Warning: Error reading grammar file for verification: {e}")
-            # Not exiting, verification might work without strict grammar, but likely needs it.
-            # Consider making grammar mandatory for verification if the output must be strict JSON.
-            # exit(1)
+            grammar_content = None
 
     print("Fetching model alias from LLM server for verification...")
-    model_alias = globals.get_model_alias(args.server_url)
+    model_alias = globals.get_model_alias(server_url)
     if not model_alias:
         print("Error: Could not determine model alias for verification. Exiting.")
-        exit(1)
+        return False
 
-    print(f"Connecting to database '{args.db_file}' to fetch papers for verification...")
+    print(f"Connecting to database '{db_file}' to fetch papers for verification...")
     try:
-        conn = sqlite3.connect(args.db_file)
+        conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
-        # Only fetch papers that have been classified but not yet verified
-        cursor.execute("""
-            SELECT id 
-            FROM papers 
-            WHERE (changed_by IS NOT NULL AND changed_by != '') 
-            AND (verified_by IS NULL OR verified_by = '')
-        """)        
+        
+        if mode == 'all': #All classified papers (there's no sense in verifying classification of papers that weren't even classified)
+            print("Fetching ALL classified papers for re-verification...")
+            cursor.execute("SELECT id FROM papers WHERE (changed_by IS NOT NULL AND changed_by != '')")
+        elif mode == 'id':
+            if paper_id is None:
+                print("Error: Mode 'id' requires a specific paper ID.")
+                conn.close()
+                return False
+            print(f"Fetching specific paper ID: {paper_id} for verification...")
+            # ✅ FIX: Make it a tuple with comma
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+            if not cursor.fetchone():
+                 print(f"Warning: Paper ID {paper_id} not found or not classified.")
+                 conn.close()
+                 return True
+            # ✅ FIX: Make it a tuple with comma (and remove duplicate query)
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+        else: # Default to 'remaining'
+            print("Fetching classified but unverified papers...")
+            cursor.execute("""
+                SELECT id 
+                FROM papers 
+                WHERE (changed_by IS NOT NULL AND changed_by != '') 
+                AND (verified_by IS NULL OR verified_by = '')
+            """)
+            
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
-        print(f"Found {total_papers} classified but unverified papers to verify.")
+        print(f"Found {total_papers} paper(s) to verify based on mode '{mode}'.")
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
-        exit(1)
-        
-    if not paper_ids:
-        print("No papers found in database for verification. Exiting.")
-        exit(0)
+        return False
 
+    if not paper_ids:
+        print("No papers found matching the verification criteria. Nothing to process.")
+        return True
+
+    # ✅ ONLY SET UP THE QUEUE ONCE
     paper_id_queue = queue.Queue()
     for pid in paper_ids:
         paper_id_queue.put(pid)
+
+    # Add poison pills for each worker thread
+    for _ in range(globals.MAX_CONCURRENT_WORKERS):
+        paper_id_queue.put(None)
 
     progress_lock = threading.Lock()
     processed_count = [0]
@@ -289,10 +328,11 @@ if __name__ == "__main__":
 
     try:
         with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
+            futures = []
             for _ in range(globals.MAX_CONCURRENT_WORKERS):
-                executor.submit(
+                future = executor.submit(
                     process_paper_verification_worker,
-                    args.db_file,
+                    db_file,
                     grammar_content,
                     verification_prompt_template_content,
                     paper_id_queue,
@@ -301,17 +341,64 @@ if __name__ == "__main__":
                     total_papers,
                     model_alias
                 )
+                futures.append(future)
+            
             print("Verification processing started. Press Ctrl+C to abort.")
-            while True:
+            
+            # --- FIXED: Use a loop to wait, checking for shutdown flag ---
+            while not globals.is_shutdown_flag_set():
+                if all(f.done() for f in futures):
+                    break
                 time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt caught in run_verification. Setting shutdown flag.")
+        globals.set_shutdown_flag()
     except Exception as e:
-        print(f"Error in main verification execution: {e}")
-        os._exit(1) # Force exit on unexpected errors in main thread
+        print(f"Error in main verification execution loop: {e}")
+        globals.set_shutdown_flag()
     finally:
         end_time = time.time()
-        with progress_lock:
-            final_count = processed_count[0]
+        final_count = 0
+        if progress_lock:
+            with progress_lock:
+                final_count = processed_count[0] if processed_count else 0
         print(f"\n--- Verification Summary ---")
         print(f"Papers verified: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")
-        print("Verification Done.")
+        print("Verification run finished.")
+        return not globals.is_shutdown_flag_set()
+    
+# --- UPDATED MAIN BLOCK ---
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Verify LLM classifications for papers in the database.')
+    parser.add_argument('--mode', '-m', choices=['all', 'remaining', 'id'], default='remaining',
+                        help="Verification mode: 'all' (verify all classified), 'remaining' (verify unverified), 'id' (verify a specific paper). Default: 'remaining'.")
+    parser.add_argument('--paper_id', '-i', type=int, help='Paper ID to verify (required if --mode id).')
+    parser.add_argument('--db_file', default=globals.DATABASE_FILE,
+                       help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
+    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE,
+                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
+    parser.add_argument('--prompt_template', '-t', default=globals.VERIFIER_TEMPLATE,
+                       help=f'Path to the verification prompt template file (default: {globals.VERIFIER_TEMPLATE})')
+    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
+                       help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
+    args = parser.parse_args()
+
+    # --- CRITICAL: Set the global signal handler here ---
+    signal.signal(signal.SIGINT, globals.signal_handler)
+
+    if args.mode == 'id' and args.paper_id is None:
+        parser.error("--mode 'id' requires --paper_id to be specified.")
+
+    success = run_verification(
+        mode=args.mode,
+        paper_id=args.paper_id,
+        db_file=args.db_file,
+        grammar_file=args.grammar_file,
+        prompt_template=args.prompt_template,
+        server_url=args.server_url
+    )
+
+    if not success and not globals.is_shutdown_flag_set():
+        exit(1)

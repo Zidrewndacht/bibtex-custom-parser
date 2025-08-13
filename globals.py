@@ -11,8 +11,8 @@ import os
 
 LLM_SERVER_URL = "http://localhost:8080"
 
-MAX_CONCURRENT_WORKERS = 8 # Match your server slots
-DATABASE_FILE = "acm.sqlite"
+MAX_CONCURRENT_WORKERS = 4 # Match your server slots
+DATABASE_FILE = "all.sqlite"
 GRAMMAR_FILE = "" #"output.gbnf" #disabled for reasoning models.
 PROMPT_TEMPLATE = "prompt_template-think.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
@@ -76,9 +76,7 @@ def signal_handler(sig, frame):
     # Use os._exit for immediate shutdown across all threads
     os._exit(1)
     
-
-
-#usado por automate and verify:
+#usados por automate and verify:
 def get_model_alias(server_url_base):
     """Fetches the model alias from the LLM server's /v1/models endpoint."""
     models_url = f"{server_url_base.rstrip('/')}/v1/models"
@@ -109,8 +107,6 @@ def get_model_alias(server_url_base):
     print(f"Using fallback model alias: '{fallback_alias}'")
     return fallback_alias
 
-
-#usado por automate and verify:
 def load_prompt_template(template_path):
     """Loads the prompt template from a file."""
     try:
