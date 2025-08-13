@@ -40,17 +40,18 @@ OK    Fix "other defects" not showing in GUI
     Import bibTeX from GUI?
         Automatic Dedup by DOI?
     
-    Send to LLM from GUI
-        Reprocess and verify all?
-        Reprocess remaining?
-        Verify remaining;
-            Prevent verifying unprocessed papers;
-        "Classify this paper" from detail row?
-        "Verify this paper" from detail row?
+OK?   Send to LLM from GUI
+OK        Refactor automate, verify .py
+OK        Reprocess and verify all?
+OK        Reprocess remaining?
+OK        Verify remaining;
+OK?            Prevent verifying unprocessed papers;
+OK        "Classify this paper" from detail row?
+OK        "Verify this paper" from detail row?
 
     Export stats to CSV / Excel?
 
     Try to import full text of papers?
         Maybe not, even if technically feasible, due to copyright concerns, etc.
 
-    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
+OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
