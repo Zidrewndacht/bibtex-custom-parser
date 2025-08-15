@@ -7,12 +7,10 @@ import sqlite3
 import threading
 import os
 
-# BIBTEX_FILE = "all.bib" # não implementado em import_bibtex
-
 LLM_SERVER_URL = "http://localhost:8080"
 
-MAX_CONCURRENT_WORKERS = 4 # Match your server slots
-DATABASE_FILE = "all.sqlite"
+MAX_CONCURRENT_WORKERS = 8 # Match your server slots
+DATABASE_FILE = "new.sqlite"
 GRAMMAR_FILE = "" #"output.gbnf" #disabled for reasoning models.
 PROMPT_TEMPLATE = "prompt_template-think.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
@@ -28,7 +26,7 @@ DEFAULT_FEATURES = {
     "other": None
 }
 DEFAULT_TECHNIQUE = {
-    "classic_computer_graphics_based": None,
+    "classic_computer_vision_based": None,
     "machine_learning_based": None,
     "hybrid": None,
     "model": None,
@@ -49,8 +47,6 @@ TYPE_EMOJIS = {
 }
 # Default emoji for unknown types
 DEFAULT_TYPE_EMOJI = '📄' # Using article as default
-
-
 
 # --- Global Shutdown Flag for Instant Shutdown (using Lock for atomicity) ---
 # This provides a common mechanism for scripts to handle Ctrl+C gracefully.

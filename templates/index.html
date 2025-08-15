@@ -14,6 +14,9 @@
     <thead>
         <tr>
             <div class="main-header">
+                <div class="header-controls">
+                    <button class="action-btn" id="import-bibtex">Import <strong>BibTeX</strong></button>
+                </div>
                 <div class="header-filters">
                     <div class="filter-item">
                         <input type="checkbox" id="hide-offtopic-checkbox">
@@ -69,12 +72,12 @@
             <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><div><span>X-Ray</span></div></th>
 
             <!-- Features Summary Columns -->
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_solder"><div><span>Solder</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_polarity"><div><span>Polarity</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
             <th class="inferred-header rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
             <th class="inferred-header rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_solder"><div><span>Solder</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="features_polarity"><div><span>Polarity</span></div></th>
 
             <!-- Techniques Summary Columns --> 
             <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_classic_computer_vision_based"><div><span>Classic CV</span></div></th>
@@ -85,7 +88,7 @@
             <th data-sort="changed" style="width:50px; min-width:50px; max-width:50px">Last Changed <span class="sort-indicator"></span></th>
             <th data-sort="changed_by" style="width:60px; min-width:60px; max-width:60px">Changed By <span class="sort-indicator"></span></th>
             <th data-sort="verified" style="width:50px; min-width:50px; max-width:50px">Verified <span class="sort-indicator"></span></th>
-            <th data-sort="estimated_score" style="width:50px; min-width:50px; max-width:50px">Estimated Score <span class="sort-indicator"></span></th>
+            <th data-sort="estimated_score" style="width:50px; min-width:50px; max-width:50px">Accuracy Score <span class="sort-indicator"></span></th>
             <th data-sort="verified_by" style="width:50px; min-width:50px; max-width:50px">Verified By <span class="sort-indicator"></span></th>
             <th style="width:50px; min-width:50px; max-width:50px">Actions</th>
         </tr>
@@ -115,12 +118,12 @@
             <td class="status-cell editable-status" data-field="is_x_ray">{{ paper.is_x_ray | render_status }}</td>
 
             <!-- Features Summary Cells -->
-            <td class="status-cell editable-status" data-field="features_solder">{{ paper.features.solder | render_status }}</td>
-            <td class="status-cell editable-status" data-field="features_polarity">{{ paper.features.polarity | render_status }}</td>
-            <td class="status-cell editable-status" data-field="features_wrong_component">{{ paper.features.wrong_component | render_status }}</td>
-            <td class="status-cell editable-status" data-field="features_missing_component">{{ paper.features.missing_component | render_status }}</td>
             <td class="status-cell editable-status" data-field="features_tracks">{{ paper.features.tracks | render_status }}</td>
             <td class="status-cell editable-status" data-field="features_holes">{{ paper.features.holes | render_status }}</td>
+            <td class="status-cell editable-status" data-field="features_solder">{{ paper.features.solder | render_status }}</td>
+            <td class="status-cell editable-status" data-field="features_missing_component">{{ paper.features.missing_component | render_status }}</td>
+            <td class="status-cell editable-status" data-field="features_wrong_component">{{ paper.features.wrong_component | render_status }}</td>
+            <td class="status-cell editable-status" data-field="features_polarity">{{ paper.features.polarity | render_status }}</td>
 
             <!-- Techniques Summary Cells -->
             <td class="status-cell editable-status" data-field="technique_classic_computer_vision_based">{{ paper.technique.classic_computer_vision_based | render_status }}</td>
@@ -185,14 +188,14 @@
 
                     <!-- NEW (Updated): Evaluator Reasoning Trace Section -->
                     <div class="detail-content detail-trace detail-evaluator-trace">
-                        <p><strong>Evaluator Reasoning Trace:</strong> </p>
+                        <strong>Evaluator Reasoning Trace:</strong> 
                         <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
                         <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div>
                     </div>
 
                     <!-- NEW (Updated): Verifier Reasoning Trace Section -->
                     <div class="detail-content detail-trace detail-verifier-trace">
-                        <p><strong>Verifier Reasoning Trace:</strong></p>
+                        <strong>Verifier Reasoning Trace:</strong>
                         <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
                         <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div>
                     </div>
@@ -218,12 +221,12 @@
             <td id="count-is_smt" class="count-cell"></td>
             <td id="count-is_x_ray" class="count-cell"></td>
             <!-- Features Counts -->
-            <td id="count-features_solder" class="count-cell"></td>
-            <td id="count-features_polarity" class="count-cell"></td>
-            <td id="count-features_wrong_component" class="count-cell"></td>
-            <td id="count-features_missing_component" class="count-cell"></td>
             <td id="count-features_tracks" class="count-cell"></td>
             <td id="count-features_holes" class="count-cell"></td>
+            <td id="count-features_solder" class="count-cell"></td>
+            <td id="count-features_missing_component" class="count-cell"></td>
+            <td id="count-features_wrong_component" class="count-cell"></td>
+            <td id="count-features_polarity" class="count-cell"></td>
             <!-- Techniques Counts -->
             <td id="count-technique_classic_computer_vision_based" class="count-cell"></td>
             <td id="count-technique_machine_learning_based" class="count-cell"></td>

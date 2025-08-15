@@ -216,7 +216,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                     technique_updates[technique_key] = value
                 else: # None or numeric
                     technique_updates[technique_key] = bool(value) if value is not None else None
-            else: # classic_computer_graphics_based, machine_learning_based, hybrid
+            else: # classic_computer_vision_based, machine_learning_based, hybrid
                  # Handle radio button group for 3-state (true/false/unknown)
                 if isinstance(value, str):
                     if value == 'true':

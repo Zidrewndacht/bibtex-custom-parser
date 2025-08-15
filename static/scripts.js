@@ -9,10 +9,13 @@ const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
 const hideShortCheckbox = document.getElementById('hide-short-checkbox');
 const minPageCountInput = document.getElementById('min-page-count');
 
+// Get all main rows (both visible and hidden by filters) only once:
+const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+const totalPaperCount = allRows.length;
+
 // --- Utility Functions ---
 function toggleDetails(element) {   //OK
-    const row = element.closest('tr'); // Get the main row
-    // if (!row) return; // Safety check
+    const row = element.closest('tr');
     const detailRow = row.nextElementSibling; // Assume detail row is the next sibling
     const isExpanded = detailRow && detailRow.classList.contains('expanded'); // Check if detailRow exists
     if (isExpanded) {
@@ -40,10 +43,6 @@ function updateCounts() {
     COUNT_FIELDS.forEach(field => counts[field] = 0);
 
     // --- Paper Count Logic ---
-    // Get all main rows (both visible and hidden by filters)
-    const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-    const totalPaperCount = allRows.length;
-
     // Select only VISIBLE main rows for counting '✔️' and calculating visible count
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     const visiblePaperCount = visibleRows.length;
@@ -138,8 +137,6 @@ function renderVerifiedBy(value) {
     }
 }
 
-
-
 // --- Helper function to render changed_by value as emoji (Client-Side) ---
 function renderChangedBy(value) {
     // This replicates the logic from Python's render_changed_by function
@@ -155,36 +152,6 @@ function renderChangedBy(value) {
     }
 }
 
-
-
-
-// --- Journal Shading Logic ---
-
-/**
- * Calculates the frequency of each journal/conference name among visible rows.
- * @param {NodeList} rows - The main table rows (filtered or unfiltered).
- * @returns {Map<string, number>} A map of journal names to their counts.
- */
-function calculateJournalFrequencies(rows) {
-    const journalCounts = new Map();
-
-    rows.forEach(row => {
-        // Only count visible rows (not hidden by filters)
-        if (!row.classList.contains('filter-hidden')) {
-            // Assuming Journal/Conf is the 5th column (index 4)
-            const journalCell = row.cells[4];
-            if (journalCell) {
-                const journalName = journalCell.textContent.trim();
-                // Only count non-empty journal names
-                if (journalName) {
-                    journalCounts.set(journalName, (journalCounts.get(journalName) || 0) + 1);
-                }
-            }
-        }
-    });
-
-    return journalCounts;
-}
 
 
 
@@ -204,48 +171,37 @@ function applyAlternatingShading() {
         // This ensures each paper group (main + detail) gets one color, alternating per group.
         const shadeClass = (groupIndex % 2 === 0) ? 'alt-shade-1' : 'alt-shade-2';
 
-        // --- Apply shading to the main row ---
         // Remove any existing alternating shade classes from the main row
         mainRow.classList.remove('alt-shade-1', 'alt-shade-2');
-        // Add the calculated shade class to the main row
         mainRow.classList.add(shadeClass);
-        // --- End Apply shading to the main row ---
 
         // --- Handle Detail Row Shading ---
-        let detailRow = mainRow.nextElementSibling;
-        // Find the associated detail row, skipping potential intervening elements if necessary
-        while (detailRow && !detailRow.classList.contains('detail-row')) {
-            // Safety check: stop if another main row is encountered
-            if (detailRow.hasAttribute('data-paper-id')) {
-                detailRow = null;
-                break;
-            }
-            detailRow = detailRow.nextElementSibling;
-        }
-
-        if (detailRow) {
-            // Remove any existing alternating shade classes from detail row
-            detailRow.classList.remove('alt-shade-1', 'alt-shade-2');
-            // Apply the SAME shade class as the main row to the detail row
-            detailRow.classList.add(shadeClass);
-            // Note: Ensure CSS .detail-row has background-color: inherit; or no background-color set
-            // so it uses the one from the .alt-shade-* class.
-        }
-        // --- End Handle Detail Row Shading ---
+        mainRow.nextElementSibling.classList.remove('alt-shade-1', 'alt-shade-2');
+        mainRow.nextElementSibling.classList.add(shadeClass);
+        // Note: Ensure CSS .detail-row has background-color: inherit; or no background-color set
+        // so it uses the one from the .alt-shade-* class.
     });
 }
 
 
+// --- Journal Shading Logic ---
+function applyJournalShading(rows) {
+    const journalCounts = new Map();
 
-
-
-/**
- * Applies background shading to Journal/Conf cells based on frequency.
- * @param {Map<string, number>} journalCounts - The map of journal names to counts.
- * @param {NodeList} rows - The main table rows.
- * @param {number} maxCount - The highest frequency count for normalization (optional, calculated if not provided).
- */
-function applyJournalShading(journalCounts, rows) {
+    rows.forEach(row => {
+        // Only count visible rows (not hidden by filters)
+        if (!row.classList.contains('filter-hidden')) {
+            // Assuming Journal/Conf is the 5th column (index 4)
+            const journalCell = row.cells[4];
+            if (journalCell) {
+                const journalName = journalCell.textContent.trim();
+                // Only count non-empty journal names
+                if (journalName) {
+                    journalCounts.set(journalName, (journalCounts.get(journalName) || 0) + 1);
+                }
+            }
+        }
+    });
     // Determine the maximum count for scaling
     let maxCount = 0;
     for (const count of journalCounts.values()) {
@@ -261,7 +217,7 @@ function applyJournalShading(journalCounts, rows) {
 
     rows.forEach(row => {
         // Reset shading first for all rows/cells
-        const journalCell = row.cells[4];
+        const journalCell = row.cells[4]; //5th cell in HTML
         if (journalCell) {
              // Reset to default background (inherits from row)
              journalCell.style.backgroundColor = '';
@@ -292,21 +248,14 @@ function applyJournalShading(journalCounts, rows) {
 }
 
 
-
-
-
-
-
 function applyFilters() {
     const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    const hideOfftopic = hideOfftopicCheckbox ? hideOfftopicCheckbox.checked : false;
-    const hideShort = hideShortCheckbox ? hideShortCheckbox.checked : false;
+    const hideOfftopic = hideOfftopicCheckbox.checked;
+    const hideShort = hideShortCheckbox.checked
     const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
-
     const tbody = document.querySelector('#papersTable tbody');
     if (!tbody) return;
     const rows = tbody.querySelectorAll('tr[data-paper-id]');
-
     rows.forEach(row => {
         let showRow = true;
         const paperId = row.getAttribute('data-paper-id');
@@ -319,13 +268,6 @@ function applyFilters() {
             }
             if (nextSibling && nextSibling.classList.contains('detail-row')) {
                 detailRow = nextSibling;
-            }
-        }
-        if (showRow && searchTerm) {
-            let rowText = (row.textContent || '').toLowerCase();
-            let detailText = (detailRow ? detailRow.textContent || '' : '').toLowerCase();
-            if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
-                showRow = false;
             }
         }
         if (showRow && hideOfftopic) {
@@ -342,66 +284,55 @@ function applyFilters() {
                 if (!isNaN(pageCount) && pageCount < minPageCountValue) {
                     showRow = false;
                 }
-                // Optional: Hide if page count is empty/unknown when filtering by page count?
-                // else if (pageCountText === '') {
-                //     showRow = false;
-                // }
             }
         }
+        if (showRow && searchTerm) {
+            let rowText = (row.textContent || '').toLowerCase();
 
+            let detailText = '';
+            if (detailRow) {
+                // Create a clone to avoid modifying the original DOM temporarily
+                const detailClone = detailRow.cloneNode(true);
+                detailClone.querySelector('.detail-evaluator-trace .trace-content').remove(); // Remove the evaluator trace content
+                detailClone.querySelector('.detail-verifier-trace .trace-content').remove();  // Remove the verifier trace content
+
+                // Now get the text content of the modified clone (excluding traces)
+                detailText = (detailClone.textContent || '').toLowerCase();
+            }
+            // Check if the search term is present in either the main row or the filtered detail row text
+            if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
+                showRow = false;
+            }
+        }
         // --- Show/Hide Row and Detail Row ---
         // Use classList.toggle for cleaner, more readable code
-        if (row) {
-            row.classList.toggle('filter-hidden', !showRow);
-        }
-        if (detailRow) {
-            // Detail row visibility should ideally follow the main row,
-            // but only if it's explicitly hidden by filters.
-            // If the main row is shown, the detail row's visibility should depend on its own 'expanded' state.
-            // However, for simplicity and to ensure it's hidden when the main row is filtered out,
-            // we can hide it here. The toggleDetails function handles the 'expanded' class.
-            // Let's keep it simple: if main row is hidden by filter, detail row is hidden by filter.
-            // If main row is shown by filter, detail row is shown by filter (but might be collapsed).
-            detailRow.classList.toggle('filter-hidden', !showRow);
-            // Important: Ensure the 'expanded' state is respected if the row becomes visible again.
-            // The 'expanded' class controls display:block for detail rows.
-            // If the row is shown by filter, we don't force 'expanded' off here.
-            // toggleDetails will manage the 'expanded' class.
-        }
+        row.classList.toggle('filter-hidden', !showRow);
+        // if main row is hidden by filter, detail row is hidden by filter.
+        // If main row is shown by filter, detail row is shown by filter (but might be collapsed).
+        detailRow.classList.toggle('filter-hidden', !showRow);
     });
-    // --- End of existing filtering loop ---
 
-    // --- Apply Journal Shading based on visible rows ---
+    // --- Reapply Journal Shading based on visible rows ---
     const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-    const currentJournalCounts = calculateJournalFrequencies(currentVisibleRows);
-    applyJournalShading(currentJournalCounts, currentVisibleRows);
-    // --- End of Journal Shading ---
-    updateCounts(); 
+    applyJournalShading(currentVisibleRows);
+    updateCounts();
     applyAlternatingShading();
 }
-
-
-
 
 document.addEventListener('DOMContentLoaded', function () {
     const headers = document.querySelectorAll('th[data-sort]');
     let currentClientSort = { column: null, direction: 'ASC' }; 
+    //Start with both filters enabled:
+    hideOfftopicCheckbox.checked = true;
+    hideShortCheckbox.checked = true;
 
-    if (hideOfftopicCheckbox) hideOfftopicCheckbox.checked = false;
-    if (hideShortCheckbox) hideShortCheckbox.checked = false;
-
-    if (searchInput) {           searchInput.addEventListener('input', applyFilters);    }
-    if (hideOfftopicCheckbox) {  hideOfftopicCheckbox.addEventListener('change', applyFilters);    }
-    if (hideShortCheckbox) {     hideShortCheckbox.addEventListener('change', applyFilters);    }
-    if (minPageCountInput) {
-        // Use 'input' for immediate response as the user types the number
-        minPageCountInput.addEventListener('input', applyFilters);
-        // Also listen for 'change' in case the user uses arrow keys or spinner (if supported)
-        minPageCountInput.addEventListener('change', applyFilters);
-    }
-    // --- Call applyFilters initially to ensure state is consistent (e.g., if inputs had values from cache) ---
-    // Although defaults are off, good practice.
-    applyFilters();
+    searchInput.addEventListener('input', applyFilters);   
+    hideOfftopicCheckbox.addEventListener('change', applyFilters); 
+    hideShortCheckbox.addEventListener('change', applyFilters);
+    minPageCountInput.addEventListener('input', applyFilters);
+    minPageCountInput.addEventListener('change', applyFilters);
+    
+    applyFilters(); //apply initial filtering
     
     // --- Single Event Listener for Headers (Handles Client-Side Sorting) ---
     headers.forEach(header => {
@@ -414,15 +345,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 newDirection = currentClientSort.direction === 'ASC' ? 'DESC' : 'ASC';
             }
             const tbody = document.querySelector('#papersTable tbody');
-            if (!tbody) {
-                console.error("Table body not found!");
-                return;
-            }
             const rows = Array.from(tbody.querySelectorAll('tr[data-paper-id]'));
 
             const getSortValue = (row) => {
                 let cellValue = null;
-                if (['title', 'year', 'journal', 'authors', 'changed', 'changed_by', 'verified_by', 'research_area', 'type', 'page_count', 'estimated_score'].includes(sortBy)) {
+                if (['title', 'year', 'journal', 'authors', 'changed', 'changed_by', 'verified', 'verified_by', 'research_area', 'type', 'page_count', 'estimated_score'].includes(sortBy)) {
                     let cell = null;
                     const headerIndex = Array.from(header.parentNode.children).indexOf(header);
                     if (headerIndex !== -1) {
@@ -435,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                // Handle boolean/status columns (is_survey, is_offtopic, etc.)
+                // Handle boolean/status columns:
                 else if (['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray'].includes(sortBy) || sortBy.startsWith('features_') || sortBy.startsWith('technique_')) {
                     const cell = row.querySelector(`.editable-status[data-field="${sortBy}"]`);
                     cellValue = cell ? cell.textContent.trim() : '';
@@ -456,9 +383,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     comparison = 1;
                 } else if (aValue < bValue) {
                     comparison = -1;
-                }
-                // If values are equal, add a secondary sort by paper ID for stability
-                if (comparison === 0) {
+                } else {// If values are equal, add a secondary sort by paper ID for stability
                     const idA = a.getAttribute('data-paper-id') || '';
                     const idB = b.getAttribute('data-paper-id') || '';
                     if (idA > idB) comparison = 1;
@@ -480,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             });
-                        
+            
             const fragment = document.createDocumentFragment(); // Off-DOM container
             rows.forEach(mainRow => {
                 const paperId = mainRow.getAttribute('data-paper-id');
@@ -607,10 +532,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sendAjaxRequest(cell, dataToSend, currentSymbol, row, paperId, field);
     });
 
-
-
-
-    // --- NEW: Batch Action Button Event Listeners ---
+    // --- Batch Action Button Event Listeners ---
     const classifyAllBtn = document.getElementById('classify-all-btn');
     const classifyRemainingBtn = document.getElementById('classify-remaining-btn');
     const verifyAllBtn = document.getElementById('verify-all-btn');
@@ -659,14 +581,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data.status === 'started') {
                 if (batchStatusMessage) batchStatusMessage.textContent = data.message;
                 // Batch started, it's running in the background.
-                // We could implement polling or websockets for status updates, but for now, just rely on the message.
-                // Re-enable buttons after a short delay or assume user knows it's running
-                 setTimeout(() => {
-                     isBatchRunning = false; // Allow new batches after a short time
-                     if (btnToDisable) btnToDisable.disabled = false;
-                     otherBtns.forEach(btn => btn.disabled = false);
-                    //  if (batchStatusMessage) batchStatusMessage.textContent += " (Background task running)";
-                 }, 2000); // Assume it started successfully after 2s
+                // To re-enable buttons after a short delay or assume user knows it's running
+                //  setTimeout(() => {
+                //      isBatchRunning = false; // Allow new batches after a short time
+                //      if (btnToDisable) btnToDisable.disabled = false;
+                //      otherBtns.forEach(btn => btn.disabled = false);
+                //     //  if (batchStatusMessage) batchStatusMessage.textContent += " (Background task running)";
+                //  }, 2000); // Assume it started successfully after 2s
             } else {
                  // This shouldn't happen for batch actions, but handle if it does
                  console.error(`Unexpected response for batch ${actionType}:`, data);
@@ -686,20 +607,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    if (classifyAllBtn) {
-        classifyAllBtn.addEventListener('click', () => runBatchAction('all', 'classify'));
-    }
-    if (classifyRemainingBtn) {
-        classifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'classify'));
-    }
-    if (verifyAllBtn) {
-        verifyAllBtn.addEventListener('click', () => runBatchAction('all', 'verify'));
-    }
-    if (verifyRemainingBtn) {
-        verifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'verify'));
-    }
+    classifyAllBtn.addEventListener('click', () => runBatchAction('all', 'classify'));
+    classifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'classify'));
+    verifyAllBtn.addEventListener('click', () => runBatchAction('all', 'verify'));
+    verifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'verify'));
 
-    // --- NEW: Per-Row Action Button Event Listeners ---
+    // --- Per-Row Action Button Event Listeners ---
     document.addEventListener('click', function(event) {
         const classifyBtn = event.target.closest('.classify-btn');
         const verifyBtn = event.target.closest('.verify-btn');
@@ -801,13 +714,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const researchAreaInput = form.querySelector('input[name="research_area"]');
                                 if(researchAreaInput) researchAreaInput.value = data.research_area || '';
                                 const pageCountInput = form.querySelector('input[name="page_count"]');
-                                if(pageCountInput) pageCountInput.value = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
-                                const userTraceTextarea = form.querySelector('textarea[name="user_trace"]');
-                                if(userTraceTextarea) userTraceTextarea.value = data.user_trace || ''; // Update textarea value
+                                // if(pageCountInput) pageCountInput.value = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
+                                // const userTraceTextarea = form.querySelector('textarea[name="user_trace"]');
+                                // if(userTraceTextarea) userTraceTextarea.value = data.user_trace || ''; // Update textarea value
                             }
                         }
-
-                        updateCounts(); // Update counts if necessary
+                        updateCounts();
                         console.log(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} successful for paper ${paperId}`);
                     }
                 } else {
@@ -820,16 +732,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert(`An error occurred while ${actionType}ing paper ${paperId}: ${error.message}`);
             })
             .finally(() => {
-                // Re-enable the button
                 (classifyBtn || verifyBtn).disabled = false;
-                // Set text back to original based on actionType
                 if (actionType === 'classify') {
                     (classifyBtn || verifyBtn).innerHTML = 'Classify <strong>this paper</strong>';
                 } else if (actionType === 'verify') {
-                    (classifyBtn || verifyBtn).innerHTML = 'Verify <strong>this paper</strong>'; // Assuming similar for verify
+                    (classifyBtn || verifyBtn).innerHTML = 'Verify <strong>this paper</strong>'; 
                 }
-                // Or, if you store the original text beforehand:
-                // (classifyBtn || verifyBtn).textContent = originalText; 
             });
         }
     });

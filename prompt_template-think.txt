@@ -8,19 +8,19 @@ is_through_hole: null #true for papers that specify PTH, THT, etc., through-hole
 is_smt: null #true for papers that specify surface-mount component mounting (SMD, SMT).
 is_x_ray: null  #true for X-ray inspection, false for standard optical (visible light) inspection.
 features:  # true, false, null for unknown/unclear. Identify the types of defect which are detected by the implementation(s) described in the paper.
-    solder: null
-    polarity: null
-    wrong_component: null
-    missing_component: null
-    tracks: null	#any track error detection: split, short, etc.
-    holes: null
-    other: null 	#"string with other types of defect detection"
+    solder: null #for solder quality defects: too little solder, too much solder, short circuit, broken solder or any other soldering issues. 
+    polarity: null #for components installed in the correct place, but with wrong orientation (inverter polarity, wrong pin 1 placement, etc).
+    wrong_component: null #for components installed in the wrong location, might also detect components being installed where none should be.
+    missing_component: null #for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
+    tracks: null	#any track error detection: open track, short circuit, spurious copper, mouse bite, etc.
+    holes: null  #for drilling defects and any other PCB hole issues.
+    other: null 	#"string with any other types of defect detection not specified above"
 technique: # 
-    classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning
-    machine_learning_based: null
-    hybrid: null
+    classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning.
+    machine_learning_based: null #for any technique that use machine learning training/inference techniques, including, but not limited to, deep learning.
+    hybrid: null #for papers that describe techniques that are explicitly defined as some hybrid of classic and ML techniques.
     model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
-available_dataset: null #true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+    available_dataset: null #true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 
 Below are some example outputs, from random papers, for structure reference only:
 
@@ -44,9 +44,9 @@ Below are some example outputs, from random papers, for structure reference only
     "classic_computer_vision_based": false,
     "machine_learning_based": true,
     "hybrid": true,
-    "model": "YOLOv2, ResNet-101, Faster RCNN, Feature Pyramid Network (FPN)"
+    "model": "YOLOv2, ResNet-101, Faster RCNN, Feature Pyramid Network (FPN)",
+    "available_dataset": true
   }},
-  "available_dataset": true
 }}
 
 {{
@@ -69,9 +69,9 @@ Below are some example outputs, from random papers, for structure reference only
     "classic_computer_vision_based": false,
     "machine_learning_based": true,
     "hybrid": false,
-    "model": "beta-variational autoencoder (beta-VAE)"
+    "model": "beta-VAE",
+    "available_dataset": null
   }},
-  "available_dataset": null
 }}
 
 {{
@@ -94,9 +94,9 @@ Below are some example outputs, from random papers, for structure reference only
     "classic_computer_vision_based": null,
     "machine_learning_based": null,
     "hybrid": null,
-    "model": null
+    "model": null,
+    "available_dataset": null
   }},
-  "available_dataset": null
 }}
 
 Below is the paper you will process. Answer accordingly:

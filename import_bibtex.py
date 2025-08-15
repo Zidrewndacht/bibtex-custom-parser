@@ -208,6 +208,28 @@ def import_bibtex(bib_file, db_path):
             'verifier_trace': None,  
             'user_trace': None, 
         }
+        # Check for duplicates: prioritize DOI, fallback to title + year
+        doi = data['doi']
+        title = data['title']
+        year = data['year']
+
+        duplicate_found = False
+        
+        if doi:
+            cursor.execute("SELECT id FROM papers WHERE doi = ?", (doi,))
+            if cursor.fetchone():
+                print(f"Skipping duplicate entry with DOI '{doi}'")
+                duplicate_found = True
+        else:
+            # Fallback: check for same title and year
+            if title and year:
+                cursor.execute("SELECT id FROM papers WHERE title = ? AND year = ?", (title, year))
+                if cursor.fetchone():
+                    print(f"Skipping duplicate entry with title '{title}' and year '{year}'")
+                    duplicate_found = True
+
+        if duplicate_found:
+            continue  # Skip this entry
 
         # Insert into database
         try:

@@ -16,7 +16,7 @@ OK        Page count
     
 OK   Redo from scratch verification pass (LLM reads each DB line and checks if the according inferred values are sane)
 OK      Use shared functions from globals.py
-
+      
 OK    Add support to reasoning models
 OK        Save reasoning to DB
 OK        Show reasoning in detail row
@@ -36,9 +36,12 @@ OK    Change "changed by" to icon instead of model name, consistent with "verifi
 OK    Fix bogus table shading after filtering
 OK    Fix model_name not showing in GUI
 OK    Fix "other defects" not showing in GUI
+OK    Fix "datasets" not showing in GUI
+OK    Fix instances of computer_graphics instead of computer_vision
+OK    Fix sort by 'verified'
 
     Import bibTeX from GUI?
-        Automatic Dedup by DOI?
+OK        Automatic Dedup by DOI?
     
 OK?   Send to LLM from GUI
 OK        Refactor automate, verify .py
@@ -49,9 +52,10 @@ OK?            Prevent verifying unprocessed papers;
 OK        "Classify this paper" from detail row?
 OK        "Verify this paper" from detail row?
 
+        Allow discarding a paper from DB in GUI
+
+
     Export stats to CSV / Excel?
 
-    Try to import full text of papers?
-        Maybe not, even if technically feasible, due to copyright concerns, etc.
-
 OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
+        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
