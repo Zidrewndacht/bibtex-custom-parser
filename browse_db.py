@@ -9,6 +9,8 @@ import argparse
 import os
 import sys
 import threading # Import for background threads
+import webbrowser
+
 
 import globals
 
@@ -542,7 +544,6 @@ def render_verified_by_filter(value):
     # Use Markup to tell Jinja2 that the output is safe HTML
     return Markup(render_verified_by(value)) 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Browse and edit PCB inspection papers database.')
     parser.add_argument('db_file', nargs='?', help='SQLite database file path (optional)')
@@ -577,6 +578,16 @@ if __name__ == '__main__':
         sys.exit(1)
 
     print(f"Starting server, database: {DATABASE}")
+
+    # Function to open the browser after a delay
+    def open_browser():
+        import time
+        time.sleep(2)  # Wait for the server to start
+        webbrowser.open("http://127.0.0.1:5000")
+
+    # Start the browser opener in a separate thread
+    threading.Thread(target=open_browser).start()
+
     print(" * Visit http://127.0.0.1:5000 to view the table.")
     
     # Ensure the templates and static folders exist
@@ -584,4 +595,4 @@ if __name__ == '__main__':
         os.makedirs('templates')
     if not os.path.exists('static'):
         os.makedirs('static')
-    app.run(debug=True) # Set debug=False for production
+    app.run(debug=True)  # Set debug=False for production

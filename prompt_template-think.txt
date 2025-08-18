@@ -101,12 +101,12 @@ Below are some example outputs, from random papers, for structure reference only
 
 Below is the paper you will process. Answer accordingly:
 
-Title: {title}
-Abstract: {abstract}
-Keywords: {keywords}
-Authors: {authors}
-Publication Year: {year}
-Publication Type: {type}
-Publication Name: {journal}
+*Title:* {title}
+*Abstract:* {abstract}
+*Keywords:* {keywords}
+*Authors:* {authors}
+*Publication Year:* {year}
+*Publication Type:* {type}
+*Publication Name:* {journal}
 
 Your response is not being read by a human, it goes directly to an automated parser. After thinking through the request in <think></think> tags, output only the result in JSON format in plaintext without any other tags like ```json or similar.

@@ -1,5 +1,3 @@
-You are an expert tasked with verifying if the automated classification of a research paper is accurate based on its content.
-
 Below is the data for a paper and its corresponding LLM-generated classification. Your job is to determine if the classification accurately reflects the information in the paper's title, abstract, and keywords.
 
 Instructions:
@@ -46,13 +44,13 @@ technique: #
 
 Now, here is the Paper Content (real data) for your task:
 
-Title: {title}
-Abstract: {abstract}
-Keywords: {keywords}
-Authors: {authors}
-Publication Year: {year}
-Publication Type: {type}
-Publication Name: {journal}
+*Title:* {title}
+*Abstract:* {abstract}
+*Keywords:* {keywords}
+*Authors:* {authors}
+*Publication Year:* {year}
+*Publication Type:* {type}
+*Publication Name:* {journal}
 
 Automated Classification to Verify (inferred by a language model):
 

@@ -52,10 +52,12 @@ OK?            Prevent verifying unprocessed papers;
 OK        "Classify this paper" from detail row?
 OK        "Verify this paper" from detail row?
 
-        Allow discarding a paper from DB in GUI
-
+        Allow discarding a paper from DB in GUI?
+                Maybe not, be consistent with the search sentence
 
     Export stats to CSV / Excel?
 
 OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
-        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
+OK        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
+
+        Reset 'verified' after 're-classify this paper' or manual changes.

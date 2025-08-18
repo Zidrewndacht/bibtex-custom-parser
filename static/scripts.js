@@ -13,6 +13,28 @@ const minPageCountInput = document.getElementById('min-page-count');
 const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
 const totalPaperCount = allRows.length;
 
+// --- Inside your script, outside any function ---
+let filterTimeoutId = null;
+const FILTER_DEBOUNCE_DELAY = 200; // milliseconds (adjust as needed, 300ms is common)
+
+// --- New: Single named function for filter event handling ---
+function scheduleFilterUpdate() {
+    clearTimeout(filterTimeoutId);
+    // Set the cursor immediately on user interaction
+    document.documentElement.classList.add('busyCursor');
+    // Debounce the actual filtering
+    filterTimeoutId = setTimeout(() => {
+        // Use setTimeout(0) to defer the heavy work to the next event loop tick.
+        // This allows the browser to process the 'progress' cursor change.
+        setTimeout(() => {
+            applyFilters(); // Run the expensive filtering
+            // Apply rAF here if needed for post-filter updates, 
+            // though applyFilters already calls them.
+        }, 0);
+    }, FILTER_DEBOUNCE_DELAY);
+}
+// --- End of new code ---
+
 // --- Utility Functions ---
 function toggleDetails(element) {   //OK
     const row = element.closest('tr');
@@ -88,7 +110,13 @@ const VERIFIED_BY_CYCLE = {
     // We assume the user wants to override/review it, not set it to computer.
     '🖥️': { next: '❔', value: 'unknown' } 
 };
-
+// --- Optimized Client-Side Sorting ---
+// Pre-calculate symbol weights OUTSIDE the sort loop for efficiency
+const SYMBOL_SORT_WEIGHTS = {
+    '✔️': 2, // Yes
+    '❌': 1, // No
+    '❔': 0  // Unknown
+};
 
 /**
  * Helper to update a cell's status symbol based on boolean/null value.
@@ -317,6 +345,9 @@ function applyFilters() {
     applyJournalShading(currentVisibleRows);
     updateCounts();
     applyAlternatingShading();
+    
+    // Reset cursor after filtering is complete
+    document.documentElement.classList.remove('busyCursor');
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -326,107 +357,96 @@ document.addEventListener('DOMContentLoaded', function () {
     hideOfftopicCheckbox.checked = true;
     hideShortCheckbox.checked = true;
 
-    searchInput.addEventListener('input', applyFilters);   
-    hideOfftopicCheckbox.addEventListener('change', applyFilters); 
-    hideShortCheckbox.addEventListener('change', applyFilters);
-    minPageCountInput.addEventListener('input', applyFilters);
-    minPageCountInput.addEventListener('change', applyFilters);
-    
+    searchInput.addEventListener('input', scheduleFilterUpdate);
+    hideOfftopicCheckbox.addEventListener('change', scheduleFilterUpdate);
+    hideShortCheckbox.addEventListener('change', scheduleFilterUpdate);
+    minPageCountInput.addEventListener('input', scheduleFilterUpdate);
+    minPageCountInput.addEventListener('change', scheduleFilterUpdate);
+
     applyFilters(); //apply initial filtering
     
-    // --- Single Event Listener for Headers (Handles Client-Side Sorting) ---
+    // --- Single Event Listener for Headers (Handles Optimized Client-Side Sorting) ---
     headers.forEach(header => {
         header.addEventListener('click', function () {
-            const sortBy = this.getAttribute('data-sort');
-            if (!sortBy) return;
+            document.documentElement.classList.add('busyCursor');
+            setTimeout(() => {
+                const sortBy = this.getAttribute('data-sort');
+                if (!sortBy) return;
 
-            let newDirection = 'ASC';
-            if (currentClientSort.column === sortBy) { // If clicking the same column, toggle direction
-                newDirection = currentClientSort.direction === 'ASC' ? 'DESC' : 'ASC';
-            }
-            const tbody = document.querySelector('#papersTable tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr[data-paper-id]'));
+                // --- Determine Sort Direction ---
+                let newDirection = 'DESC';
+                if (currentClientSort.column === sortBy) {
+                    newDirection = currentClientSort.direction === 'DESC' ? 'ASC' : 'DESC';
+                }
 
-            const getSortValue = (row) => {
-                let cellValue = null;
-                if (['title', 'year', 'journal', 'authors', 'changed', 'changed_by', 'verified', 'verified_by', 'research_area', 'type', 'page_count', 'estimated_score'].includes(sortBy)) {
-                    let cell = null;
-                    const headerIndex = Array.from(header.parentNode.children).indexOf(header);
-                    if (headerIndex !== -1) {
-                        cell = row.cells[headerIndex];
+                const tbody = document.querySelector('#papersTable tbody');
+                if (!tbody) return;
+
+                // --- PRE-PROCESS: Extract Sort Values and Row References ---
+                const visibleMainRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+                const headerIndex = Array.prototype.indexOf.call(this.parentNode.children, this);
+                const sortData = [];
+                let mainRow, paperId, cellValue, detailRow, cell;
+
+                for (let i = 0; i < visibleMainRows.length; i++) {
+                    mainRow = visibleMainRows[i];
+                    paperId = mainRow.getAttribute('data-paper-id');
+
+                    // --- Determine Sort Value (Ultra-Direct) ---
+                    if (['title', 'year', 'journal', 'authors', 'page_count', 'estimated_score'].includes(sortBy)) {
+                        cell = mainRow.cells[headerIndex];
+                        cellValue = cell.textContent.trim();
+                        if (sortBy === 'year' || sortBy === 'estimated_score' || sortBy === 'page_count') {
+                            cellValue = parseFloat(cellValue) || 0;
+                        }
+                    } else if (['type', 'changed', 'changed_by', 'verified', 'verified_by', 'research_area'].includes(sortBy)) {
+                        cell = mainRow.cells[headerIndex];
+                        cellValue = cell ? cell.textContent.trim() : '';
+                    } else { // Status/Feature/Technique columns
+                        cell = mainRow.querySelector(`.editable-status[data-field="${sortBy}"]`);
+                        cellValue = SYMBOL_SORT_WEIGHTS[cell.textContent.trim()] ?? 0;
                     }
-                    cellValue = cell ? cell.textContent.trim() : '';
-                    
-                    if (sortBy === 'year' || sortBy === 'estimated_score' || sortBy === 'page_count' ) {
-                        cellValue = parseInt(cellValue, 10) || 0; // Default to 0 if not a number
+
+                    detailRow = mainRow.nextElementSibling;
+                    sortData.push({ value: cellValue, mainRow, detailRow, paperId });
+                }
+
+                // --- SORT the Array of Objects ---
+                sortData.sort((a, b) => {
+                    let comparison = 0;
+                    if (a.value > b.value) comparison = 1;
+                    else if (a.value < b.value) comparison = -1;
+                    else {
+                        if (a.paperId > b.paperId) comparison = 1;
+                        else if (a.paperId < b.paperId) comparison = -1;
                     }
-                }
+                    return newDirection === 'DESC' ? -comparison : comparison;
+                });
 
-                // Handle boolean/status columns:
-                else if (['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray'].includes(sortBy) || sortBy.startsWith('features_') || sortBy.startsWith('technique_')) {
-                    const cell = row.querySelector(`.editable-status[data-field="${sortBy}"]`);
-                    cellValue = cell ? cell.textContent.trim() : '';
-                    // Convert symbols to a sortable value (e.g., ✔️ -> 2, ❌ -> 1, ❔ -> 0)
-                    if (cellValue === '✔️') cellValue = 2;
-                    else if (cellValue === '❌') cellValue = 1;
-                    else cellValue = 0; // ❔ or unknown
+                // --- BATCH UPDATE the DOM ---
+                const fragment = document.createDocumentFragment();
+                for (let i = 0; i < sortData.length; i++) {
+                    fragment.appendChild(sortData[i].mainRow);
+                    fragment.appendChild(sortData[i].detailRow);
                 }
-                return cellValue;
-            };
+                tbody.appendChild(fragment);
 
-            // --- Perform the sort on the array of row elements ---
-            rows.sort((a, b) => {
-                const aValue = getSortValue(a);
-                const bValue = getSortValue(b);
-                let comparison = 0;
-                if (aValue > bValue) {
-                    comparison = 1;
-                } else if (aValue < bValue) {
-                    comparison = -1;
-                } else {// If values are equal, add a secondary sort by paper ID for stability
-                    const idA = a.getAttribute('data-paper-id') || '';
-                    const idB = b.getAttribute('data-paper-id') || '';
-                    if (idA > idB) comparison = 1;
-                    else if (idA < idB) comparison = -1;
-                }
-                return newDirection === 'DESC' ? -comparison : comparison;
-            });
-            const allDetailRows = {};
-            tbody.querySelectorAll('tr.detail-row').forEach(dRow => {
-                // Find the preceding main row to get its ID
-                let prevRow = dRow.previousElementSibling;
-                while (prevRow && !prevRow.hasAttribute('data-paper-id')) {
-                    prevRow = prevRow.previousElementSibling;
-                }
-                if (prevRow) {
-                    const paperId = prevRow.getAttribute('data-paper-id');
-                    if (paperId) {
-                        allDetailRows[paperId] = dRow;
-                    }
-                }
-            });
-            
-            const fragment = document.createDocumentFragment(); // Off-DOM container
-            rows.forEach(mainRow => {
-                const paperId = mainRow.getAttribute('data-paper-id');
-                const detailRow = paperId ? allDetailRows[paperId] : null;
-                fragment.appendChild(mainRow); // Add main row to fragment
-                if (detailRow) {
-                    fragment.appendChild(detailRow); // Add detail row to fragment
-                }
-            });
-            tbody.appendChild(fragment); // Add all rows at once
-            
-            applyAlternatingShading();
-            currentClientSort = { column: sortBy, direction: newDirection };
+                // --- Schedule UI Updates ---
+                requestAnimationFrame(() => { applyAlternatingShading(); });
+                requestAnimationFrame(() => {
+                    const currentVisibleRowsForJournal = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
+                    applyJournalShading(currentVisibleRowsForJournal);
+                });
+                requestAnimationFrame(() => { updateCounts(); });
 
-            document.querySelectorAll('th .sort-indicator').forEach(ind => {
-                if (ind) ind.textContent = '';
-            });
-            const indicator = this.querySelector('.sort-indicator'); // 'this' is the clicked header
-            if (indicator) {
-                indicator.textContent = newDirection === 'ASC' ? '↑' : '↓';
-            }
+                currentClientSort = { column: sortBy, direction: newDirection };
+
+                document.documentElement.classList.remove('busyCursor');
+                // Update sort indicators
+                document.querySelectorAll('th .sort-indicator').forEach(ind => ind.textContent = '');
+                this.querySelector('.sort-indicator').textContent = newDirection === 'ASC' ? '▲' : '▼'; // Assuming correct symbols
+
+            }, 0); // Defer execution
         });
     });
 

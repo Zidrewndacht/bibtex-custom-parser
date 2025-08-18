@@ -7,6 +7,10 @@ body {
     color: #393939;
 }
 
+html.busyCursor,
+html.busyCursor * {
+    cursor: wait !important;
+}
 /* Ensure the table container allows internal scrolling for the sticky footer */
  .table-container { 
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -27,8 +31,8 @@ table {
 
 td {
     padding: 8px; 
-    text-align: left;
     min-width: 25px;
+    /*! text-align: justify; */
 }
 
 /* --- Rotated Header Styles --- */
@@ -86,6 +90,7 @@ th[data-sort]:hover {
 .secondary-text-cell {
     font-size: 10pt;
     font-family: "Arial Narrow";
+    /*! text-align: justify; */
 }
 .detail-content {
     /*! margin: 10px auto; */
@@ -632,4 +637,8 @@ tr.filter-hidden {
     display: flex;
     align-content: space-around;
     justify-content: space-between;
+}
+
+.number-cell {
+    text-align: center;
 }

@@ -1,6 +1,6 @@
 <!-- templates/index.html -->
 <!DOCTYPE html>
-<html>
+<html class="busyCursor">
 <head>
     <title>PCB Inspection Papers</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
@@ -61,15 +61,15 @@
             <th data-sort="authors">Authors <span class="sort-indicator"></span></th>
             <th data-sort="year">Year <span class="sort-indicator"></span></th>
             <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
-            <th data-sort="page_count">Page Count <span class="sort-indicator"></span></th>
+            <th data-sort="page_count" style="width:28px; min-width:28px; max-width:28px">Page Count <span class="sort-indicator"></span></th>
 
 
             <!-- Classification Summary Columns -->
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><div><span>Off-topic</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><div><span>Survey</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><div><span>THT</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><div><span>SMT</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><div><span>X-Ray</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><span class="sort-indicator"></span><div><span>Survey</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><span class="sort-indicator"></span><div><span>THT</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><span class="sort-indicator"></span><div><span>SMT</span></div></th>
+            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
 
             <!-- Features Summary Columns -->
             <th class="inferred-header rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
@@ -85,12 +85,12 @@
             <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
             <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
 
-            <th data-sort="changed" style="width:50px; min-width:50px; max-width:50px">Last Changed <span class="sort-indicator"></span></th>
+            <th data-sort="changed" style="width:44px; min-width:44px; max-width:44px">Last Changed <span class="sort-indicator"></span></th>
             <th data-sort="changed_by" style="width:60px; min-width:60px; max-width:60px">Changed By <span class="sort-indicator"></span></th>
-            <th data-sort="verified" style="width:50px; min-width:50px; max-width:50px">Verified <span class="sort-indicator"></span></th>
-            <th data-sort="estimated_score" style="width:50px; min-width:50px; max-width:50px">Accuracy Score <span class="sort-indicator"></span></th>
-            <th data-sort="verified_by" style="width:50px; min-width:50px; max-width:50px">Verified By <span class="sort-indicator"></span></th>
-            <th style="width:50px; min-width:50px; max-width:50px">Actions</th>
+            <th data-sort="verified" style="width:44px; min-width:44px; max-width:44px">Verified <span class="sort-indicator"></span></th>
+            <th data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px">Accr. Score <span class="sort-indicator"></span></th>
+            <th data-sort="verified_by" style="width:44px; min-width:44px; max-width:44px">Verified By <span class="sort-indicator"></span></th>
+            <th style="width:44px; min-width:44px; max-width:44px">Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -106,9 +106,9 @@
                 {% endif %}
             </td>
             <td class="secondary-text-cell">{{ paper.authors_truncated }}</td>
-            <td class="secondary-text-cell">{{ paper.year or '' }}</td>
+            <td class="secondary-text-cell number-cell" style="width:28px; min-width:28px; max-width:28px">{{ paper.year or '' }}</td>
             <td class="secondary-text-cell">{{ paper.journal }}</td>        
-            <td class="secondary-text-cell">{{ paper.page_count or '' }}</td>
+            <td class="secondary-text-cell number-cell">{{ paper.page_count or '' }}</td>
 
             <!-- Classification Summary Cells -->
             <td class="status-cell editable-status" data-field="is_offtopic">{{ paper.is_offtopic | render_status }}</td>
@@ -134,7 +134,7 @@
             <td class="secondary-text-cell changed-cell">{{ paper.changed_formatted }}</td> <!-- Use formatted timestamp -->
             <td class="status-cell changed-by-cell">{{ paper.changed_by | render_changed_by }}</td>            
             <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
-            <td class="secondary-text-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
+            <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
             <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
             <td class="toggle-btn" onclick="toggleDetails(this)"><span>Expand</span></td>
         </tr>
