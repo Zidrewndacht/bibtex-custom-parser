@@ -61,3 +61,7 @@ OK    automate never reaches final status, stuck at 'processed 524/524' papers a
 OK        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
 
         Reset 'verified' after 're-classify this paper' or manual changes.
+
+        Fix css
+        Tell the verifier that "None" is as valid as null.
+        Add a 

@@ -9,6 +9,9 @@ const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
 const hideShortCheckbox = document.getElementById('hide-short-checkbox');
 const minPageCountInput = document.getElementById('min-page-count');
 
+const hideOlderCheckbox = document.getElementById('hide-older-checkbox'); // Corrected ID
+const maxAgeInput = document.getElementById('max-age');
+
 // Get all main rows (both visible and hidden by filters) only once:
 const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
 const totalPaperCount = allRows.length;
@@ -42,10 +45,10 @@ function toggleDetails(element) {   //OK
     const isExpanded = detailRow && detailRow.classList.contains('expanded'); // Check if detailRow exists
     if (isExpanded) {
         if (detailRow) detailRow.classList.remove('expanded');
-        element.textContent = 'Expand';
+        element.innerHTML = '<span>Expand</span>';
     } else {
         if (detailRow) detailRow.classList.add('expanded');
-        element.textContent = 'Collapse';
+        element.innerHTML = '<span>Collapse</span>';
     }
 }
 
@@ -278,9 +281,6 @@ function applyJournalShading(rows) {
 
 function applyFilters() {
     const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    const hideOfftopic = hideOfftopicCheckbox.checked;
-    const hideShort = hideShortCheckbox.checked
-    const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
     const tbody = document.querySelector('#papersTable tbody');
     if (!tbody) return;
     const rows = tbody.querySelectorAll('tr[data-paper-id]');
@@ -298,19 +298,39 @@ function applyFilters() {
                 detailRow = nextSibling;
             }
         }
-        if (showRow && hideOfftopic) {
+        if (showRow && hideOfftopicCheckbox.checked) {
             const offtopicCell = row.querySelector('.editable-status[data-field="is_offtopic"]');
             if (offtopicCell && offtopicCell.textContent.trim() === '✔️') {
                 showRow = false;
             }
         }
-        if (showRow && hideShort) {
+        if (showRow && hideShortCheckbox.checked) {
             const pageCountCell = row.cells[5]; // Assuming page_count is the 6th column (index 5)
             if (pageCountCell) {
+                const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
                 const pageCountText = pageCountCell.textContent.trim();
                 const pageCount = pageCountText ? parseInt(pageCountText, 10) : NaN;
                 if (!isNaN(pageCount) && pageCount < minPageCountValue) {
                     showRow = false;
+                }
+            }
+        }
+        if (showRow && hideOlderCheckbox && hideOlderCheckbox.checked) {
+            const maxAgeValue = parseInt(maxAgeInput.value, 10);
+            // Only apply if the max age is a valid number greater than 0
+            if (!isNaN(maxAgeValue) && maxAgeValue > 0) {
+                const yearCell = row.cells[3]; // Assuming Year is the 4th column (index 3)
+                if (yearCell) {
+                    const yearText = yearCell.textContent.trim();
+                    const paperYear = yearText ? parseInt(yearText, 10) : NaN;
+                    // Check if the paper year is a valid number and older than the cutoff
+                    if (!isNaN(paperYear)) {
+                         const currentYear = new Date().getFullYear();
+                         const cutoffYear = currentYear - maxAgeValue;
+                         if (paperYear < cutoffYear) {
+                              showRow = false;
+                         }
+                    }
                 }
             }
         }
@@ -356,12 +376,16 @@ document.addEventListener('DOMContentLoaded', function () {
     //Start with both filters enabled:
     hideOfftopicCheckbox.checked = true;
     hideShortCheckbox.checked = true;
+    hideOlderCheckbox.checked = true;
 
     searchInput.addEventListener('input', scheduleFilterUpdate);
     hideOfftopicCheckbox.addEventListener('change', scheduleFilterUpdate);
     hideShortCheckbox.addEventListener('change', scheduleFilterUpdate);
     minPageCountInput.addEventListener('input', scheduleFilterUpdate);
     minPageCountInput.addEventListener('change', scheduleFilterUpdate);
+    hideOlderCheckbox.addEventListener('change', scheduleFilterUpdate);
+    maxAgeInput.addEventListener('input', scheduleFilterUpdate);
+    maxAgeInput.addEventListener('change', scheduleFilterUpdate);
 
     applyFilters(); //apply initial filtering
     

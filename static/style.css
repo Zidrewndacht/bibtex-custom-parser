@@ -2,7 +2,7 @@
 
 body {
     font-family: "Inter Tight", Arial, sans-serif;
-    margin: 4px;
+    margin: 8px;
     background-color: #f5f7fa; 
     color: #393939;
 }
@@ -13,10 +13,10 @@ html.busyCursor * {
 }
 /* Ensure the table container allows internal scrolling for the sticky footer */
  .table-container { 
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     border: 1px solid #2f6f72;
     overflow-y: auto; /* Allow vertical scrolling if needed */
-    max-height: calc(100vh - 10px); /* Example: limit height to 95% of viewport height */
+    max-height: calc(100vh - 18px); 
     position: relative; /* Needed for sticky positioning within */
     border-radius: 8px;
 }
@@ -42,12 +42,13 @@ th.rotate-header {
 }
 th.rotate-header > div {
     transform: rotate(-90deg) translateX(-40px); 
-    width: 30px; 
+    width: 40px; 
     margin: 60px 0; 
 }
 th.rotate-header > div > span {
     display: block;
-    text-align: center;
+    text-align: left;
+    max-height: 100px;
 }
 
 th {
@@ -58,11 +59,11 @@ th {
     top:0;
     font-weight: bold;
     box-shadow: inset 0 -0px 0px 1px #115e5a66;
-    padding: 8px;
+    padding: 6px;
     text-align: left;
     min-width: 29px;
-    z-index: 999;
-    font-size: 9.5pt;
+    z-index: 10;
+    font-size: 9pt;
 }
 
 th[data-sort]:hover {    
@@ -75,18 +76,13 @@ th[data-sort]:hover {
 
 /* Add new classes for alternating shades */
 .alt-shade-1 {
-    background-color: #0000000a; /* Light grey */
+    background-color: #0000000b; 
 }
 
 .alt-shade-2 {
-    background-color: #ffffff; /* White (or your default row color) */
+    background-color: #00000004; 
 }
 
-.detail-row {
-    display: table-row;
-    /* background-color: #ffffff; */
-    padding: 0; 
-}
 .secondary-text-cell {
     font-size: 10pt;
     font-family: "Arial Narrow";
@@ -136,25 +132,16 @@ th[data-sort]:hover {
     box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
-select, input[type="text"] {
-    width: calc(100% - 12px);
-    box-sizing: border-box;
-    padding: 6px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: inherit; 
-}
-
 input[type="search"] {
-    width: calc(100% - 0px);
+    width: calc(100% - 4px);
     box-sizing: border-box;
     padding: 8px;
     border: 1px solid #fff4;
     font-family: inherit; 
-    height: 48px;
+    height: 40px;
     font-size: 11pt;
     font-style: italic;
-    margin: 0px;
+    margin: 2px;
     color: white; /* Ensure color is explicitly set */
     background: #fff2; /* Ensure background is explicitly set */
     /* Add these vendor-prefixed properties to override Chromium defaults */
@@ -188,13 +175,13 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
 }
 .filter-item input[type="number"] {
     height: 28px;
-    width: 40px;
+    width: 27px;
     background: transparent;
     color: #444;
     font-size: 10.5pt;
     border: none;
     padding: 4px 4px;
-    margin: 0 6px;
+    margin: 0px 2px;
     transition: 0.25s all ease;
 }
 
@@ -260,7 +247,7 @@ form input[type="text"] {
 }
 
 .changed-cell, .changed-by-cell {
-    font-size: 0.9em; 
+    font-size: 9.5pt; 
     color: #7f8c8d; 
 }
 
@@ -351,10 +338,11 @@ form input[type="text"] {
     /*! min-width: 150px; */
     box-sizing: border-box;
     padding: 6px;
-    border: 1px solid #bbb;
+    border: 1px solid #dadada;
     border-radius: 5px;
     font-family: inherit;
     font-size: 1em;
+    background: #ffffffa0;
 }
 .save-btn {
     background-color: #27ae60;
@@ -460,7 +448,7 @@ tr.filter-hidden {
     word-break: break-word; /* Breaks long words if necessary to fit container width */
     padding: 8px 12px;
     border: 1px solid #dadada;
-    background-color: #f9f9f9;
+    background-color: #aaaaaa0b;
     border-radius: 5px;
     height: 300px;
     overflow-y: auto;
@@ -514,7 +502,7 @@ tr.filter-hidden {
     align-items: center;  /* Align items vertically */
     white-space: nowrap;  /* Prevent wrapping within a single filter item */
     padding: 5px; /* Keep padding */
-    font-size: 11pt; /* Keep font size */
+    font-size: 10.5pt; /* Keep font size */
     /* background: #f0f0f0; */ /* Optional background for filter items */
     /* border-radius: 4px; */ /* Optional rounded corners */
 }
@@ -623,8 +611,8 @@ tr.filter-hidden {
     border-radius: 5px;
     display: block;
     resize: none;
-    /*resize: vertical; /* Allow user to resize vertically if needed */
-    border: 1px solid #bbb;
+    background: #ffffffa0; /* /* Allow user to resize vertically if needed */
+    border: 1px solid #dadada;
 }
 
 .detail-edit form > .row-actions {
@@ -641,4 +629,26 @@ tr.filter-hidden {
 
 .number-cell {
     text-align: center;
+}
+
+
+.ontop-header {
+    z-index: 100
+}
+
+
+
+
+
+@media screen and (max-width: 1920px) {
+        
+    body {
+        margin: 0px;
+    }
+
+    .table-container { 
+        max-height: calc(100vh);
+        border-radius: 0px;
+        background: #427982;
+    }
 }
