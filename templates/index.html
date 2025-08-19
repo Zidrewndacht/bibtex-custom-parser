@@ -20,13 +20,19 @@
                 <div class="header-filters">
                     <div class="filter-item">
                         <input type="checkbox" id="hide-offtopic-checkbox">
-                        <label for="hide-offtopic-checkbox">Hide offtopic</label>
+                        <label for="hide-offtopic-checkbox">Hide<Br> offtopic</label>
                     </div>
                     <div class="filter-item">
                         <input type="checkbox" id="hide-short-checkbox">
                         <label for="hide-short-checkbox">Hide under</label>
-                        <input type="number" id="min-page-count" value="4" min="1">
+                        <input type="number" id="min-page-count" value="4" min="0">
                         <label for="min-page-count">pages</label>
+                    </div>
+                    <div class="filter-item">
+                        <input type="checkbox" id="hide-older-checkbox">
+                        <label for="hide-older-checkbox">Hide older than</label>
+                        <input type="number" id="max-age" value="5" min="1">
+                        <label for="max-age">years</label>
                     </div>
                 </div>
                 <div class="header-controls">
@@ -42,17 +48,17 @@
 
         </tr>
         <tr>
-            <th colspan="6" rowspan="2"> </th>
+            <th class="ontop-header" colspan="6" rowspan="2"> </th>
             <th class="inferred-header" colspan="15">NLP-Inferred data</th>
             
-            <th colspan="6" rowspan="2">
+            <th class="ontop-header" colspan="6" rowspan="2" >
                 <input type="search" id="search-input" placeholder="Type to search all fields...">
             </th>
         </tr>
         <tr>
-            <th class="inferred-header" colspan="5">Classification</th>
-            <th class="inferred-header" colspan="6">Features</th>
-            <th class="inferred-header" colspan="4">Techniques</th>
+            <th class="inferred-header ontop-header" colspan="5">Classification</th>
+            <th class="inferred-header ontop-header" colspan="6">Features</th>
+            <th class="inferred-header ontop-header" colspan="4">Techniques</th>
         </tr>
         <tr>
             <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div></span><span class="sort-indicator"></span></th>
@@ -61,7 +67,7 @@
             <th data-sort="authors">Authors <span class="sort-indicator"></span></th>
             <th data-sort="year">Year <span class="sort-indicator"></span></th>
             <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
-            <th data-sort="page_count" style="width:28px; min-width:28px; max-width:28px">Page Count <span class="sort-indicator"></span></th>
+            <th class="rotate-header" data-sort="page_count" style="width:28px; min-width:28px; max-width:28px"><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
 
 
             <!-- Classification Summary Columns -->
@@ -85,12 +91,13 @@
             <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
             <th class="inferred-header rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
 
-            <th data-sort="changed" style="width:44px; min-width:44px; max-width:44px">Last Changed <span class="sort-indicator"></span></th>
-            <th data-sort="changed_by" style="width:60px; min-width:60px; max-width:60px">Changed By <span class="sort-indicator"></span></th>
-            <th data-sort="verified" style="width:44px; min-width:44px; max-width:44px">Verified <span class="sort-indicator"></span></th>
-            <th data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px">Accr. Score <span class="sort-indicator"></span></th>
-            <th data-sort="verified_by" style="width:44px; min-width:44px; max-width:44px">Verified By <span class="sort-indicator"></span></th>
-            <th style="width:44px; min-width:44px; max-width:44px">Actions</th>
+            <th data-sort="changed" style="width:46px; min-width:46px; max-width:46px">Last Changed <span class="sort-indicator"></span></th>
+            <th data-sort="changed_by" style="width:50px; min-width:50px; max-width:50px">Changed By <span class="sort-indicator"></span></th>
+            <th data-sort="verified" style="width:42px; min-width:42px; max-width:42px">Verified <span class="sort-indicator"></span></th>
+            <th class="rotate-header" data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
+            <th data-sort="verified_by" style="width:42px; min-width:42px; max-width:42px">Verified By <span class="sort-indicator"></span></th>
+            <!-- <th class="rotate-header"><div>Actions</div></th> -->
+            <th style="width:50px; min-width:50px; max-width:50px"><div>Actions</div></th> <!-- must be 50px due to 'collapse' button text -->
         </tr>
     </thead>
     <tbody>
