@@ -223,7 +223,7 @@ function applyJournalShading(rows) {
         // Only count visible rows (not hidden by filters)
         if (!row.classList.contains('filter-hidden')) {
             // Assuming Journal/Conf is the 5th column (index 4)
-            const journalCell = row.cells[4];
+            const journalCell = row.cells[3]; //moved afer hiding authors column
             if (journalCell) {
                 const journalName = journalCell.textContent.trim();
                 // Only count non-empty journal names
@@ -248,7 +248,7 @@ function applyJournalShading(rows) {
 
     rows.forEach(row => {
         // Reset shading first for all rows/cells
-        const journalCell = row.cells[4]; //5th cell in HTML
+        const journalCell = row.cells[3]; //moved afer hiding authors column
         if (journalCell) {
              // Reset to default background (inherits from row)
              journalCell.style.backgroundColor = '';
@@ -305,7 +305,7 @@ function applyFilters() {
             }
         }
         if (showRow && hideShortCheckbox.checked) {
-            const pageCountCell = row.cells[5]; // Assuming page_count is the 6th column (index 5)
+            const pageCountCell = row.cells[4]; //moved afer hiding authors column
             if (pageCountCell) {
                 const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
                 const pageCountText = pageCountCell.textContent.trim();
@@ -319,7 +319,7 @@ function applyFilters() {
             const maxAgeValue = parseInt(maxAgeInput.value, 10);
             // Only apply if the max age is a valid number greater than 0
             if (!isNaN(maxAgeValue) && maxAgeValue > 0) {
-                const yearCell = row.cells[3]; // Assuming Year is the 4th column (index 3)
+                const yearCell = row.cells[2]; //moved afer hiding authors column
                 if (yearCell) {
                     const yearText = yearCell.textContent.trim();
                     const paperYear = yearText ? parseInt(yearText, 10) : NaN;
@@ -417,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     paperId = mainRow.getAttribute('data-paper-id');
 
                     // --- Determine Sort Value (Ultra-Direct) ---
-                    if (['title', 'year', 'journal', 'authors', 'page_count', 'estimated_score'].includes(sortBy)) {
+                    if (['title', 'year', 'journal', /*'authors',*/ 'page_count', 'estimated_score'].includes(sortBy)) {
                         cell = mainRow.cells[headerIndex];
                         cellValue = cell.textContent.trim();
                         if (sortBy === 'year' || sortBy === 'estimated_score' || sortBy === 'page_count') {
@@ -736,10 +736,10 @@ document.addEventListener('DOMContentLoaded', function () {
                              // Assuming render_verified_by function exists or create one based on Python logic
                              verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                         }
-                        const estimatedScoreCell = row.cells[24];
+                        const estimatedScoreCell = row.cells[28];   //why is there special treatment for that one?
                         if (estimatedScoreCell) estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
 
-                        const pageCountCell = row.cells[5]; // Assuming page_count is column index 5
+                        const pageCountCell = row.cells[4]; //moved afer hiding authors column
                         if (pageCountCell) pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
 
                         // Update detail row traces if expanded
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 if(otherDefectsInput) otherDefectsInput.value = data.features?.other || '';
                                 const researchAreaInput = form.querySelector('input[name="research_area"]');
                                 if(researchAreaInput) researchAreaInput.value = data.research_area || '';
-                                const pageCountInput = form.querySelector('input[name="page_count"]');
+                                // const pageCountInput = form.querySelector('input[name="page_count"]');
                                 // if(pageCountInput) pageCountInput.value = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
                                 // const userTraceTextarea = form.querySelector('textarea[name="user_trace"]');
                                 // if(userTraceTextarea) userTraceTextarea.value = data.user_trace || ''; // Update textarea value
@@ -910,7 +910,7 @@ function saveChanges(paperId) {
                 if (data.changed_by !== undefined) {
                     row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 }
-                const pageCountCell = row.cells[5];
+                const pageCountCell = row.cells[4]; //moved after hiding authors
                 if (pageCountCell) {                     // Handle displaying null/undefined as empty string
                      pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
                 }

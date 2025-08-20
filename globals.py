@@ -23,11 +23,16 @@ DEFAULT_FEATURES = {
     "missing_component": None,
     "tracks": None,
     "holes": None,
+    "cosmetic": None,
     "other": None
 }
 DEFAULT_TECHNIQUE = {
     "classic_computer_vision_based": None,
     "machine_learning_based": None,
+    "dl_cnn_based": None,
+    "dl_rcnn_based": None,
+    "dl_transformer_based": None,
+    "dl_other": None,
     "hybrid": None,
     "model": None,
     "available_dataset": None

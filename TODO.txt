@@ -55,8 +55,6 @@ OK        "Verify this paper" from detail row?
         Allow discarding a paper from DB in GUI?
                 Maybe not, be consistent with the search sentence
 
-    Export stats to CSV / Excel?
-
 OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
 OK        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
 
@@ -64,4 +62,26 @@ OK        Do not search inside thinking traces (as it may think about things the
 
         Fix css
         Tell the verifier that "None" is as valid as null.
-        Add a 
+
+        Finer-grained classes:
+                Features:
+                        Tracks (short, open, mouse bite, spur, spurious copper, wrong trace space/width)
+                        Holes 
+                        Missing component;
+                        Wrong/misplaced component;
+                        Wrong orientation/polarity of component;
+                        Solder (Cold solder, bridging, excess solder, pinhole);
+                        Cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
+                Techniques: 
+                        Classic CV (pattern matching, manually-programmed feature analysis etc. May or may not leverage optimization algorithms, like genetic, PSO, etc.)
+                        Classic ML (SVM, Random Forest, K-NN, LVQ, etc.)
+                        DL: Standard CNN (classifiers: ResNet, EfficientNet, etc)
+                        DL: Region-based CNN (detectors: R-CNNs, EfficientDet, most YOLO versions)
+                        DL: Transformer (e.g. ViT, DETR, etc.) or mixed CNN+Transformer (e.g. YOLOv12)
+                        Hybrid/Ensemble methods (including ML+DL, classic+DL, not including 'hybrids' of DL+DL)
+                
+
+Fix/verify after refactor:
+        Counters at the end of table
+        Sort by
+        

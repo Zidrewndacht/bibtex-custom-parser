@@ -25,7 +25,7 @@ table {
     border-collapse: collapse;
     width: 100%;
     background-color: #fff;
-    min-width: 1660px;
+    min-width: 1790px;
     border-radius: 6px;
 }
 
@@ -53,12 +53,12 @@ th.rotate-header > div > span {
 
 th {
     vertical-align: bottom; 
-    background-color: #427982; 
+    background-color: #2d6770; 
     color: white;
     position: sticky;
     top:0;
     font-weight: bold;
-    box-shadow: inset 0 -0px 0px 1px #115e5a66;
+    box-shadow: inset 0 -0px 0px 1px #11535ee5;
     padding: 6px;
     text-align: left;
     min-width: 29px;
@@ -71,6 +71,9 @@ th[data-sort]:hover {
     cursor: pointer; 
 }
 
+td.highlight-status {
+    background: #bbccbb1a;
+}
 /* tr:nth-child(4n+1) {    background-color: #0000000a; } */
 /* tr:nth-child(4n+2) {    background-color: #0000000a;} */
 
@@ -138,7 +141,7 @@ input[type="search"] {
     padding: 8px;
     border: 1px solid #fff4;
     font-family: inherit; 
-    height: 40px;
+    height: 42px;
     font-size: 11pt;
     font-style: italic;
     margin: 2px;
@@ -177,26 +180,31 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     height: 28px;
     width: 27px;
     background: transparent;
-    color: #444;
+    color: #eee;
     font-size: 10.5pt;
     border: none;
-    padding: 4px 4px;
-    margin: 0px 2px;
+    padding: 3px 4px;
+    margin: 0px -18px 0 0;
     transition: 0.25s all ease;
+    -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 
 .filter-item input[type="number"]:hover {
-    background: white;
+    background: #0002;
     /*! border: 1px solid #ccc; */ /* Add border */
     border-radius: 3px; /* Rounded corners */
     transition: 0.25s all ease;
+    -moz-appearance: unset;
+    appearance: unset;
+    z-index:9999;
 }
 
 .action-btn {
     margin: 0 2px;
     padding: 10px 20px;
-    background-color: #427982; 
+    background-color: #2d6770; 
     color: white;
     border: none;
     border-radius: 4px;
@@ -369,10 +377,14 @@ a {
 
 
 th.inferred-header {
-    background-color: hsl(167, 22%, 44%);
-    box-shadow: inset 0 -0px 0px 1px #21504466;
+    background-color: hsl(167, 28%, 36%);
+    box-shadow: inset 0 -0px 0px 1px #21504496;
 }
-
+th.inferred-header-2 {
+    filter: contrast(1.1) saturate(0.95) hue-rotate(-16deg);
+}th.inferred-header-3 {
+    filter: contrast(1.15) saturate(0.95) hue-rotate(-24deg);
+}
 /* --- Filter Item Styles --- */
 
 .filter-item {
@@ -386,24 +398,26 @@ th.inferred-header {
 
 /* Optional: Adjust vertical alignment of the checkbox itself if needed */
 .filter-item input[type="checkbox"] {
-    /* transform: translateY(16px); */ /* You might be able to reduce or remove this */
+     /* You might be able to reduce or remove this */
     margin-right: 5px; /* Add a small space between checkbox and label */
     /* Adjust height/width if necessary, or remove the large height if it causes misalignment */
     width: 36px;
-    height: 36px;
+    height: 30px;
     opacity: 0.5;
 }
 .filter-item input[type="checkbox"]:checked {
     opacity: 1;
-/*     filter: invert() hue-rotate(120deg); */
-    filter: hue-rotate(-40deg);
+/*! filter: invert() hue-rotate(135deg); */
+    filter: hue-rotate(-50deg) brightness(1.3);
+    border: 2px solid white;
+    /*! border-radius: 2px; */
 }
 
 /* Optional: Adjust label alignment if needed */
 .filter-item label {
     margin-bottom: 0; /* Override any default margin-bottom on labels */
     /* line-height can help align text with the checkbox if needed */
-    /* line-height: 1.5; */
+    /*! line-height: 1.5; */
 }
 
 
@@ -423,7 +437,7 @@ tr.filter-hidden {
 }
 
 #counts-footer tr {
-    background-color: #427982; /* Match header background */
+    background-color: #2d6770; /* Match header background */
     color: white;
     font-weight: bold;
 }
@@ -481,6 +495,7 @@ tr.filter-hidden {
     /* border: 1px solid #c0cacc; Example border */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     min-width: 1660px;
+    height: 48px;
 }
 
 .header-title h2 {
@@ -495,6 +510,8 @@ tr.filter-hidden {
     gap: 15px; /* Space between filter items */
     align-items: center; /* Align items vertically */
     /* Optional: justify-content: center; or space-between; */
+    color: #eee;
+    font-weight: 400;
 }
 
 .filter-item {
@@ -649,6 +666,6 @@ tr.filter-hidden {
     .table-container { 
         max-height: calc(100vh);
         border-radius: 0px;
-        background: #427982;
+        background: #2d6770;
     }
 }
