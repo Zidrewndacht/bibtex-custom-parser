@@ -45,10 +45,10 @@ function toggleDetails(element) {   //OK
     const isExpanded = detailRow && detailRow.classList.contains('expanded'); // Check if detailRow exists
     if (isExpanded) {
         if (detailRow) detailRow.classList.remove('expanded');
-        element.innerHTML = '<span>Expand</span>';
+        element.innerHTML = '<span>Show</span>';
     } else {
         if (detailRow) detailRow.classList.add('expanded');
-        element.innerHTML = '<span>Collapse</span>';
+        element.innerHTML = '<span>Hide</span>';
     }
 }
 
@@ -57,8 +57,9 @@ function toggleDetails(element) {   //OK
 const COUNT_FIELDS = [
     'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray', // Classification
     'features_solder', 'features_polarity', 'features_wrong_component',
-    'features_missing_component', 'features_tracks', 'features_holes', // Features
+    'features_missing_component', 'features_tracks', 'features_holes', 'features_cosmetic', // Features
     'technique_classic_computer_vision_based', 'technique_machine_learning_based',
+    'technique_dl_cnn_based', 'technique_dl_rcnn_based', 'technique_dl_transformer_based','technique_dl_other', 
     'technique_hybrid', 'technique_available_dataset' // Techniques
 ];
 
@@ -853,6 +854,8 @@ function saveChanges(paperId) {
         console.error(`Form not found for paper ID: ${paperId}`);
         return;
     }
+
+    // --- Collect Main Fields ---
     const researchAreaInput = form.querySelector('input[name="research_area"]');
     const researchAreaValue = researchAreaInput ? researchAreaInput.value : '';
 
@@ -869,12 +872,34 @@ function saveChanges(paperId) {
             pageCountValue = parsedValue;
         }
     }
+
+    // --- NEW: Collect Additional Fields ---
+    // Model Name -> technique_model
+    const modelNameInput = form.querySelector('input[name="model_name"]');
+    const modelNameValue = modelNameInput ? modelNameInput.value : '';
+
+    // Other Defects -> features_other
+    const otherDefectsInput = form.querySelector('input[name="features_other"]');
+    const otherDefectsValue = otherDefectsInput ? otherDefectsInput.value : '';
+
+    // User Comments -> user_trace (stored in main table column, not features/technique JSON)
+    const userCommentsTextarea = form.querySelector('textarea[name="user_trace"]');
+    const userCommentsValue = userCommentsTextarea ? userCommentsTextarea.value : '';
+
+
+    // --- Prepare Data Payload ---
     const data = {
         id: paperId,
         research_area: researchAreaValue,
-        page_count: pageCountValue // <-- Add this line
+        page_count: pageCountValue,
+        // --- NEW: Add Additional Fields to Payload ---
+        // Prefix 'technique_' and 'features_' are handled by the backend
+        technique_model: modelNameValue,
+        features_other: otherDefectsValue,
+        user_trace: userCommentsValue // This one is a direct column update
     };
 
+    // --- UI Feedback and AJAX Call (Remains Largely the Same) ---
     const saveButton = form.querySelector('.save-btn');
     const originalText = saveButton ? saveButton.textContent : 'Save Changes';
     if (saveButton) {
@@ -887,7 +912,7 @@ function saveChanges(paperId) {
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data) // <-- Send the updated data object
     })
     .then(response => {
         if (!response.ok) {
@@ -899,21 +924,25 @@ function saveChanges(paperId) {
         }
         return response.json();
     })
-
     .then(data => {
         if (data.status === 'success') {
             const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (row) {
+                // Update displayed audit fields if returned
                 if (data.changed_formatted !== undefined) {
                     row.querySelector('.changed-cell').textContent = data.changed_formatted;
                 }
                 if (data.changed_by !== undefined) {
                     row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 }
-                const pageCountCell = row.cells[4]; //moved after hiding authors
-                if (pageCountCell) {                     // Handle displaying null/undefined as empty string
+                // Update displayed page count if returned
+                const pageCountCell = row.cells[4]; // Adjusted index if authors column is hidden
+                if (pageCountCell) {
                      pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
                 }
+                // Note: The UI fields (model_name, features_other, user_trace) are NOT updated here
+                // from the server response because update_paper_custom_fields doesn't return them.
+                // They retain the user-entered value after saving.
             }
             // Collapse details row after successful save
             const toggleBtn = row ? row.querySelector('.toggle-btn') : null;
@@ -929,7 +958,7 @@ function saveChanges(paperId) {
                     }
                 }, 1500);
             }
-            updateCounts(); 
+            updateCounts();
         } else {
             console.error('Save error:', data.message);
             if (saveButton) {

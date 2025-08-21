@@ -25,7 +25,7 @@ table {
     border-collapse: collapse;
     width: 100%;
     background-color: #fff;
-    min-width: 1790px;
+    min-width: 1690px;
     border-radius: 6px;
 }
 
@@ -101,12 +101,13 @@ td.highlight-status {
     text-decoration: none;
     color: #000b;
     background: linear-gradient(180deg, hsl(210, 20%, 83%) 0%, hsl(210, 25%, 92%) 100%);
-    border: 1px solid #0004;
+    /*! border: 1px solid #0004; */
     font-size: 9.5pt;
     font-weight: 400;
-    border-top: 0;
+    /*! border-top: 0; */
     transition: 0.33s all ease-in-out;
     text-align: center;
+    box-shadow: inset 0 -0px 0px 0.5px #0006;
 }
 
 .toggle-btn:hover {
@@ -211,7 +212,7 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     cursor: pointer;
     font-size: 1em;
     transition: all 0.1s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     min-width: 175px;
 }
 
@@ -359,11 +360,11 @@ form input[type="text"] {
 }
 
 #classify-remaining-btn, #classify-all-btn, .classify-btn {
-    background: hsl(246, 22%, 44%);
+    background: hsl(246, 29%, 40%);
 }
 
 #verify-all-btn, #verify-remaining-btn, .verify-btn {
-    background: hsl(309, 22%, 44%);
+    background: hsl(309, 29%, 40%);
 }
 
 #verify-all-btn strong, #classify-all-btn strong {
@@ -377,13 +378,13 @@ a {
 
 
 th.inferred-header {
-    background-color: hsl(167, 28%, 36%);
+    background-color: hsl(170, 25%, 40%);
     box-shadow: inset 0 -0px 0px 1px #21504496;
 }
 th.inferred-header-2 {
     filter: contrast(1.1) saturate(0.95) hue-rotate(-16deg);
 }th.inferred-header-3 {
-    filter: contrast(1.15) saturate(0.95) hue-rotate(-24deg);
+    filter: contrast(1.15) saturate(0.95) hue-rotate(-36deg);
 }
 /* --- Filter Item Styles --- */
 
@@ -443,11 +444,11 @@ tr.filter-hidden {
 }
 
 #counts-footer td {
-    padding: 8px;
+    /*! padding: 8px; */
     text-align: center; /* Center the counts */
     box-shadow: inset 0 0px 0px 1px #115e5a66; /* Match header border */
     font-size: 9.5pt;
-    min-width: 29px; /* Match header min-width */
+    /*! min-width: 25px; */ /* Match header min-width */
 }
 
 
@@ -494,7 +495,7 @@ tr.filter-hidden {
     background-color: #e0e6ed; /* Example background */
     /* border: 1px solid #c0cacc; Example border */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    min-width: 1660px;
+    min-width: 1690px;
     height: 48px;
 }
 
