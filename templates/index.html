@@ -54,7 +54,7 @@
                 </div>
 
             </th>
-            <th class="inferred-header" colspan="20" style="background: linear-gradient(90deg, hsl(167, 28%, 36%), rgb(63, 117, 85));">NLP-Inferred data</th>
+            <th class="inferred-header" colspan="20" style="background: linear-gradient(90deg, hsl(170, 25%, 40%), rgb(77, 128, 92));">NLP-Inferred data</th>
             
             <th class="ontop-header" colspan="6" rowspan="2" >
                 <input type="search" id="search-input" placeholder="Type to search all fields...">
@@ -62,7 +62,7 @@
         </tr>
         <tr>
             <th class="inferred-header ontop-header" colspan="5">Classification</th>
-            <th class="inferred-header inferred-header-2 ontop-header" colspan="2">Features: PCB</th>
+            <th class="inferred-header inferred-header-2 ontop-header" colspan="2">Features:</th>
             <th class="inferred-header inferred-header-2 ontop-header" colspan="5">PCBA</th>
             <th class="inferred-header inferred-header-3 ontop-header" colspan="2">Techniques</th>
             <th class="inferred-header inferred-header-3 ontop-header" colspan="4">DL-based</th>
@@ -109,8 +109,7 @@
             <th data-sort="verified" style="width:42px; min-width:42px; max-width:42px">Verified <span class="sort-indicator"></span></th>
             <th class="rotate-header" data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
             <th data-sort="verified_by" style="width:42px; min-width:42px; max-width:42px">Verified By <span class="sort-indicator"></span></th>
-            <!-- <th class="rotate-header"><div>Actions</div></th> -->
-            <th style="width:54px; min-width:54px; max-width:54px"><div>Actions</div></th> <!-- must be 50px due to 'collapse' button text -->
+            <th class="rotate-header" style="width:40px; min-width:40px; max-width:40px"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
         </tr>
     </thead>
     <tbody>
@@ -151,8 +150,8 @@
             <td class="status-cell editable-status" data-field="technique_machine_learning_based">{{ paper.technique.machine_learning_based | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_dl_cnn_based">{{ paper.technique.dl_cnn_based | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_dl_rcnn_based">{{ paper.technique.dl_rcnn_based | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_transformer_based">{{ paper.technique.transformer_based | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_other">{{ paper.technique.other | render_status }}</td>
+            <td class="status-cell editable-status" data-field="technique_dl_transformer_based">{{ paper.technique.dl_transformer_based | render_status }}</td>
+            <td class="status-cell editable-status" data-field="technique_dl_other">{{ paper.technique.dl_other | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_hybrid">{{ paper.technique.hybrid | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_available_dataset">{{ paper.technique.available_dataset | render_status }}</td>
 
@@ -161,7 +160,7 @@
             <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
             <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
             <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
-            <td class="toggle-btn" onclick="toggleDetails(this)"><span>Expand</span></td>
+            <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span></td>
         </tr>
         <tr class="detail-row">
             <td colspan="32"> <!-- Ensure colspan matches total header columns -->
@@ -200,7 +199,7 @@
                                 <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
                             </label>
                             <label>User comments:
-                                <textarea class="editable" name="user_trace" value="{{ paper.user_trace or '' }}"></textarea>
+                                <textarea class="editable" name="user_trace">{{ paper.user_trace or '' }}</textarea>
                             </label>
                             <!-- NEW: Per-Row Action Buttons -->
                             <div class="row-actions">
