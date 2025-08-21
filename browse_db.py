@@ -146,6 +146,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_fields.append("verified_by = ?")
         update_values.append(verified_by_value)
         
+
     # Handle Features (Partial Update)
     # Fetch current features JSON from DB to merge changes
     cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
@@ -244,9 +245,23 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     update_fields.append("changed_by = ?")
     update_values.append(changed_by)
 
+    # Any remaining keys in 'data' are assumed to be direct column names
+    for key, value in data.items(): # Iterate over the potentially modified data dict
+        # Skip keys already handled or special keys
+        if key in ['id', 'changed', 'changed_by', 'verified_by'] or key.startswith(('features_', 'technique_')):
+            continue
+        # Treat remaining keys as direct column updates
+        update_fields.append(f"{key} = ?")
+        update_values.append(value)
+
     if update_fields:
         update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
         update_values.append(paper_id)
+        # --- Debug prints ---
+        # print(f"DEBUG: Updating paper {paper_id}")
+        # print(f"DEBUG: SQL Query: {update_query}")
+        # print(f"DEBUG: Values: {update_values}")
+        # --- End Debug prints ---
         cursor.execute(update_query, update_values)
         conn.commit()
         rows_affected = cursor.rowcount
@@ -286,7 +301,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 'is_smt': updated_dict.get('is_smt'),
                 'is_x_ray': updated_dict.get('is_x_ray'),
                 'features': updated_dict['features'], # Parsed dict
-                'technique': updated_dict['technique'] # Parsed dict
+                'technique': updated_dict['technique'], # Parsed dict
+                'user_trace': updated_dict.get('user_trace') # Add this line
             }
             return return_data
         else:

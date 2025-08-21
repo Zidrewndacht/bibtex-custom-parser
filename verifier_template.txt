@@ -38,8 +38,8 @@ features:  # true, false, null for unknown/unclear. Identify the types of defect
 technique: # true, false, null for unknown/unclear. Identify all techniques used in an implementation, or all techniques reviewed in a survey:
     classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning. Includes manually-programmed feature analysis. May or may not leverage optimization algorithms, like genetic, PSO, etc.
     machine_learning_based: null #for any technique that use classic machine learning like SVM, Random Forest, K-NN, LVQ, etc. Does not include deep learning like CNNs or Transformers.
-    dl_cnn_based: null #for techniques using standard CNN classifiers: ResNet, EfficientNet, etc., not region-based/single-stage segmentation models.
-    dl_rcnn_based: null #for region-based CNN detectors: R-CNNs, EfficientDet, most YOLO versions.
+    dl_cnn_based: null #for techniques using standard CNN classifiers: ResNet, EfficientNet, etc., that are not region-based or single-stage segmentation models.
+    dl_rcnn_based: null #for region-based CNN detectors, including single-stage segmentation models: R-CNNs, EfficientDet, most YOLO versions.
     dl_transformer_based: null #true for any Transformer (attention)-based models (e.g. ViT, DETR, etc.). Also true for mixed CNN+Transformer (e.g. YOLOv12, but not other pure-CNN YOLOs). 
     dl_other: null #for any remaining deep learning techniques that don't fit any of the categories above, like autoencoders;
     hybrid: null #for papers that describe techniques that are explicitly defined as some hybrid of classic and ML/DL techniques. true for Hybrid/Ensemble methods including ML+DL, classic+DL, but not including 'hybrids' of DL+DL (e.g. CNN+Transformer).
