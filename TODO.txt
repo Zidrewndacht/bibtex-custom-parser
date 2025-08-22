@@ -40,7 +40,7 @@ OK    Fix "datasets" not showing in GUI
 OK    Fix instances of computer_graphics instead of computer_vision
 OK    Fix sort by 'verified'
 
-    Import bibTeX from GUI?
+?    Import bibTeX from GUI?
 OK        Automatic Dedup by DOI?
     
 OK?   Send to LLM from GUI
@@ -58,12 +58,10 @@ OK        "Verify this paper" from detail row?
 OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
 OK        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
 
-        Reset 'verified' after 're-classify this paper' or manual changes.
+OK        Fix css
+OK        Tell the verifier that "None" is as valid as null.
 
-        Fix css
-        Tell the verifier that "None" is as valid as null.
-
-        Finer-grained classes:
+OK        Finer-grained classes:
                 Features:
                         Tracks (short, open, mouse bite, spur, spurious copper, wrong trace space/width)
                         Holes 
@@ -81,7 +79,15 @@ OK        Do not search inside thinking traces (as it may think about things the
                         Hybrid/Ensemble methods (including ML+DL, classic+DL, not including 'hybrids' of DL+DL)
                 
 
-Fix/verify after refactor:
-        Counters at the end of table
-        Sort by
+OK      Fix/verify after refactor:
+OK              Counters at the end of table
+OK              Sort by
         
+        Automatically reset 'verified' after 're-classify this paper' or manual changes.
+
+OK        Stats (calculated after filtering):
+                Count of instances of each journal
+                Count of instances of each keyword     
+                        Multiple keywords per row
+                Count of instances of each research area and count
+                Fix CSS

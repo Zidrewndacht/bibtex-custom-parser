@@ -23,6 +23,7 @@
                 <div class="header-controls">
                     <div class="batch-actions">
                         <span id="batch-status-message"></span> <!-- For feedback -->
+                        <button class="action-btn" id="stats-btn"> Stats<strong></strong></button>
                         <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong></button>
                         <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
                         <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
@@ -272,7 +273,23 @@
         </tr>
     </tfoot>
 </table>
-</div> <!-- End table-container -->
-
+<!-- Stats Modal -->
+<div id="statsModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <div class="stats-section">
+            <h3>Repeating Journal/Conferences</h3>
+            <ul id="journalStatsList"></ul>
+        </div>
+        <div class="stats-section">
+            <h3>Repeating Keywords</h3>
+            <ul id="keywordStatsList" class="stats-list-multicolumn"></ul>        
+        </div>
+        <div class="stats-section">
+            <h3>Repeating Research Areas</h3>
+            <ul id="researchAreaStatsList"></ul>
+        </div>
+    </div>
+</div>
 </body>
 </html>

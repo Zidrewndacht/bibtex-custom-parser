@@ -786,6 +786,161 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     });
+
+    // --- Stats Modal Functionality ---
+    const statsBtn = document.getElementById('stats-btn');
+    const modal = document.getElementById('statsModal');
+    const spanClose = document.querySelector('#statsModal .close'); // Specific close button
+
+    // Function to calculate statistics from visible rows
+    function calculateStats() {
+        const stats = {
+            journals: {},
+            keywords: {},
+            researchAreas: {}
+        };
+
+        const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
+
+        visibleRows.forEach(row => {
+            // --- Journal/Conf ---
+            const journalCell = row.cells[3]; // Index 3 for Journal/Conf
+            if (journalCell) {
+                const journal = journalCell.textContent.trim();
+                if (journal) {
+                    stats.journals[journal] = (stats.journals[journal] || 0) + 1;
+                }
+            }
+
+            // --- Keywords ---
+            // Keywords are in the detail row. Find it.
+            const detailRow = row.nextElementSibling;
+            if (detailRow && detailRow.classList.contains('detail-row')) {
+                // Find the Keywords paragraph within the detail metadata div
+                const keywordsPara = detailRow.querySelector('.detail-metadata p strong');
+                if (keywordsPara && keywordsPara.textContent.trim() === 'Keywords:') {
+                    // Get the text content *after* the <strong>Keywords:</strong>
+                    // A simple way is to get the parent's text and remove the strong part
+                    const keywordsParent = keywordsPara.parentElement;
+                    if (keywordsParent) {
+                        // Extract text content and remove the "Keywords:" part
+                        let keywordsText = keywordsParent.textContent.trim();
+                        const prefix = "Keywords:";
+                        if (keywordsText.startsWith(prefix)) {
+                            keywordsText = keywordsText.substring(prefix.length).trim();
+                        }
+                        // Split by ';', trim whitespace, filter out empty strings
+                        const keywordsList = keywordsText.split(';')
+                            .map(kw => kw.trim())
+                            .filter(kw => kw.length > 0);
+
+                        keywordsList.forEach(keyword => {
+                            stats.keywords[keyword] = (stats.keywords[keyword] || 0) + 1;
+                        });
+                    }
+                }
+            }
+
+            // --- Research Area ---
+            // Research Area is in the detail row's edit form. Find it.
+            const detailRowForResearchArea = row.nextElementSibling;
+            if (detailRowForResearchArea && detailRowForResearchArea.classList.contains('detail-row')) {
+                const researchAreaInput = detailRowForResearchArea.querySelector('.detail-edit input[name="research_area"]');
+                if (researchAreaInput) {
+                    const researchArea = researchAreaInput.value.trim();
+                    if (researchArea) {
+                        // If research areas are also multi-valued like keywords, adapt parsing here.
+                        // For now, treat the whole input value as a single research area.
+                        stats.researchAreas[researchArea] = (stats.researchAreas[researchArea] || 0) + 1;
+                    }
+                }
+            }
+        });
+
+        return stats;
+    }
+
+    // Function to populate and display the modal
+    function displayStats() {
+        const stats = calculateStats();
+
+        // Helper function to populate a list element
+        function populateList(listElementId, dataObj) {
+            const listElement = document.getElementById(listElementId);
+            listElement.innerHTML = ''; // Clear previous content
+
+            // Convert object to array, filter for count > 1, then sort
+            // 1. Convert to array of [name, count] pairs
+            // 2. Filter: keep only entries where count > 1
+            // 3. Sort: by count (desc) then name (asc)
+            const sortedEntries = Object.entries(dataObj)
+                .filter(([name, count]) => count > 1) // Only include counts > 1
+                .sort((a, b) => {
+                    // Sort by count descending
+                    if (b[1] !== a[1]) {
+                        return b[1] - a[1];
+                    }
+                    // If counts are equal, sort by name ascending
+                    return a[0].localeCompare(b[0]);
+                });
+
+            if (sortedEntries.length === 0) {
+                 listElement.innerHTML = '<li>No items with count > 1.</li>';
+                 return;
+            }
+
+            sortedEntries.forEach(([name, count]) => {
+                const listItem = document.createElement('li');
+                // Escape potential HTML in names (basic)
+                const escapedName = name.replace(/&/g, "&amp;").replace(/</g, "<").replace(/>/g, ">");
+                // Swap the order: count first, then name
+                listItem.innerHTML = `<span class="count">${count}</span> <span class="name">${escapedName}</span>`;
+                listElement.appendChild(listItem);
+            });
+        }
+
+        // Populate each section
+        populateList('journalStatsList', stats.journals);
+        populateList('keywordStatsList', stats.keywords);
+        populateList('researchAreaStatsList', stats.researchAreas);
+
+        // Show the modal
+        modal.style.display = 'block';
+    }
+
+    // Function to close the modal
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    // Event Listeners for Stats Modal
+    if (statsBtn) {
+        statsBtn.addEventListener('click', function() {
+            // Add busy cursor while calculating
+            document.documentElement.classList.add('busyCursor');
+            // Use setTimeout to allow cursor change to render
+            setTimeout(() => {
+                displayStats();
+                document.documentElement.classList.remove('busyCursor');
+            }, 10);
+        });
+    }
+
+    if (spanClose) {
+        spanClose.addEventListener('click', closeModal);
+    }
+
+    // Close modal if user clicks outside the modal content
+    window.addEventListener('click', function(event) {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+    // --- End Stats Modal Functionality ---
+
+
+
+
 });
 
 // --- Extracted AJAX logic for reuse ---

@@ -18,7 +18,7 @@ The plaintext below shows the requirements for the original classification you'l
 
 ```plaintext
 Given the data from the specific paper at the end, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
-Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null:
+Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null. Do not guess true or false unless there's enough evidence in the provided abstract/keywords/etc.
 
 research_area: null #broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
 is_offtopic: null #We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one. Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
@@ -42,7 +42,7 @@ technique: # true, false, null for unknown/unclear. Identify all techniques used
     dl_rcnn_based: null #for region-based CNN detectors, including single-stage segmentation models: R-CNNs, EfficientDet, most YOLO versions.
     dl_transformer_based: null #true for any Transformer (attention)-based models (e.g. ViT, DETR, etc.). Also true for mixed CNN+Transformer (e.g. YOLOv12, but not other pure-CNN YOLOs). 
     dl_other: null #for any remaining deep learning techniques that don't fit any of the categories above, like autoencoders;
-    hybrid: null #for papers that describe techniques that are explicitly defined as some hybrid of classic and ML/DL techniques. true for Hybrid/Ensemble methods including ML+DL, classic+DL, but not including 'hybrids' of DL+DL (e.g. CNN+Transformer).
+    hybrid: null #for papers that describe techniques that are explicitly defined as some hybrid of classic and ML/DL techniques. true for Hybrid/Ensemble methods including ML+DL, classic+DL, but not including 'hybrids' of DL+DL (e.g. CNN+Transformer). Also set true for the classes above which the specified hybrid implementation uses (e.g. CV+RCNN, set true for both as well as hybrid).
     model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
     available_dataset: null #true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 ```
