@@ -124,18 +124,42 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_fields.append("research_area = ?")
         update_values.append(data['research_area'])
 
-    # Handle Page Count (Partial Update)
+
+    # Handle Page Count (Partial Update) - MODIFIED SECTION
+    page_count_value_for_pages_update = None # Variable to hold the value for potential 'pages' update
     if 'page_count' in data:
         page_count_value = data['page_count']
         if page_count_value is not None:
             try:
                 page_count_value = int(page_count_value)
+                # Store the integer value for potential 'pages' update
+                page_count_value_for_pages_update = page_count_value 
             except (ValueError, TypeError):
                 page_count_value = None
-
+                page_count_value_for_pages_update = None # Reset if invalid
+        else:
+            page_count_value_for_pages_update = None # Reset if None
+        
         update_fields.append("page_count = ?")
         update_values.append(page_count_value)
-    
+
+        # --- NEW LOGIC: Check if 'pages' should also be updated ---
+        # Fetch the current 'pages' value from the database
+        cursor.execute("SELECT pages FROM papers WHERE id = ?", (paper_id,))
+        row = cursor.fetchone()
+        if row:
+            current_pages_value = row['pages']
+            # Check if 'pages' is effectively empty/blank/null
+            # This checks for None, empty string, or string with only whitespace
+            if current_pages_value is None or (isinstance(current_pages_value, str) and current_pages_value.strip() == ""):
+                # If 'pages' is blank and we have a valid page_count to set
+                if page_count_value_for_pages_update is not None:
+                    # Add the update for the 'pages' column
+                    update_fields.append("pages = ?")
+                    # Convert the integer page count back to string for the 'pages' TEXT column
+                    update_values.append(str(page_count_value_for_pages_update)) 
+        # --- END NEW LOGIC ---
+
     # Handle Verified By (Partial Update)
     if 'verified_by' in data:
         verified_by_value = data['verified_by']
@@ -611,4 +635,4 @@ if __name__ == '__main__':
         os.makedirs('templates')
     if not os.path.exists('static'):
         os.makedirs('static')
-    app.run(debug=True)  # Set debug=False for production
+    app.run(host='0.0.0.0', port=5000, debug=True)

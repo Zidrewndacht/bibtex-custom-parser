@@ -5,7 +5,8 @@
     <title>PCB Inspection Papers</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='fonts.css') }}">
-    <script src="{{ url_for('static', filename='scripts.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='comms.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='filtering.js') }}" defer></script>
 </head>
 <body>
 
@@ -23,11 +24,12 @@
                 <div class="header-controls">
                     <div class="batch-actions">
                         <span id="batch-status-message"></span> <!-- For feedback -->
-                        <button class="action-btn" id="stats-btn"> Stats<strong></strong></button>
+                        <button class="action-btn" id="stats-btn">Check <strong>Stats</strong></button>
                         <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong></button>
                         <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
                         <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
                         <button class="action-btn" id="verify-all-btn">Re-Verify <strong>All</strong></button>
+                        <button class="action-btn" id="fullscreen-btn" title="Fullscreen"><span>⇲</span></button>
                     </div>
                 </div>
             </div>
@@ -273,21 +275,27 @@
         </tr>
     </tfoot>
 </table>
+</div>
 <!-- Stats Modal -->
 <div id="statsModal" class="modal">
     <div class="modal-content">
         <span class="close">&times;</span>
+        <div class="stats-section"></div>
         <div class="stats-section">
-            <h3>Repeating Journal/Conferences</h3>
-            <ul id="journalStatsList"></ul>
+            <h3>Repeating <strong>Journal/Conferences</strong></h3>  <p> Data in <strong>all lists</strong> below is dynamically calculated based on <strong>currently visible</strong> papers:</p>
+            <ul id="journalStatsList"  class="stats-list-multicolumn-2"></ul>
         </div>
         <div class="stats-section">
-            <h3>Repeating Keywords</h3>
-            <ul id="keywordStatsList" class="stats-list-multicolumn"></ul>        
+            <h3>Repeating <strong>Keywords</strong></h3>
+            <ul id="keywordStatsList" class="stats-list-multicolumn-short"></ul>        
         </div>
         <div class="stats-section">
-            <h3>Repeating Research Areas</h3>
-            <ul id="researchAreaStatsList"></ul>
+            <h3>Repeating <strong>Authors</strong></h3>
+            <ul id="authorStatsList" class="stats-list-multicolumn-short"></ul>
+        </div>
+        <div class="stats-section">
+            <h3>Repeating <strong>Research Areas</strong></h3>
+            <ul id="researchAreaStatsList" class="stats-list-multicolumn-short"></ul>
         </div>
     </div>
 </div>

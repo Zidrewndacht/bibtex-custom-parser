@@ -14,7 +14,7 @@ html.busyCursor * {
 /* Ensure the table container allows internal scrolling for the sticky footer */
  .table-container { 
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-    /*! border: 1px solid #2f6f72; */
+    border: 1px solid #2f6f72;
     overflow-y: auto; /* Allow vertical scrolling if needed */
     max-height: calc(100vh - 18px); 
     position: relative; /* Needed for sticky positioning within */
@@ -24,7 +24,10 @@ html.busyCursor * {
 h3 {
     margin: 0;
     padding: 10px;
-    background: #f5f7fa;
+    background: #2d6770;
+    color: #fefefe;
+    display: inline-block;
+    /*! border-radius: 4px; */
 }
 table {
     border-collapse: collapse;
@@ -219,6 +222,7 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     transition: all 0.1s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     min-width: 175px;
+    height: 40px
 }
 
 .action-btn:hover {
@@ -378,11 +382,26 @@ form input[type="text"] {
 
 #stats-btn {
     background: rgb(60, 112, 75);
-    width: 90px;
-    max-width: 90px;
-    min-width: 90px;
+    width: 150px;
+    max-width: 150px;
+    min-width: 150px;
 }
-
+#fullscreen-btn {
+    background: transparent;
+    width: 28px;
+    max-width: 28px;
+    min-width: 28px;
+    height: 36px;
+    padding: 0;
+    box-shadow: none;
+}
+#fullscreen-btn span {
+    transform: rotate(-90deg) scale(2) translateY(-2px) translateX(-0.5px);
+    color: #838a97;
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+}
 a {
     text-decoration: none;
     color: #227
@@ -666,35 +685,23 @@ tr.filter-hidden {
     z-index: 100
 }
 
-
-
-/* --- Stats Modal Styles --- */
-.modal {
-    display: none; /* Hidden by default */
-    position: fixed;
-    z-index: 1000; /* Sit on top */
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto; /* Enable scroll if needed */
-    background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-    backdrop-filter: blur(2px); /* Optional: blur background */
-}
-
 .modal-content {
     background-color: #f5f7fa;
     margin: 10px auto; /* 5vh top/bottom margin */
-    padding: 10px 20px;
-    border: 1px solid #888;
-    width: 600px;
-    max-width: 600px;
+    background: #2d6770;
+    border: 2px solid #2d6770;
+    width: calc(100vw - 120px);
+    min-width: 1600px;
     max-height: calc(100vh - 20px); /* Limit height */
-    border-radius: 6px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     position: relative;
     box-sizing: border-box; /* Include padding/border in width/height */
     overflow: scroll;
+    /*! transform: scale(95%) translateY(-20px); */
+    
+    transform: scale3d(0.95, 0.95, 1) rotate3d(2, 1, 0, 3deg) translateY(-20px);
+    transition: transform 0.3s ease-out; /* Animate transform */
 }
 
 .close {
@@ -703,15 +710,15 @@ tr.filter-hidden {
     font-size: 28px;
     font-weight: bold;
     position: sticky;
-    right: 0px;
-    top: 0px;
+    right: 16px;
+    top: 4px;
     cursor: pointer;
     z-index: 1001; /* Above content */
 }
 
 .close:hover,
 .close:focus {
-    color: black;
+    color: white;
     text-decoration: none;
 }
 
@@ -721,7 +728,8 @@ tr.filter-hidden {
     padding-left: 0;
     margin: 0;
     overflow: scroll;
-    max-height: calc(32vh);
+    max-height: calc(24vh);
+    background: #f5f7fa;
 }
 
 .stats-section li {
@@ -739,7 +747,81 @@ tr.filter-hidden {
     display: inline-block;
     text-align: center;
 }
+.stats-section p {
+    display: inline-block;
+    text-align: right;
+    width: calc(100% - 350px);
+    color: #eee;
+    font-size: 10.5pt;
+}
 
+/* Add this rule inside static/style.css */
+
+/* --- Styles for Multi-Column Stats List --- */
+.stats-list-multicolumn-short {
+    /* Use CSS Columns */
+    column-count: 5;
+    column-gap: 0px; /* Adjust gap between columns as needed */
+    /* Ensure list items don't break across columns awkwardly */
+    break-inside: avoid-column;
+    /* Optional: Add a small padding if the columns feel too close to the edge */
+    /* padding: 0 10px; */
+}
+
+/* --- Styles for Multi-Column Stats List --- */
+.stats-list-multicolumn-2 {
+    /* Use CSS Columns */
+    column-count: 2;
+    column-gap: 0px; /* Adjust gap between columns as needed */
+    /* Ensure list items don't break across columns awkwardly */
+    break-inside: avoid-column;
+    /* Optional: Add a small padding if the columns feel too close to the edge */
+    /* padding: 0 10px; */
+}
+/* Ensure list items behave well within the multi-column layout */
+.stats-list-multicolumn li {
+    /* Each <li> should try to stay together */
+    break-inside: avoid;
+    /* Optional: Add a bit of vertical padding if items feel cramped */
+    /* padding: 2px 0; */
+}
+
+/* --- Stats Modal Styles --- */
+.modal {
+     /* Hidden by default */
+    z-index: 1000; /* Sit on top */
+    overflow: auto; /* Enable scroll if needed */
+     /* Semi-transparent background */
+     /* Optional: blur background */
+    opacity: 0; /* Start fully transparent */
+    pointer-events: none; /* Ignore mouse events when hidden */
+    transition: opacity 0.3s ease-in-out; /* Animate opacity */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #eee6;
+    backdrop-filter: blur(12px);
+    perspective: 100vh;
+}
+
+/* When the modal is active/shown */
+.modal.modal-active {
+    opacity: 1; /* Fully opaque */
+    pointer-events: auto; /* Enable mouse events */
+    /* Keep the existing backdrop styles */
+}
+
+
+/* When the modal is active, move it to its final position */
+.modal.modal-active .modal-content {
+    transform: none; /* Final position */
+}
+/* --- End Stats Modal Animation Styles --- */
 
 @media screen and (max-width: 1920px) {
         
@@ -751,8 +833,6 @@ tr.filter-hidden {
         max-height: calc(100vh);
         border-radius: 0px;
         background: #2d6770;
+        border: none;
     }
 }
-
-
-

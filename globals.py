@@ -44,7 +44,7 @@ TYPE_EMOJIS = {
     'article': '📄',        # Page facing up
     'inproceedings': '📚',  # Books (representing conference proceedings)
     'incollection': '📖',   # Open book (representing book chapters/collections)
-    'inbook': '📘',         # Blue book
+    'book': '📘',         # Blue book
     'phdthesis': '🎓',      # Graduation cap
     'mastersthesis': '🎓',  # Graduation cap (using the same for simplicity)
     'techreport': '📋',     # Clipboard
@@ -154,7 +154,7 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, mod
     
     chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
-    payload = {
+    payload = { #official recommended parameters from Qwen:
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
         "temperature": 0.6,
