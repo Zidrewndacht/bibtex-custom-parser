@@ -23,11 +23,15 @@ html.busyCursor * {
 
 h3 {
     margin: 0;
-    padding: 10px;
+    padding: 10px 0 10px 10px;
     background: #2d6770;
     color: #fefefe;
     display: inline-block;
     /*! border-radius: 4px; */
+    font-weight: 400;
+    position: sticky;
+    top: 0;
+    width: calc(100% - 10px);
 }
 table {
     border-collapse: collapse;
@@ -382,9 +386,9 @@ form input[type="text"] {
 
 #stats-btn {
     background: rgb(60, 112, 75);
-    width: 150px;
-    max-width: 150px;
-    min-width: 150px;
+    width: 130px;
+    max-width: 130px;
+    min-width: 130px;
 }
 #fullscreen-btn {
     background: transparent;
@@ -687,29 +691,32 @@ tr.filter-hidden {
 
 .modal-content {
     background-color: #f5f7fa;
-    margin: 10px auto; /* 5vh top/bottom margin */
-    background: #2d6770;
+    /*! margin: 10px auto; */ /* 5vh top/bottom margin */
+    /*! background: #2d6770; */
     border: 2px solid #2d6770;
-    width: calc(100vw - 120px);
-    min-width: 1600px;
+    width: calc(100vw - 180px);
+    min-width: 1680px;
     max-height: calc(100vh - 20px); /* Limit height */
     border-radius: 8px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     position: relative;
     box-sizing: border-box; /* Include padding/border in width/height */
-    overflow: scroll;
+    overflow: hidden;
     /*! transform: scale(95%) translateY(-20px); */
     
     transform: scale3d(0.95, 0.95, 1) rotate3d(2, 1, 0, 3deg) translateY(-20px);
     transition: transform 0.3s ease-out; /* Animate transform */
+    display: grid;
+    grid-template-columns: 1fr 600px;
 }
+
 
 .close {
     color: #aaa;
     float: right;
     font-size: 28px;
     font-weight: bold;
-    position: sticky;
+    position: absolute;
     right: 16px;
     top: 4px;
     cursor: pointer;
@@ -728,17 +735,18 @@ tr.filter-hidden {
     padding-left: 0;
     margin: 0;
     overflow: scroll;
-    max-height: calc(24vh);
-    background: #f5f7fa;
+    max-height: calc(30vh - 40px);
+    /*! background: #f5f7fa; */
 }
 
 .stats-section li {
     padding: 4px 0;
-    font-size: 10.5pt;
+    font-size: 9.5pt;
     /*! display: flex; */
     /*! justify-content: ; */ /* Align count to the right */
     /*! flex-direction: row; */
     /*! flex-wrap: wrap; */
+    /*! text-align: right; */
 }
 
 .stats-section li span.count {
@@ -760,7 +768,7 @@ tr.filter-hidden {
 /* --- Styles for Multi-Column Stats List --- */
 .stats-list-multicolumn-short {
     /* Use CSS Columns */
-    column-count: 5;
+    column-count: 4;
     column-gap: 0px; /* Adjust gap between columns as needed */
     /* Ensure list items don't break across columns awkwardly */
     break-inside: avoid-column;
@@ -823,6 +831,17 @@ tr.filter-hidden {
 }
 /* --- End Stats Modal Animation Styles --- */
 
+
+.stats-lists{
+    display: grid;
+    grid-template-rows: repeat(4, min-content);
+    border-right: 2px solid #2d6770;
+}
+
+.stats-lists .stats-section{
+    /*! overflow: scroll; */
+    max-height: 30vh;
+}
 @media screen and (max-width: 1920px) {
         
     body {

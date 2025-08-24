@@ -18,6 +18,9 @@ const totalPaperCount = allRows.length;
 let filterTimeoutId = null;
 const FILTER_DEBOUNCE_DELAY = 200; 
 
+// --- Add a variable to hold the latest counts ---
+let latestCounts = {}; // This will store the counts calculated by updateCounts
+
 // --- Optimized Client-Side Sorting ---
 // Pre-calculate symbol weights OUTSIDE the sort loop for efficiency
 const SYMBOL_SORT_WEIGHTS = {
@@ -66,17 +69,16 @@ const COUNT_FIELDS = [
     'technique_hybrid', 'technique_available_dataset' // Techniques
 ];
 
+// --- Modify updateCounts() ---
 function updateCounts() {
     const counts = {};
     // Initialize counts for status fields
     COUNT_FIELDS.forEach(field => counts[field] = 0);
-
     // --- Paper Count Logic ---
     // Select only VISIBLE main rows for counting '✔️' and calculating visible count
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     const visiblePaperCount = visibleRows.length;
     // --- End Paper Count Logic ---
-
     // Count '✔️' symbols in visible rows only
     visibleRows.forEach(row => {
         COUNT_FIELDS.forEach(field => {
@@ -87,6 +89,9 @@ function updateCounts() {
         });
     });
 
+    // --- NEW: Store the counts globally ---
+    latestCounts = counts; // Make counts available outside this function
+
     // --- Update the Visible Count Cell ---
     const visibleCountCell = document.getElementById('visible-count-cell');
     if (visibleCountCell) {
@@ -94,7 +99,6 @@ function updateCounts() {
         visibleCountCell.textContent = `${visiblePaperCount} paper${visiblePaperCount !== 1 ? 's' : ''} of ${totalPaperCount}`;
     }
     // --- End Update Visible Count Cell ---
-
     // Update the individual status count footer cells
     COUNT_FIELDS.forEach(field => {
         const countCell = document.getElementById(`count-${field}`);
@@ -103,6 +107,7 @@ function updateCounts() {
         }
     });
 }
+// --- End Modify updateCounts() ---
 
 /**
  * Applies alternating row shading to visible main rows.
@@ -518,15 +523,201 @@ document.addEventListener('DOMContentLoaded', function () {
         return stats;
     }
 
-    // Function to populate and display the modal
     function displayStats() {
-        const stats = calculateStats();
+        // --- NEW: Chart Creation Logic (Read counts from footer) ---
 
+        // Define the fields for Features and Techniques explicitly for charting
+        const FEATURE_FIELDS = [
+            'features_tracks', 'features_holes', 'features_solder',
+            'features_missing_component', 'features_wrong_component',
+            'features_polarity', 'features_cosmetic'
+        ];
+
+        // Include Datasets here temporarily to get the label mapping easily,
+        // then filter it out for data/labels for the Techniques chart
+        const TECHNIQUE_FIELDS_ALL = [
+            'technique_classic_computer_vision_based', 'technique_machine_learning_based',
+            'technique_dl_cnn_based', 'technique_dl_rcnn_based',
+            'technique_dl_transformer_based', 'technique_dl_other', 'technique_hybrid',
+            'technique_available_dataset' // Included to get label easily
+        ];
+
+        // Map field names to user-friendly labels (based on your table headers)
+        const FIELD_LABELS = {
+            'features_tracks': 'Tracks',
+            'features_holes': 'Holes',
+            'features_solder': 'Solder',
+            'features_missing_component': 'Missing Component',
+            'features_wrong_component': 'Wrong Component',
+            'features_polarity': 'Polarity',
+            'features_cosmetic': 'Cosmetic',
+            'technique_classic_computer_vision_based': 'Classic CV',
+            'technique_machine_learning_based': 'ML',
+            'technique_dl_cnn_based': 'CNN',
+            'technique_dl_rcnn_based': 'R-CNN',
+            'technique_dl_transformer_based': 'Transformer',
+            'technique_dl_other': 'Other DL',
+            'technique_hybrid': 'Hybrid',
+            'technique_available_dataset': 'Datasets' // Label for Datasets
+        };
+
+        // --- Read Counts from Footer Cells ---
+        // We read the counts directly from the cells updated by updateCounts()
+        function getCountFromFooter(fieldId) {
+            const cell = document.getElementById(`count-${fieldId}`);
+            if (cell) {
+                const text = cell.textContent.trim();
+                const number = parseInt(text, 10);
+                return isNaN(number) ? 0 : number;
+            }
+            return 0;
+        }
+
+        // --- Prepare Features Chart Data ---
+        const featuresChartData = {
+            labels: FEATURE_FIELDS.map(field => FIELD_LABELS[field] || field),
+            datasets: [{
+                label: 'Features Count',
+                data: FEATURE_FIELDS.map(field => getCountFromFooter(field)),
+                // You can customize colors here
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)', // Red
+                    'rgba(54, 162, 235, 0.8)',  // Blue
+                    'rgba(255, 205, 86, 0.8)',  // Yellow
+                    'rgba(75, 192, 192, 0.8)',  // Teal
+                    'rgba(153, 102, 255, 0.8)', // Purple
+                    'rgba(255, 159, 64, 0.8)',  // Orange
+                    'rgba(199, 199, 199, 0.8)'  // Grey
+                ],
+                borderColor: [
+                    'rgb(255, 99, 132)',
+                    'rgb(54, 162, 235)',
+                    'rgb(255, 205, 86)',
+                    'rgb(75, 192, 192)',
+                    'rgb(153, 102, 255)',
+                    'rgb(255, 159, 64)',
+                    'rgb(199, 199, 199)'
+                ],
+                borderWidth: 1,
+                hoverOffset: 4
+            }]
+        };
+
+        // --- Prepare Techniques Chart Data (Excluding Datasets count) ---
+        const TECHNIQUE_FIELDS_NO_DATASET = TECHNIQUE_FIELDS_ALL.filter(field => field !== 'technique_available_dataset');
+        const techniquesChartData = {
+            labels: TECHNIQUE_FIELDS_NO_DATASET.map(field => FIELD_LABELS[field] || field),
+            datasets: [{
+                label: 'Techniques Count',
+                data: TECHNIQUE_FIELDS_NO_DATASET.map(field => getCountFromFooter(field)),
+                // You can customize colors here
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)', // Red
+                    'rgba(54, 162, 235, 0.8)',  // Blue
+                    'rgba(255, 205, 86, 0.8)',  // Yellow
+                    'rgba(75, 192, 192, 0.8)',  // Teal
+                    'rgba(153, 102, 255, 0.8)', // Purple
+                    'rgba(255, 159, 64, 0.8)',  // Orange
+                    'rgba(199, 199, 199, 0.8)'  // Grey
+                    // Add more colors if TECHNIQUE_FIELDS_NO_DATASET can have more items
+                ],
+                borderColor: [
+                    'rgb(255, 99, 132)',
+                    'rgb(54, 162, 235)',
+                    'rgb(255, 205, 86)',
+                    'rgb(75, 192, 192)',
+                    'rgb(153, 102, 255)',
+                    'rgb(255, 159, 64)',
+                    'rgb(199, 199, 199)'
+                ],
+                borderWidth: 1,
+                hoverOffset: 4
+            }]
+        };
+
+        // --- Destroy existing charts if they exist (important for re-renders) ---
+        if (window.featuresPieChartInstance) {
+            window.featuresPieChartInstance.destroy();
+            delete window.featuresPieChartInstance; // Optional: clean up reference
+        }
+        if (window.techniquesPieChartInstance) {
+            window.techniquesPieChartInstance.destroy();
+            delete window.techniquesPieChartInstance; // Optional: clean up reference
+        }
+
+        // --- Get Canvas Contexts ---
+        const featuresCtx = document.getElementById('featuresPieChart')?.getContext('2d');
+        const techniquesCtx = document.getElementById('techniquesPieChart')?.getContext('2d');
+
+        // --- Render Charts if contexts exist ---
+        if (featuresCtx) {
+            window.featuresPieChartInstance = new Chart(featuresCtx, {
+                type: 'pie',
+                data: featuresChartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Important with fixed container height
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: false, // Title is in the H3
+                        },
+                        tooltip: {
+                            callbacks: {
+                                // Optional: Customize tooltip label
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}`;
+                                }
+                            }
+                        }
+                        // Optional: Add data labels inside slices (requires chartjs-plugin-datalabels)
+                        // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+                    }
+                }
+            });
+        } else {
+            console.warn("Canvas context for featuresPieChart not found.");
+        }
+
+        if (techniquesCtx) {
+            window.techniquesPieChartInstance = new Chart(techniquesCtx, {
+                type: 'pie',
+                data: techniquesChartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Important with fixed container height
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: false, // Title is in the H3
+                        },
+                        tooltip: {
+                            callbacks: {
+                                // Optional: Customize tooltip label
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}`;
+                                }
+                            }
+                        }
+                        // Optional: Add data labels inside slices
+                        // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+                    }
+                }
+            });
+        } else {
+            console.warn("Canvas context for techniquesPieChart not found.");
+        }
+        const stats = calculateStats(); 
+        
         // Helper function to populate a list element
         function populateList(listElementId, dataObj) {
+            // ... (existing populateList code remains exactly the same) ...
             const listElement = document.getElementById(listElementId);
             listElement.innerHTML = ''; // Clear previous content
-
             // Convert object to array, filter for count > 1, then sort
             // 1. Convert to array of [name, count] pairs
             // 2. Filter: keep only entries where count > 1
@@ -541,12 +732,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     // If counts are equal, sort by name ascending
                     return a[0].localeCompare(b[0]);
                 });
-
             if (sortedEntries.length === 0) {
-                 listElement.innerHTML = '<li>No items with count > 1.</li>';
-                 return;
+                listElement.innerHTML = '<li>No items with count > 1.</li>';
+                return;
             }
-
             sortedEntries.forEach(([name, count]) => {
                 const listItem = document.createElement('li');
                 // Escape potential HTML in names (basic)
@@ -558,7 +747,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // --- Animate In ---
-        // Populate content first
+        // Populate content first (existing calls - these also remain unchanged)
         populateList('journalStatsList', stats.journals);
         populateList('keywordStatsList', stats.keywords);
         populateList('authorStatsList', stats.authors);
@@ -566,13 +755,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Trigger reflow to ensure styles are applied before adding the active class
         // This helps ensure the transition plays correctly on the first open
-        modal.offsetHeight; 
-
+        modal.offsetHeight;
         // Add the active class to trigger the animation
         modal.classList.add('modal-active');
         // --- End Animate In ---
     }
-
+    // --- End Modify displayStats() ---
+    // --- End Modify displayStats() ---
     // Function to close the modal
     function closeModal() {
         // modal.style.display = 'none';
