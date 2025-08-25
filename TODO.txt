@@ -40,9 +40,6 @@ OK    Fix "datasets" not showing in GUI
 OK    Fix instances of computer_graphics instead of computer_vision
 OK    Fix sort by 'verified'
 
-?    Import bibTeX from GUI?
-OK        Automatic Dedup by DOI?
-    
 OK?   Send to LLM from GUI
 OK        Refactor automate, verify .py
 OK        Reprocess and verify all?
@@ -52,10 +49,7 @@ OK?            Prevent verifying unprocessed papers;
 OK        "Classify this paper" from detail row?
 OK        "Verify this paper" from detail row?
 
-        Allow discarding a paper from DB in GUI?
-                Maybe not, be consistent with the search sentence
-
-OK    automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
+OK    Fix automate never reaches final status, stuck at 'processed 524/524' papers after finishing.
 OK        Do not search inside thinking traces (as it may think about things the given paper doesn't have, etc.)
 
 OK        Fix css
@@ -83,7 +77,6 @@ OK      Fix/verify after refactor:
 OK              Counters at the end of table
 OK              Sort by
         
-        Automatically reset 'verified' after 're-classify this paper' or manual changes.
 
 OK        Stats (calculated after filtering):
                 Count of instances of each journal
@@ -92,4 +85,14 @@ OK        Stats (calculated after filtering):
                 Count of instances of each research area and count
                 Fix CSS
 
-        Read manually-set page count.
+OK      Read manually-set page count.
+
+        Automatically reset 'verified' after 're-classify this paper' or manual changes.
+
+        Import bibTeX from GUI?
+OK              Automatic Dedup by DOI?
+    
+        Allow discarding a paper from DB in GUI?
+                Maybe not, be consistent with the search sentence
+
+        

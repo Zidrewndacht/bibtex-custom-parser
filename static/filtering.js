@@ -66,32 +66,44 @@ const COUNT_FIELDS = [
     'features_missing_component', 'features_tracks', 'features_holes', 'features_cosmetic', // Features
     'technique_classic_computer_vision_based', 'technique_machine_learning_based',
     'technique_dl_cnn_based', 'technique_dl_rcnn_based', 'technique_dl_transformer_based','technique_dl_other', 
-    'technique_hybrid', 'technique_available_dataset' // Techniques
+    'technique_hybrid', 'technique_available_dataset', // Techniques
+    'changed_by', 'verified_by' // Add these for user counting
 ];
-
 // --- Modify updateCounts() ---
 function updateCounts() {
     const counts = {};
-    // Initialize counts for status fields
+    // Initialize counts for ALL status fields (including changed_by, verified_by)
     COUNT_FIELDS.forEach(field => counts[field] = 0);
     // --- Paper Count Logic ---
     // Select only VISIBLE main rows for counting '✔️' and calculating visible count
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     const visiblePaperCount = visibleRows.length;
     // --- End Paper Count Logic ---
-    // Count '✔️' symbols in visible rows only
+
+    // Count symbols in visible rows
     visibleRows.forEach(row => {
         COUNT_FIELDS.forEach(field => {
-            const cell = row.querySelector(`.editable-status[data-field="${field}"]`);
-            if (cell && cell.textContent.trim() === '✔️') {
-                counts[field]++;
+            // --- CORRECTED SELECTOR: Use general selector [data-field="${field}"] ---
+            // This works for both .editable-status/data-field and .status-cell/data-field cells
+            const cell = row.querySelector(`[data-field="${field}"]`);
+            if (cell) {
+                const cellText = cell.textContent.trim();
+                if (field === 'changed_by' || field === 'verified_by') {
+                    // Count '👤' for these specific fields
+                    if (cellText === '👤') {
+                        counts[field]++;
+                    }
+                } else {
+                    // Count '✔️' for the original fields
+                    if (cellText === '✔️') {
+                        counts[field]++;
+                    }
+                }
             }
         });
     });
-
     // --- NEW: Store the counts globally ---
     latestCounts = counts; // Make counts available outside this function
-
     // --- Update the Visible Count Cell ---
     const visibleCountCell = document.getElementById('visible-count-cell');
     if (visibleCountCell) {
@@ -99,11 +111,13 @@ function updateCounts() {
         visibleCountCell.textContent = `${visiblePaperCount} paper${visiblePaperCount !== 1 ? 's' : ''} of ${totalPaperCount}`;
     }
     // --- End Update Visible Count Cell ---
+
     // Update the individual status count footer cells
     COUNT_FIELDS.forEach(field => {
         const countCell = document.getElementById(`count-${field}`);
         if (countCell) {
-            countCell.textContent = counts[field]; // This will be the count of '✔️' in visible rows
+            // This will be the count of '✔️' or '👤' in visible rows, depending on the field
+            countCell.textContent = counts[field];
         }
     });
 }
@@ -573,64 +587,102 @@ document.addEventListener('DOMContentLoaded', function () {
             return 0;
         }
 
+
+
+
+        
         // --- Prepare Features Chart Data ---
+        // Read and sort the data
+        const featuresData = FEATURE_FIELDS.map(field => ({
+            label: FIELD_LABELS[field] || field,
+            value: getCountFromFooter(field)
+        }));
+
+        // Sort by value descending (largest first)
+        featuresData.sort((a, b) => b.value - a.value);
+
+        // Extract sorted labels and values
+        const sortedFeaturesLabels = featuresData.map(item => item.label);
+        const sortedFeaturesValues = featuresData.map(item => item.value);
+
+        // Define colors (same order as original)
+        const featuresColors = [
+            'hsla(347, 70%, 49%, 0.66)', // Red
+            'hsla(204, 82%, 37%, 0.66)',  // Blue
+            'hsla(42, 100%, 37%, 0.66)',  // Yellow
+            'hsla(180, 48%, 32%, 0.66)',  // Teal
+            'hsla(260, 80%, 50%, 0.66)', // Purple
+            'hsla(30, 100%, 43%, 0.66)',  // Orange
+            'hsla(0, 0%, 48%, 0.66)'  // Grey
+        ];
+
+        const featuresBorderColors = [
+            'hsla(347, 70%, 29%, 1.00)',
+            'hsla(204, 82%, 18%, 1.00)',
+            'hsla(42, 100%, 18%, 1.00)',
+            'hsla(180, 48%, 18%, 1.00)',
+            'hsla(260, 100%, 30%, 1.00)',
+            'hsla(30, 100%, 23%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)'
+        ];
+
         const featuresChartData = {
-            labels: FEATURE_FIELDS.map(field => FIELD_LABELS[field] || field),
+            labels: sortedFeaturesLabels,
             datasets: [{
                 label: 'Features Count',
-                data: FEATURE_FIELDS.map(field => getCountFromFooter(field)),
-                // You can customize colors here
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)', // Red
-                    'rgba(54, 162, 235, 0.8)',  // Blue
-                    'rgba(255, 205, 86, 0.8)',  // Yellow
-                    'rgba(75, 192, 192, 0.8)',  // Teal
-                    'rgba(153, 102, 255, 0.8)', // Purple
-                    'rgba(255, 159, 64, 0.8)',  // Orange
-                    'rgba(199, 199, 199, 0.8)'  // Grey
-                ],
-                borderColor: [
-                    'rgb(255, 99, 132)',
-                    'rgb(54, 162, 235)',
-                    'rgb(255, 205, 86)',
-                    'rgb(75, 192, 192)',
-                    'rgb(153, 102, 255)',
-                    'rgb(255, 159, 64)',
-                    'rgb(199, 199, 199)'
-                ],
-                borderWidth: 1,
+                data: sortedFeaturesValues,
+                backgroundColor: featuresColors,
+                borderColor: featuresBorderColors,
+                borderWidth: 2,
                 hoverOffset: 4
             }]
         };
 
         // --- Prepare Techniques Chart Data (Excluding Datasets count) ---
         const TECHNIQUE_FIELDS_NO_DATASET = TECHNIQUE_FIELDS_ALL.filter(field => field !== 'technique_available_dataset');
+
+        // Read and sort the data
+        const techniquesData = TECHNIQUE_FIELDS_NO_DATASET.map(field => ({
+            label: FIELD_LABELS[field] || field,
+            value: getCountFromFooter(field)
+        }));
+
+        // Sort by value descending (largest first)
+        techniquesData.sort((a, b) => b.value - a.value);
+
+        // Extract sorted labels and values
+        const sortedTechniquesLabels = techniquesData.map(item => item.label);
+        const sortedTechniquesValues = techniquesData.map(item => item.value);
+
+        // Define colors (same order as original)
+        const techniquesColors = [
+            'hsla(347, 70%, 49%, 0.66)', // Red
+            'hsla(204, 82%, 37%, 0.66)',  // Blue
+            'hsla(42, 100%, 37%, 0.66)',  // Yellow
+            'hsla(180, 48%, 32%, 0.66)',  // Teal
+            'hsla(260, 80%, 50%, 0.66)', // Purple
+            'hsla(30, 100%, 43%, 0.66)',  // Orange
+            'hsla(0, 0%, 48%, 0.66)'  // Grey
+        ];
+
+        const techniquesBorderColors = [
+            'hsla(347, 70%, 29%, 1.00)',
+            'hsla(204, 82%, 18%, 1.00)',
+            'hsla(42, 100%, 18%, 1.00)',
+            'hsla(180, 48%, 18%, 1.00)',
+            'hsla(260, 100%, 30%, 1.00)',
+            'hsla(30, 100%, 23%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)'
+        ];
+
         const techniquesChartData = {
-            labels: TECHNIQUE_FIELDS_NO_DATASET.map(field => FIELD_LABELS[field] || field),
+            labels: sortedTechniquesLabels,
             datasets: [{
                 label: 'Techniques Count',
-                data: TECHNIQUE_FIELDS_NO_DATASET.map(field => getCountFromFooter(field)),
-                // You can customize colors here
-                backgroundColor: [
-                    'rgba(255, 99, 132, 0.8)', // Red
-                    'rgba(54, 162, 235, 0.8)',  // Blue
-                    'rgba(255, 205, 86, 0.8)',  // Yellow
-                    'rgba(75, 192, 192, 0.8)',  // Teal
-                    'rgba(153, 102, 255, 0.8)', // Purple
-                    'rgba(255, 159, 64, 0.8)',  // Orange
-                    'rgba(199, 199, 199, 0.8)'  // Grey
-                    // Add more colors if TECHNIQUE_FIELDS_NO_DATASET can have more items
-                ],
-                borderColor: [
-                    'rgb(255, 99, 132)',
-                    'rgb(54, 162, 235)',
-                    'rgb(255, 205, 86)',
-                    'rgb(75, 192, 192)',
-                    'rgb(153, 102, 255)',
-                    'rgb(255, 159, 64)',
-                    'rgb(199, 199, 199)'
-                ],
-                borderWidth: 1,
+                data: sortedTechniquesValues,
+                backgroundColor: techniquesColors,
+                borderColor: techniquesBorderColors,
+                borderWidth: 2,
                 hoverOffset: 4
             }]
         };
@@ -649,31 +701,134 @@ document.addEventListener('DOMContentLoaded', function () {
         const featuresCtx = document.getElementById('featuresPieChart')?.getContext('2d');
         const techniquesCtx = document.getElementById('techniquesPieChart')?.getContext('2d');
 
+        // // Pizza chart version:
+        // if (featuresCtx) {
+        //     window.featuresPieChartInstance = new Chart(featuresCtx, {
+        //         type: 'pie',
+        //         data: featuresChartData,
+        //         options: {
+        //             responsive: true,
+        //             maintainAspectRatio: false, // Important with fixed container height
+        //             plugins: {
+        //                 legend: {
+        //                     position: 'top',
+        //                 },
+        //                 title: {
+        //                     display: false, // Title is in the H3
+        //                 },
+        //                 tooltip: {
+        //                     callbacks: {
+        //                         // Optional: Customize tooltip label
+        //                         label: function(context) {
+        //                             return `${context.label}: ${context.raw}`;
+        //                         }
+        //                     }
+        //                 }
+        //                 // Optional: Add data labels inside slices (requires chartjs-plugin-datalabels)
+        //                 // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+        //             }
+        //         }
+        //     });
+        // } else {
+        //     console.warn("Canvas context for featuresPieChart not found.");
+        // }
+                // if (techniquesCtx) {
+        //     window.techniquesPieChartInstance = new Chart(techniquesCtx, {
+        //         type: 'bar', // Changed from 'pie' to 'bar'
+        //         data: techniquesChartData,
+        //         options: {
+        //             indexAxis: 'y', // This makes it horizontal
+        //             responsive: true,
+        //             maintainAspectRatio: false,
+        //             plugins: {
+        //                 legend: {
+        //                     display: false // Hide legend for cleaner look
+        //                 },
+        //                 title: {
+        //                     display: false
+        //                 },
+        //                 tooltip: {
+        //                     callbacks: {
+        //                         label: function(context) {
+        //                             return `${context.label}: ${context.raw}`;
+        //                         }
+        //                     }
+        //                 }
+        //             },
+        //             scales: {
+        //                 x: {
+        //                     beginAtZero: true,
+        //                     ticks: {
+        //                         precision: 0 // Only show whole numbers
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     });
+        // } else {
+        //     console.warn("Canvas context for techniquesPieChart not found.");
+        // }
+        // if (techniquesCtx) {
+        //     window.techniquesPieChartInstance = new Chart(techniquesCtx, {
+        //         type: 'pie',
+        //         data: techniquesChartData,
+        //         options: {
+        //             responsive: true,
+        //             maintainAspectRatio: false, // Important with fixed container height
+        //             plugins: {
+        //                 legend: {
+        //                     position: 'top',
+        //                 },
+        //                 title: {
+        //                     display: false, // Title is in the H3
+        //                 },
+        //                 tooltip: {
+        //                     callbacks: {
+        //                         // Optional: Customize tooltip label
+        //                         label: function(context) {
+        //                             return `${context.label}: ${context.raw}`;
+        //                         }
+        //                     }
+        //                 }
+        //                 // Optional: Add data labels inside slices
+        //                 // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+        //             }
+        //         }
+        //     });
+        // } else {
+        //     console.warn("Canvas context for techniquesPieChart not found.");
+        // }
         // --- Render Charts if contexts exist ---
         if (featuresCtx) {
             window.featuresPieChartInstance = new Chart(featuresCtx, {
-                type: 'pie',
+                type: 'bar', // Changed from 'pie' to 'bar'
                 data: featuresChartData,
                 options: {
+                    indexAxis: 'y', // This makes it horizontal
                     responsive: true,
-                    maintainAspectRatio: false, // Important with fixed container height
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'top',
+                            display: false // Hide legend for cleaner look
                         },
                         title: {
-                            display: false, // Title is in the H3
+                            display: false
                         },
                         tooltip: {
                             callbacks: {
-                                // Optional: Customize tooltip label
                                 label: function(context) {
                                     return `${context.label}: ${context.raw}`;
                                 }
                             }
                         }
-                        // Optional: Add data labels inside slices (requires chartjs-plugin-datalabels)
-                        // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0 // Only show whole numbers
+                            }
+                        }
                     }
                 }
             });
@@ -681,36 +836,44 @@ document.addEventListener('DOMContentLoaded', function () {
             console.warn("Canvas context for featuresPieChart not found.");
         }
 
+
         if (techniquesCtx) {
             window.techniquesPieChartInstance = new Chart(techniquesCtx, {
-                type: 'pie',
+                type: 'bar', // Changed from 'pie' to 'bar'
                 data: techniquesChartData,
                 options: {
+                    indexAxis: 'y', // This makes it horizontal
                     responsive: true,
-                    maintainAspectRatio: false, // Important with fixed container height
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'top',
+                            display: false // Hide legend for cleaner look
                         },
                         title: {
-                            display: false, // Title is in the H3
+                            display: false
                         },
                         tooltip: {
                             callbacks: {
-                                // Optional: Customize tooltip label
                                 label: function(context) {
                                     return `${context.label}: ${context.raw}`;
                                 }
                             }
                         }
-                        // Optional: Add data labels inside slices
-                        // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0 // Only show whole numbers
+                            }
+                        }
                     }
                 }
             });
         } else {
             console.warn("Canvas context for techniquesPieChart not found.");
         }
+
         const stats = calculateStats(); 
         
         // Helper function to populate a list element
@@ -760,8 +923,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modal.classList.add('modal-active');
         // --- End Animate In ---
     }
-    // --- End Modify displayStats() ---
-    // --- End Modify displayStats() ---
+
     // Function to close the modal
     function closeModal() {
         // modal.style.display = 'none';

@@ -27,7 +27,6 @@ h3 {
     background: #2d6770;
     color: #fefefe;
     display: inline-block;
-    /*! border-radius: 4px; */
     font-weight: 400;
     position: sticky;
     top: 0;
@@ -44,7 +43,6 @@ table {
 td {
     padding: 8px; 
     min-width: 25px;
-    /*! text-align: justify; */
 }
 
 /* --- Rotated Header Styles --- */
@@ -86,11 +84,13 @@ th[data-sort]:hover {
 td.highlight-status {
     background: #bbccbb1a;
 }
-/* tr:nth-child(4n+1) {    background-color: #0000000a; } */
-/* tr:nth-child(4n+2) {    background-color: #0000000a;} */
+/* 
+tr:nth-child(4n+1) {    background-color: #0000000a; }
+tr:nth-child(4n+2) {    background-color: #0000000a;} */
 
 /* Add new classes for alternating shades */
-.alt-shade-1, li:nth-child(even) {
+/* tr:nth-child(4n+1), etc.: Default shading before JS loads:*/
+.alt-shade-1, li:nth-child(even)  {
     background-color: #0000000b; 
 }
 
@@ -398,6 +398,7 @@ form input[type="text"] {
     height: 36px;
     padding: 0;
     box-shadow: none;
+    display: none;
 }
 #fullscreen-btn span {
     transform: rotate(-90deg) scale(2) translateY(-2px) translateX(-0.5px);
@@ -691,12 +692,11 @@ tr.filter-hidden {
 
 .modal-content {
     background-color: #f5f7fa;
-    /*! margin: 10px auto; */ /* 5vh top/bottom margin */
-    /*! background: #2d6770; */
+     /* 5vh top/bottom margin */
     border: 2px solid #2d6770;
     width: calc(100vw - 180px);
     min-width: 1680px;
-    max-height: calc(100vh - 20px); /* Limit height */
+    height: calc(100vh - 20px); /* Limit height */
     border-radius: 8px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     position: relative;
@@ -707,7 +707,7 @@ tr.filter-hidden {
     transform: scale3d(0.95, 0.95, 1) rotate3d(2, 1, 0, 3deg) translateY(-20px);
     transition: transform 0.3s ease-out; /* Animate transform */
     display: grid;
-    grid-template-columns: 1fr 600px;
+    grid-template-columns: 1fr 420px;
 }
 
 
@@ -735,8 +735,6 @@ tr.filter-hidden {
     padding-left: 0;
     margin: 0;
     overflow: scroll;
-    max-height: calc(30vh - 40px);
-    /*! background: #f5f7fa; */
 }
 
 .stats-section li {
@@ -756,10 +754,10 @@ tr.filter-hidden {
     text-align: center;
 }
 .stats-section p {
-    display: inline-block;
-    text-align: right;
-    width: calc(100% - 350px);
-    color: #eee;
+    padding: 0 10px;
+    /*! text-align: right; */
+    /*! width: calc(100% - 350px); */
+    /*! color: #eee; */
     font-size: 10.5pt;
 }
 
@@ -773,7 +771,7 @@ tr.filter-hidden {
     /* Ensure list items don't break across columns awkwardly */
     break-inside: avoid-column;
     /* Optional: Add a small padding if the columns feel too close to the edge */
-    /* padding: 0 10px; */
+    padding: 0 10px;
 }
 
 /* --- Styles for Multi-Column Stats List --- */
@@ -834,16 +832,32 @@ tr.filter-hidden {
 
 .stats-lists{
     display: grid;
-    grid-template-rows: repeat(4, min-content);
+    grid-template-rows: calc(20vh - 33px) calc(60vh - 20px) calc(20vh - 33px) calc(190px);
     border-right: 2px solid #2d6770;
 }
 
-.stats-lists .stats-section{
-    /*! overflow: scroll; */
-    max-height: 30vh;
+/* .stats-lists .stats-section{
+    overflow: scroll;
+    ! max-height: 30vh;
 }
+
+#researchAreaStatsList{
+    height: 66px
+} */
+
+#journalStatsList{
+    height: calc(20vh - 70px);
+}
+#keywordStatsList{
+    height: calc(60vh - 60px);
+}
+
+#authorStatsList {
+    height: calc(20vh - 70px);
+}
+
+
 @media screen and (max-width: 1920px) {
-        
     body {
         margin: 0px;
     }

@@ -3,8 +3,8 @@
 <html class="busyCursor">
 <head>
     <title>PCB Inspection Papers</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='fonts.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 
     <script src="{{ url_for('static', filename='chart.js') }}"></script>
     <script src="{{ url_for('static', filename='comms.js') }}" defer></script>
@@ -161,7 +161,7 @@
             <td class="status-cell editable-status" data-field="technique_available_dataset">{{ paper.technique.available_dataset | render_status }}</td>
 
             <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td> <!-- Use formatted timestamp -->
-            <td class="status-cell changed-by-cell highlight-status">{{ paper.changed_by | render_changed_by }}</td>            
+            <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>           
             <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
             <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
             <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
@@ -269,10 +269,10 @@
             <td id="count-technique_available_dataset" class="count-cell"></td>
             <!-- Empty cells for remaining columns -->
             <td></td> <!-- Last Changed -->
-            <td></td> <!-- Changed By -->
+            <td id="count-changed_by" class="count-cell"></td>
             <td></td> <!-- Verified -->
             <td></td> <!-- Estimated Score -->
-            <td></td> <!-- Verified By -->
+            <td id="count-verified_by" class="count-cell"></td> 
             <td></td> <!-- Actions -->
         </tr>
     </tfoot>
@@ -306,15 +306,19 @@
         <div class="stats-charts">
             <div class="stats-section">
                 <h3><strong>Features</strong> Distribution</h3>
-                <div class="chart-container" style="position: relative; height:40vh; width:80vw; max-width: 600px; margin: auto;">
+                <div class="chart-container" style="height:36vh; width:400px; max-width: 400px; margin: auto;">
                     <canvas id="featuresPieChart"></canvas>
                 </div>
             </div>
             <div class="stats-section">
                 <h3><strong>Techniques</strong> Distribution</h3>
-                <div class="chart-container" style="position: relative; height:40vh; width:80vw; max-width: 600px; margin: auto;">
+                <div class="chart-container" style="height:36vh; width:400px; max-width: 400px; margin: auto;">
                     <canvas id="techniquesPieChart"></canvas>
                 </div>
+            </div>
+            <div class="stats-section">
+                <h3>Info / <strong>Other</strong> stats</h3>
+                <p> Data in this page below is dynamically calculated based on <strong>currently visible</strong> papers.</p>
             </div>
         </div>
     </div>
