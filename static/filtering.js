@@ -360,11 +360,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     mainRow = visibleMainRows[i];
                     paperId = mainRow.getAttribute('data-paper-id');
 
-                    // --- Determine Sort Value (Ultra-Direct) ---
-                    if (['title', 'year', 'journal', /*'authors',*/ 'page_count', 'estimated_score'].includes(sortBy)) {
+                    if (['title', 'year', 'journal', /*'authors',*/ 'page_count', 'estimated_score', 'relevance'].includes(sortBy)) { // <-- Added 'relevance'
                         cell = mainRow.cells[headerIndex];
-                        cellValue = cell.textContent.trim();
-                        if (sortBy === 'year' || sortBy === 'estimated_score' || sortBy === 'page_count') {
+                        cellValue = cell ? cell.textContent.trim() : ''; // <-- ADDED NULL CHECK
+                        if (sortBy === 'year' || sortBy === 'estimated_score' || sortBy === 'page_count' || sortBy === 'relevance') { // <-- Added 'relevance'
                             cellValue = parseFloat(cellValue) || 0;
                         }
                     } else if (['type', 'changed', 'changed_by', 'verified', 'verified_by', 'research_area'].includes(sortBy)) {
@@ -444,8 +443,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
-            // --- Keywords ---
-            // Keywords are in the detail row. Find it.
+            // Keywords are in the detail row.
             const detailRow = row.nextElementSibling;
             if (detailRow && detailRow.classList.contains('detail-row')) {
                 // Find the Keywords paragraph within the detail metadata div
@@ -472,15 +470,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             }
-
-            // --- Authors (REPLACEMENT/NEW CODE) ---
             // Authors are also in the detail row metadata, like keywords.
             let authorsList = []; // Initialize an empty list for authors for this row
             const detailRowForAuthors = row.nextElementSibling;
             if (detailRowForAuthors && detailRowForAuthors.classList.contains('detail-row')) {
-                // Find the paragraph containing 'Full Authors:'
-                // Query for the <p> tag that contains a <strong> tag with the text 'Full Authors:'
-                // This is more robust than assuming the *first* <p> or relying solely on the <strong> tag's text.
                 const authorsPara = Array.from(detailRowForAuthors.querySelectorAll('.detail-metadata p')).find(p => {
                     const strongTag = p.querySelector('strong');
                     return strongTag && strongTag.textContent.trim() === 'Full Authors:';
@@ -506,10 +499,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     // It's possible the paper has no authors listed, or the format is unexpected.
                     // This might be common enough not to warn, but uncomment if debugging:
-                    // console.warn("Could not find 'Full Authors:' paragraph in detail row.", row);
+                    console.warn("Could not find 'Full Authors:' paragraph in detail row.", row);
                 }
             }
-
             // Now, increment counts for the authors found for this row
             authorsList.forEach(author => {
                 // Ensure stats.authors object exists
@@ -517,7 +509,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Increment count for the author
                 stats.authors[author] = (stats.authors[author] || 0) + 1;
             });
-            // --- End Authors (REPLACEMENT/NEW CODE) ---
 
 
             // --- Research Area ---
@@ -595,48 +586,66 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 
-
+        // --- Prepare Features Chart Data (in original order) ---
+        // Read data in the order defined by FEATURE_FIELDS, without sorting
+        const featuresLabels = FEATURE_FIELDS.map(field => FIELD_LABELS[field] || field);
+        const featuresValues = FEATURE_FIELDS.map(field => getCountFromFooter(field));
         
-        // --- Prepare Features Chart Data ---
-        // Read and sort the data
-        const featuresData = FEATURE_FIELDS.map(field => ({
-            label: FIELD_LABELS[field] || field,
-            value: getCountFromFooter(field)
-        }));
+        // // --- Prepare Features Chart Data ---
+        // // Read and sort the data
+        // const featuresData = FEATURE_FIELDS.map(field => ({
+        //     label: FIELD_LABELS[field] || field,
+        //     value: getCountFromFooter(field)
+        // }));
 
-        // Sort by value descending (largest first)
-        featuresData.sort((a, b) => b.value - a.value);
+        // // Sort by value descending (largest first)
+        // featuresData.sort((a, b) => b.value - a.value);
 
-        // Extract sorted labels and values
-        const sortedFeaturesLabels = featuresData.map(item => item.label);
-        const sortedFeaturesValues = featuresData.map(item => item.value);
+        // // Extract sorted labels and values
+        // const sortedFeaturesLabels = featuresData.map(item => item.label);
+        // const sortedFeaturesValues = featuresData.map(item => item.value);
 
         // Define colors (same order as original)
         const featuresColors = [
-            'hsla(347, 70%, 49%, 0.66)', // Red
+            'hsla(180, 48%, 32%, 0.66)',    // PCB
+            'hsla(180, 48%, 32%, 0.66)',  
+            'hsla(0, 0%, 48%, 0.66)',       // solder
+            'hsla(0, 0%, 48%, 0.66)', 
+            'hsla(0, 0%, 48%, 0.66)',
+            'hsla(0, 0%, 48%, 0.66)',
+            'hsla(347, 70%, 49%, 0.66)', // PCBA
+            'hsla(347, 70%, 49%, 0.66)', // 
+            'hsla(347, 70%, 49%, 0.66)', // 
             'hsla(204, 82%, 37%, 0.66)',  // Blue
             'hsla(42, 100%, 37%, 0.66)',  // Yellow
-            'hsla(180, 48%, 32%, 0.66)',  // Teal
             'hsla(260, 80%, 50%, 0.66)', // Purple
             'hsla(30, 100%, 43%, 0.66)',  // Orange
-            'hsla(0, 0%, 48%, 0.66)'  // Grey
         ];
 
         const featuresBorderColors = [
-            'hsla(347, 70%, 29%, 1.00)',
             'hsla(204, 82%, 18%, 1.00)',
+            'hsla(204, 82%, 18%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)',
+            'hsla(0, 0%, 28%, 1.00)',
+            'hsla(347, 70%, 29%, 1.00)',
+            'hsla(347, 70%, 29%, 1.00)',
+            'hsla(347, 70%, 29%, 1.00)',
+            'hsla(219, 100%, 30%, 1.00)',
             'hsla(42, 100%, 18%, 1.00)',
             'hsla(180, 48%, 18%, 1.00)',
-            'hsla(260, 100%, 30%, 1.00)',
             'hsla(30, 100%, 23%, 1.00)',
             'hsla(0, 0%, 28%, 1.00)'
         ];
 
         const featuresChartData = {
-            labels: sortedFeaturesLabels,
+            // labels: sortedFeaturesLabels,
+            labels: featuresLabels, // <<< CHANGED
             datasets: [{
                 label: 'Features Count',
-                data: sortedFeaturesValues,
+                // data: sortedFeaturesValues,
+                data: featuresValues, // <<< CHANGED
                 backgroundColor: featuresColors,
                 borderColor: featuresBorderColors,
                 borderWidth: 2,

@@ -27,7 +27,7 @@ is_survey: null       # true for survey/review/etc., false for implementations, 
 is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
 is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
 is_x_ray: null        # true for X-ray inspection, false for standard optical (visible light) inspection.
-features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper. Mark as false if the paper explicitly exclude a class, otherwise keep as unknown.
+features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper (or the surveyed papers if it's a survey). Mark as false if the paper explicitly exclude a class, otherwise keep as unknown.
 	# Empty PCB issues:
     tracks: null #any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
     holes: null #for hole plating, drilling defects and any other PCB hole issues.
@@ -47,7 +47,7 @@ features:             # true, false, null for unknown/unclear. Mark as true all 
 	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
     other: null #"string with any other types of defect detection not specified above"
 
-technique:                # true, false, null for unknown/unclear. Identify all techniques used in an implementation, or all techniques reviewed in a survey. For each single DL-based implementation, set exactly one DL_* flag to true:
+technique:                # true, false, null for unknown/unclear. Identify all techniques used (if it's an implementation), or all techniques reviewed (if it's a survey). For each single DL-based implementation, set exactly one dl_* flag to true. For surveys (or papers that make more than one implementation) there may be multiple ones:
 	classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
 
 	ml_traditional: null    # true for any non-deep ML: SVM, RF, K-NN, LVQ, Boosting, etc. Does not include deep learning like CNNs or Transformers.

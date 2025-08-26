@@ -9,6 +9,7 @@
     <script src="{{ url_for('static', filename='chart.js') }}"></script>
     <script src="{{ url_for('static', filename='comms.js') }}" defer></script>
     <script src="{{ url_for('static', filename='filtering.js') }}" defer></script>
+    <!-- <script src="{{ url_for('static', filename='ghpages.js') }}" defer></script> -->
 </head>
 <body>
 
@@ -94,11 +95,13 @@
 
             <!-- Features Summary Columns (Updated list) -->
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes</span></div></th>
+            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes / Vias</span></div></th>
+
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><div><span>Insufficient</span></div></th>
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><div><span>Excessive</span></div></th>
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><div><span>Void / Hole</span></div></th>
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><div><span>Crack / Cold</span></div></th>
+            
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
             <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><div><span>Orientation</span></div></th>
@@ -215,7 +218,7 @@
                                 <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
                             </label>
                             <label>Relevance:
-                                <input type="text" class="editable" name="relevance" value="{{ paper.relevance or '' }}">
+                                <input type="text" class="editable" name="relevance" value="{{ paper.relevance or '' }}" placeholder="0 - 10">
                             </label>
                             <label>User comments:
                                 <textarea class="editable" name="user_trace">{{ paper.user_trace or '' }}</textarea>
