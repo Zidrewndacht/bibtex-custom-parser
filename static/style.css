@@ -625,10 +625,14 @@ tr.filter-hidden {
 
 /* --- Place Other Defects and Page Count on the second grid line --- */
 .detail-edit form > label:nth-of-type(3) { /* Other Defects */
-    grid-column: 1 / 4;
+    grid-column: 1 / 3;
     grid-row: 2 / 3;
 }
 .detail-edit form > label:nth-of-type(4) { /* Page Count */
+    grid-column: 3 / 4;
+    grid-row: 2 / 3;
+}
+.detail-edit form > label:nth-of-type(5) { /* Relevance */
     grid-column: 4 / 5;
     grid-row: 2 / 3;
 }
@@ -642,7 +646,7 @@ tr.filter-hidden {
 
 /* --- Make User Comments Textarea Expand --- */
 /* Target the label containing the textarea */
-.detail-edit form > label:nth-of-type(5) { /* Assuming 'User comments:' is the 5th label */
+.detail-edit form > label:nth-of-type(6) { 
     /* Span both columns */
     grid-column: 1 / -1; /* From column 1 to the end */
     /* Place it in the row designed for the expanding content */
