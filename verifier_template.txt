@@ -6,12 +6,12 @@ Instructions:
 3. Determine if the classification is a faithful representation of the paper.
 4. Respond ONLY with a JSON object containing two fields:
    - `verified`: `true` if the classification is largely correct, `false` if it contains significant errors or misrepresentations, `null` if there's not enough data for a decision, you are unsure or cannot determine the accuracy.
-   - `estimated_score`: An integer between 0 and 10 representing a finer-grained score for how accurate the automated classification was compared to the actual paper data. 0 for completelly inaccurate, 10 for completely accurate, or any integer inbetween.
+   - `estimated_score`: An integer between 0 and 10 scoring the quality of the original classification. It represents a finer-grained score for how accurate the automated classification was compared to the actual paper data. 0 for completelly inaccurate, 10 for completely accurate, or any integer inbetween.
 
 Example Response Format (only output the JSON):
 {{
   "verified": true,
-  "estimated_score": 7
+  "estimated_score": 8
 }}
 
 The plaintext below shows the requirements for the original classification you'll be verifying:
@@ -20,31 +20,47 @@ The plaintext below shows the requirements for the original classification you'l
 Given the data from the specific paper at the end, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
 Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null. Do not guess true or false unless there's enough evidence in the provided abstract/keywords/etc.
 
-research_area: null #broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
-is_offtopic: null #We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one. Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
-is_survey: null #true for survey/review/etc., false for implementations, new research, etc.
-is_through_hole: null #true for papers that specify PTH, THT, etc., through-hole component mounting.
-is_smt: null #true for papers that specify surface-mount component mounting (SMD, SMT).
-is_x_ray: null  #true for X-ray inspection, false for standard optical (visible light) inspection.
-features:  # true, false, null for unknown/unclear. Identify the types of defect which are detected by the implementation(s) described in the paper.
-    solder: null #for solder quality defects: too little solder, too much solder, short circuit, broken solder or any other soldering issues. 
-    polarity: null #for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
+research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
+is_offtopic: null     # We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one (filling only the research area above with actual contents). Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
+relevance: 7          # An integer estimating how relevant the paper is for the topic according to the description above. 0 for completely offtopic, 10 for completely relevant.
+is_survey: null       # true for survey/review/etc., false for implementations, new research, etc.
+is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
+is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
+is_x_ray: null        # true for X-ray inspection, false for standard optical (visible light) inspection.
+features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper. Mark as false if the paper explicitly exclude a class, otherwise keep as unknown.
+	# Empty PCB issues:
+    tracks: null #any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
+    holes: null #for hole plating, drilling defects and any other PCB hole issues.
+	
+	# soldering issues:
+    solder_insufficient: null # too little solder, dry joint, poor fillet
+    solder_excess: null # solder ball / bridge / short between pads or leads
+    solder_void: null # voids, blow-holes, pin-holes inside the joint
+    solder_crack: null # fatigue cracks, fractured or “cold” joints
+	
+	# component issues: 
+    orientation: null #for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
     wrong_component: null #for components installed in the wrong location, might also detect components being installed where none should be.
     missing_component: null #for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
-    tracks: null	#any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
-    cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
-    holes: null #for hole plating, drilling defects and any other PCB hole issues.
+	
+  # other issues:
+	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
     other: null #"string with any other types of defect detection not specified above"
-technique: # true, false, null for unknown/unclear. Identify all techniques used in an implementation, or all techniques reviewed in a survey:
-    classic_computer_vision_based: null # for general pattern recognition techniques that do not leverage machine learning. Includes manually-programmed feature analysis. May or may not leverage optimization algorithms, like genetic, PSO, etc.
-    machine_learning_based: null #for any technique that use classic machine learning like SVM, Random Forest, K-NN, LVQ, etc. Does not include deep learning like CNNs or Transformers.
-    dl_cnn_based: null #for techniques using standard CNN classifiers: ResNet, EfficientNet, etc., that are not region-based or single-stage segmentation models.
-    dl_rcnn_based: null #for region-based CNN detectors, including single-stage segmentation models: R-CNNs, EfficientDet, most YOLO versions.
-    dl_transformer_based: null #true for any Transformer (attention)-based models (e.g. ViT, DETR, etc.). Also true for mixed CNN+Transformer (e.g. YOLOv12, but not other pure-CNN YOLOs). 
-    dl_other: null #for any remaining deep learning techniques that don't fit any of the categories above, like autoencoders;
-    hybrid: null #for papers that describe techniques that are explicitly defined as some hybrid of classic and ML/DL techniques. true for Hybrid/Ensemble methods including ML+DL, classic+DL, but not including 'hybrids' of DL+DL (e.g. CNN+Transformer). Also set true for the classes above which the specified hybrid implementation uses (e.g. CV+RCNN, set true for both as well as hybrid).
-    model: "name"	#comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
-    available_dataset: null #true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+
+technique:                # true, false, null for unknown/unclear. Identify all techniques used in an implementation, or all techniques reviewed in a survey. For each single DL-based implementation, set exactly one DL_* flag to true:
+	classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
+
+	ml_traditional: null    # true for any non-deep ML: SVM, RF, K-NN, LVQ, Boosting, etc. Does not include deep learning like CNNs or Transformers.
+
+	dl_cnn_classifier: null # true when the only DL component is a plain CNN used as an image classifier (ResNet-50, EfficientNet-B0, VGG, …): no detection, no segmentation, no attention blocks.
+	dl_cnn_detector: null   # true for single-shot detectors whose backbone is CNN only (YOLOv3, YOLOv4, YOLOv5, YOLOv6, YOLOv7, YOLOv9, YOLOv10, SSD, RetinaNet, FCOS, CenterNet, etc.).
+	dl_rcnn_detector: null  # true for two-stage (R-CNN family) or anchor-based region proposal detectors: R-CNN, Fast R-CNN, Faster R-CNN, Mask R-CNN, Cascade R-CNN, DetectoRS, Sparse R-CNN, etc.
+	dl_transformer: null    # true for any model whose core is attention/transformer blocks, including pure ViT, DETR, Deformable DETR, YOLOv8-seg, YOLOv12, RT-DETR, SegFormer, Swin, etc.
+	dl_other: null          # for any other DL architecture not covered above (e.g. pure Autoencoder, GAN, Diffusion, MLP-Mixer).
+
+	hybrid: null            # true if the paper explicitly combines categories above (classic + DL, classic + ML, ML + DL).  If hybrid is true, also set each constituent technique to true.
+	model: "name"			      # model name or comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
+	available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 ```
 Please notice that the null may also have been recorded as None. Both are correct and have the same meaning for the parser.
 
@@ -62,6 +78,7 @@ Automated Classification to Verify (inferred by a language model):
 
 research_area: {research_area}
 is_offtopic: {is_offtopic}
+relevance: {relevance}
 is_survey: {is_survey}
 is_through_hole: {is_through_hole}
 is_smt: {is_smt}

@@ -1,0 +1,260 @@
+Given the data from the specific paper at the end, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
+Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null. Do not guess true or false unless there's enough evidence in the provided abstract/keywords/etc.
+
+research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
+is_offtopic: null     # We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all fields following this one (filling only the research area above with actual contents). Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.
+relevance: 7          # An integer estimating how relevant the paper is for the topic according to the description above. 0 for completely offtopic, 10 for completely relevant.
+is_survey: null       # true for survey/review/etc., false for implementations, new research, etc.
+is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
+is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
+is_x_ray: null        # true for X-ray inspection, false for standard optical (visible light) inspection.
+features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper. Mark as false if the paper explicitly exclude a class, otherwise keep as unknown.
+	# Empty PCB issues:
+    tracks: null #any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
+    holes: null #for hole plating, drilling defects and any other PCB hole issues.
+	
+	# soldering issues:
+    solder_insufficient: null # too little solder, dry joint, poor fillet
+    solder_excess: null # solder ball / bridge / short between pads or leads
+    solder_void: null # voids, blow-holes, pin-holes inside the joint
+    solder_crack: null # fatigue cracks, fractured or “cold” joints
+	
+	# component issues: 
+    orientation: null #for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
+    wrong_component: null #for components installed in the wrong location, might also detect components being installed where none should be.
+    missing_component: null #for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
+	
+    # other issues:
+	cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
+    other: null #"string with any other types of defect detection not specified above"
+
+technique:                # true, false, null for unknown/unclear. Identify all techniques used in an implementation, or all techniques reviewed in a survey. For each single DL-based implementation, set exactly one DL_* flag to true:
+	classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
+
+	ml_traditional: null    # true for any non-deep ML: SVM, RF, K-NN, LVQ, Boosting, etc. Does not include deep learning like CNNs or Transformers.
+
+	dl_cnn_classifier: null # true when the only DL component is a plain CNN used as an image classifier (ResNet-50, EfficientNet-B0, VGG, …): no detection, no segmentation, no attention blocks.
+	dl_cnn_detector: null   # true for single-shot detectors whose backbone is CNN only (YOLOv3, YOLOv4, YOLOv5, YOLOv6, YOLOv7, YOLOv9, YOLOv10, SSD, RetinaNet, FCOS, CenterNet, etc.).
+	dl_rcnn_detector: null  # true for two-stage (R-CNN family) or anchor-based region proposal detectors: R-CNN, Fast R-CNN, Faster R-CNN, Mask R-CNN, Cascade R-CNN, DetectoRS, Sparse R-CNN, etc.
+	dl_transformer: null    # true for any model whose core is attention/transformer blocks, including pure ViT, DETR, Deformable DETR, YOLOv8-seg, YOLOv12, RT-DETR, SegFormer, Swin, etc.
+	dl_other: null          # for any other DL architecture not covered above (e.g. pure Autoencoder, GAN, Diffusion, MLP-Mixer).
+
+	hybrid: null            # true if the paper explicitly combines categories above (classic + DL, classic + ML, ML + DL).  If hybrid is true, also set each constituent technique to true.
+	model: "name"			      # model name or comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
+	available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+
+Below are some example outputs, from random papers, for structure reference only:
+
+**Implementation using YOLO for SMT PCB inspection**
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 9,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": true,
+    "holes": false,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": null,
+    "solder_crack": null,
+    "orientation": true,
+    "wrong_component": true,
+    "missing_component": true,
+    "cosmetic": true,
+    "other": null
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "YOLOv5",
+    "available_dataset": true
+  }}
+}}
+
+**Justification**:  
+This paper presents an implementation of YOLOv5 applied to optical inspection of surface-mounted PCBs. It detects multiple defect types including solder bridges, missing components, and track issues. The dataset is publicly released. All relevant fields are set accordingly. Strongly on-topic with high relevance.
+
+---
+**Survey paper on deep learning methods for PCB defect detection**
+
+{{
+  "research_area": "computer sciences",
+  "is_offtopic": false,
+  "relevance": 8,
+  "is_survey": true,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": true,
+    "holes": true,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": true,
+    "solder_crack": null,
+    "orientation": true,
+    "wrong_component": true,
+    "missing_component": true,
+    "cosmetic": true,
+    "other": "via misalignment, pad lifting"
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": true,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": true,
+    "dl_transformer": true,
+    "dl_other": false,
+    "hybrid": true,
+    "model": "ResNet, YOLOv3, Faster R-CNN, DETR",
+    "available_dataset": null
+  }}
+}}
+
+**Justification**:  
+This is a comprehensive survey reviewing various techniques (classical, ML, DL) used in PCB defect detection. It covers both SMT and through-hole (though not specified), and includes X-ray and optical methods. Since it's a survey, `is_survey = true`, and multiple techniques are marked as `true`. High relevance due to broad coverage of the target domain.
+
+---
+**X-ray based void detection in solder joints using CNN classifier**
+
+{{
+  "research_area": "electronics manufacturing",
+  "is_offtopic": false,
+  "relevance": 7,
+  "is_survey": false,
+  "is_through_hole": true,
+  "is_smt": true,
+  "is_x_ray": true,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "solder_insufficient": null,
+    "solder_excess": false,
+    "solder_void": true,
+    "solder_crack": null,
+    "orientation": false,
+    "wrong_component": false,
+    "missing_component": false,
+    "cosmetic": false,
+    "other": null
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_detector": false,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "ResNet-50",
+    "available_dataset": false
+  }}
+}}
+
+**Justification**:  
+The paper focuses specifically on detecting solder voids in BGA joints using X-ray imaging and a ResNet-50 classifier. It applies to both SMT and through-hole (implied by context). Very narrow scope but valid implementation in the target field. Relevance is moderate because it addresses only one defect type.
+
+---
+**Defect detection in textile manufacturing using computer vision**
+
+{{
+  "research_area": "materials engineering",
+  "is_offtopic": true,
+  "relevance": 1,
+  "is_survey": null,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": null,
+    "holes": null,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "cosmetic": null,
+    "other": null
+  }},
+  "technique": {{
+    "classic_cv_based": null,
+    "ml_traditional": null,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": null,
+    "dl_other": null,
+    "hybrid": null,
+    "model": null,
+    "available_dataset": null
+  }}
+}}
+
+**Justification**:  
+Although this paper uses computer vision and deep learning for *defect detection*, it is applied to **textile manufacturing**, not PCBs or electronics. Therefore, it's **off-topic**. `is_offtopic = true`, so all subsequent fields are `null`. The research area is correctly identified as materials engineering.
+
+---
+
+**Blockchain-based voting system**
+
+{{
+  "research_area": "computer sciences",
+  "is_offtopic": true,
+  "relevance": 0,
+  "is_survey": null,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": null,
+    "holes": null,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "cosmetic": null,
+    "other": null
+  }},
+  "technique": {{
+    "classic_cv_based": null,
+    "ml_traditional": null,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": null,
+    "dl_other": null,
+    "hybrid": null,
+    "model": null,
+    "available_dataset": null
+  }}
+}}
+
+**Justification**:  
+This paper proposes a blockchain solution for secure digital voting. There is **no mention of PCBs, defect detection, image processing, or hardware inspection**. It is **completely unrelated** to the topic. Hence, `is_offtopic = true`, all lower fields are `null`, and relevance is 0. Research area is broadly computer science, but still far off-topic.
+
+--
+
+Finally, below is the paper you will process. Answer accordingly:
+
+*Title:* {title}
+*Abstract:* {abstract}
+*Keywords:* {keywords}
+*Authors:* {authors}
+*Publication Year:* {year}
+*Publication Type:* {type}
+*Publication Name:* {journal}
+
+Remember, your response is not being read by a human, it goes directly to an automated parser. After thinking through the request in <think></think> tags, output only the result in JSON format in plaintext without any other tags like ```json or similar.

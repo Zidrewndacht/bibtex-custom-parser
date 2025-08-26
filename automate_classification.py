@@ -1,4 +1,5 @@
-#automate_classification
+# automate_classification
+# This should be agnostic to changes inside features and techniques:
 import sqlite3
 import json
 import argparse
@@ -52,12 +53,16 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
             value = llm_data[field]
             update_fields.append(f"{field} = ?")
             update_values.append(1 if value is True else 0 if value is False else None)
-    
-    # Research Area
+
+    # Research Area and Relevance
     if 'research_area' in llm_data:
         update_fields.append("research_area = ?")
         update_values.append(llm_data['research_area'])
-    
+
+    if 'relevance' in llm_data:  # Add this line
+        update_fields.append("relevance = ?")
+        update_values.append(llm_data['relevance'])
+
     # Features
     cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
     row = cursor.fetchone()

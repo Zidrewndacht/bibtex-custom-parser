@@ -1,4 +1,5 @@
 # verify_classification.py
+# This should be agnostic to changes inside features and techniques:
 import sqlite3
 import json
 import argparse
@@ -22,6 +23,7 @@ def build_verification_prompt(paper_data, classification_data, template_content)
         'year': paper_data.get('year', ''),
         'type': paper_data.get('type', ''),
         'journal': paper_data.get('journal', ''),
+        'relevance': paper_data.get('relevance', ''),
     }
     
     # Include the LLM-generated classification data for verification

@@ -1,4 +1,6 @@
 # globals.py
+# **** This *has to be updated* when features or techniques change 
+# See DEFAULT_FEATURES and DEFAULT_TECHNIQUE below. ****
 
 import requests
 import json
@@ -12,26 +14,31 @@ LLM_SERVER_URL = "http://localhost:8080"
 MAX_CONCURRENT_WORKERS = 8 # Match your server slots
 DATABASE_FILE = "new.sqlite"
 GRAMMAR_FILE = "" #"output.gbnf" #disabled for reasoning models.
-PROMPT_TEMPLATE = "prompt_template-think.txt"
+PROMPT_TEMPLATE = "prompt_template.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
 
 # Define default JSON structures for features and technique
 DEFAULT_FEATURES = {
-    "solder": None,
-    "polarity": None,
-    "wrong_component": None,
-    "missing_component": None,
     "tracks": None,
     "holes": None,
+    "solder_insufficient": None,
+    "solder_excess": None,
+    "solder_void": None,
+    "solder_crack": None,
+    "orientation": None,
+    "wrong_component": None,
+    "missing_component": None,
     "cosmetic": None,
     "other": None
 }
+
 DEFAULT_TECHNIQUE = {
-    "classic_computer_vision_based": None,
-    "machine_learning_based": None,
-    "dl_cnn_based": None,
-    "dl_rcnn_based": None,
-    "dl_transformer_based": None,
+    "classic_cv_based": None,
+    "ml_traditional": None,
+    "dl_cnn_classifier": None,
+    "dl_cnn_detector": None,
+    "dl_rcnn_detector": None,
+    "dl_transformer": None,
     "dl_other": None,
     "hybrid": None,
     "model": None,

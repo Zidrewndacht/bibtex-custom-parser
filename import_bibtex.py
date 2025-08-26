@@ -1,4 +1,5 @@
 # import_bibtex.py
+# This should be agnostic to changes inside features and techniques:
 import sqlite3
 import json
 import bibtexparser
@@ -8,7 +9,6 @@ import argparse
 import re # Import regex for brace removal
 
 import globals
-
 
 def create_database(db_path):
     """Create SQLite database with the specified schema including new columns"""
@@ -32,8 +32,9 @@ def create_database(db_path):
         keywords TEXT,                     -- Semicolon-separated list
         -- Custom classification fields
         research_area TEXT,                -- NULL = unknown
-        is_survey INTEGER,                 -- 1=true, 0=false, NULL=unknown
         is_offtopic INTEGER,               -- 1=true, 0=false, NULL=unknown
+        relevance INTEGER,                 -- New field: 0 for offtopic, 10 for ontopic
+        is_survey INTEGER,                 -- 1=true, 0=false, NULL=unknown
         is_through_hole INTEGER,           -- 1=true, 0=false, NULL=unknown
         is_smt INTEGER,                    -- 1=true, 0=false, NULL=unknown
         is_x_ray INTEGER,                  -- 1=true, 0=false, NULL=unknown
@@ -55,6 +56,38 @@ def create_database(db_path):
     cursor.execute('PRAGMA journal_mode = WAL')
     conn.commit()
     conn.close() # Close connection after creation
+
+def migrate_database(db_path):
+    """Migrate existing database from old format to new format"""
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Check if relevance column exists
+    cursor.execute("PRAGMA table_info(papers)")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    if 'relevance' not in columns:
+        print("Migrating database to new format...")
+        # Add the new relevance column
+        cursor.execute("ALTER TABLE papers ADD COLUMN relevance INTEGER")
+        
+        # Update existing records: set relevance based on is_offtopic
+        # For offtopic (is_offtopic=1), set relevance=0
+        # For ontopic (is_offtopic=0), set relevance=10
+        # For unknown (is_offtopic=NULL), set relevance=NULL
+        cursor.execute("""
+            UPDATE papers 
+            SET relevance = CASE 
+                WHEN is_offtopic = 1 THEN 0
+                WHEN is_offtopic = 0 THEN 10
+                ELSE NULL
+            END
+        """)
+        
+        conn.commit()
+        print("Database migration completed.")
+    
+    conn.close()
 
 def parse_authors(authors_str):
     """Parse authors string into semicolon-separated list"""
@@ -154,8 +187,10 @@ def import_bibtex(bib_file, db_path):
     with open(bib_file, 'r', encoding='utf-8') as f:
         bib_db = bibtexparser.load(f, parser=parser)
 
-    # Create database
+    # Create database and migrate if needed
     create_database(db_path)
+    migrate_database(db_path)
+    
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -176,6 +211,10 @@ def import_bibtex(bib_file, db_path):
         else:
             page_count = computed_page_count  # fallback to computed value
 
+        # Set relevance based on is_offtopic (0 for offtopic, 10 for ontopic)
+        is_offtopic = None  # Default to unknown
+        relevance = None    # Default to unknown
+        
         data = {
             'id': entry.get('ID', ''),
             'type': entry.get('ENTRYTYPE', ''),
@@ -192,8 +231,9 @@ def import_bibtex(bib_file, db_path):
             'abstract': entry.get('abstract', ''),
             'keywords': parse_keywords(entry.get('keywords', '')),
             'research_area': None,
+            'is_offtopic': is_offtopic,
+            'relevance': relevance,  # New field
             'is_survey': None,
-            'is_offtopic': None,
             'is_through_hole': None,
             'is_smt': None,
             'is_x_ray': None,
@@ -237,12 +277,12 @@ def import_bibtex(bib_file, db_path):
             INSERT INTO papers (
                 id, type, title, authors, year, month, journal, 
                 volume, pages, page_count, doi, issn, abstract, keywords,
-                research_area, is_survey, is_offtopic, is_through_hole, 
+                research_area, is_offtopic, relevance, is_survey, is_through_hole, 
                 is_smt, is_x_ray, features, technique, changed, changed_by, verified, estimated_score, verified_by, reasoning_trace, verifier_trace, user_trace
             ) VALUES (
                 :id, :type, :title, :authors, :year, :month, :journal, 
                 :volume, :pages, :page_count, :doi, :issn, :abstract, :keywords,
-                :research_area, :is_survey, :is_offtopic, :is_through_hole, 
+                :research_area, :is_offtopic, :relevance, :is_survey, :is_through_hole, 
                 :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :estimated_score, :verified_by, :reasoning_trace, :verifier_trace, :user_trace
             )
             ''', data)

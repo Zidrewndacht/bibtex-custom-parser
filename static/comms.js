@@ -315,15 +315,27 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateRowCell(row, '.editable-status[data-field="is_smt"]', data.is_smt);
                         updateRowCell(row, '.editable-status[data-field="is_x_ray"]', data.is_x_ray);
 
-                        updateRowCell(row, '.editable-status[data-field="features_solder"]', data.features?.solder);
-                        updateRowCell(row, '.editable-status[data-field="features_polarity"]', data.features?.polarity);
-                        updateRowCell(row, '.editable-status[data-field="features_wrong_component"]', data.features?.wrong_component);
-                        updateRowCell(row, '.editable-status[data-field="features_missing_component"]', data.features?.missing_component);
+                        // Replace the existing feature updates with:
                         updateRowCell(row, '.editable-status[data-field="features_tracks"]', data.features?.tracks);
                         updateRowCell(row, '.editable-status[data-field="features_holes"]', data.features?.holes);
+                        updateRowCell(row, '.editable-status[data-field="features_solder_insufficient"]', data.features?.solder_insufficient);
+                        updateRowCell(row, '.editable-status[data-field="features_solder_excess"]', data.features?.solder_excess);
+                        updateRowCell(row, '.editable-status[data-field="features_solder_void"]', data.features?.solder_void);
+                        updateRowCell(row, '.editable-status[data-field="features_solder_crack"]', data.features?.solder_crack);
+                        updateRowCell(row, '.editable-status[data-field="features_orientation"]', data.features?.orientation);
+                        updateRowCell(row, '.editable-status[data-field="features_wrong_component"]', data.features?.wrong_component);
+                        updateRowCell(row, '.editable-status[data-field="features_missing_component"]', data.features?.missing_component);
+                        updateRowCell(row, '.editable-status[data-field="features_cosmetic"]', data.features?.cosmetic);
+                        updateRowCell(row, '.editable-status[data-field="features_other"]', data.features?.other);
 
-                        updateRowCell(row, '.editable-status[data-field="technique_classic_computer_vision_based"]', data.technique?.classic_computer_vision_based);
-                        updateRowCell(row, '.editable-status[data-field="technique_machine_learning_based"]', data.technique?.machine_learning_based);
+                        // Replace the existing technique updates with:
+                        updateRowCell(row, '.editable-status[data-field="technique_classic_cv_based"]', data.technique?.classic_cv_based);
+                        updateRowCell(row, '.editable-status[data-field="technique_ml_traditional"]', data.technique?.ml_traditional);
+                        updateRowCell(row, '.editable-status[data-field="technique_dl_cnn_classifier"]', data.technique?.dl_cnn_classifier);
+                        updateRowCell(row, '.editable-status[data-field="technique_dl_cnn_detector"]', data.technique?.dl_cnn_detector);
+                        updateRowCell(row, '.editable-status[data-field="technique_dl_rcnn_detector"]', data.technique?.dl_rcnn_detector);
+                        updateRowCell(row, '.editable-status[data-field="technique_dl_transformer"]', data.technique?.dl_transformer);
+                        updateRowCell(row, '.editable-status[data-field="technique_dl_other"]', data.technique?.dl_other);
                         updateRowCell(row, '.editable-status[data-field="technique_hybrid"]', data.technique?.hybrid);
                         updateRowCell(row, '.editable-status[data-field="technique_available_dataset"]', data.technique?.available_dataset);
 
@@ -345,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function () {
                              // Assuming render_verified_by function exists or create one based on Python logic
                              verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                         }
-                        const estimatedScoreCell = row.cells[28];   //why is there special treatment for that one?
+                        const estimatedScoreCell = row.cells[33];   //Updates score dynamically after verification.
                         if (estimatedScoreCell) estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
 
                         const pageCountCell = row.cells[4]; //moved afer hiding authors column
@@ -455,18 +467,15 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
     });
 }
 
-// --- Functions that might be called from inline HTML ---
 function saveChanges(paperId) {
     const form = document.getElementById(`form-${paperId}`);
     if (!form) {
         console.error(`Form not found for paper ID: ${paperId}`);
         return;
     }
-
     // --- Collect Main Fields ---
     const researchAreaInput = form.querySelector('input[name="research_area"]');
     const researchAreaValue = researchAreaInput ? researchAreaInput.value : '';
-
     const pageCountInput = form.querySelector('input[name="page_count"]');
     let pageCountValue = pageCountInput ? pageCountInput.value : '';
     // Convert empty string or invalid input to NULL for the database
@@ -481,26 +490,42 @@ function saveChanges(paperId) {
         }
     }
 
-    // --- NEW: Collect Additional Fields ---
+    // --- NEW: Collect Relevance Field ---
+    const relevanceInput = form.querySelector('input[name="relevance"]');
+    let relevanceValue = relevanceInput ? relevanceInput.value : '';
+    // Convert empty string to NULL for the database consistency (optional but good practice)
+    if (relevanceValue === '') {
+        relevanceValue = null;
+    } else {
+        // If you want to ensure it's a number, uncomment the next lines:
+        const parsedRelevance = parseFloat(relevanceValue); // or parseInt if it's an integer
+        if (isNaN(parsedRelevance)) {
+            relevanceValue = null; // Or handle error
+        } else {
+            relevanceValue = parsedRelevance;
+        }
+    }
+
+
+    // --- Collect Additional Fields ---
     // Model Name -> technique_model
     const modelNameInput = form.querySelector('input[name="model_name"]');
     const modelNameValue = modelNameInput ? modelNameInput.value : '';
-
     // Other Defects -> features_other
     const otherDefectsInput = form.querySelector('input[name="features_other"]');
     const otherDefectsValue = otherDefectsInput ? otherDefectsInput.value : '';
-
     // User Comments -> user_trace (stored in main table column, not features/technique JSON)
     const userCommentsTextarea = form.querySelector('textarea[name="user_trace"]');
     const userCommentsValue = userCommentsTextarea ? userCommentsTextarea.value : '';
-
 
     // --- Prepare Data Payload ---
     const data = {
         id: paperId,
         research_area: researchAreaValue,
         page_count: pageCountValue,
-        // --- NEW: Add Additional Fields to Payload ---
+        // --- NEW: Add Relevance Field to Payload ---
+        relevance: relevanceValue,
+        // --- Add Additional Fields to Payload ---
         // Prefix 'technique_' and 'features_' are handled by the backend
         technique_model: modelNameValue,
         features_other: otherDefectsValue,
@@ -514,7 +539,6 @@ function saveChanges(paperId) {
         saveButton.textContent = 'Saving...';
         saveButton.disabled = true;
     }
-
     fetch('/update_paper', {
         method: 'POST',
         headers: {
@@ -547,6 +571,12 @@ function saveChanges(paperId) {
                 const pageCountCell = row.cells[4]; // Adjusted index if authors column is hidden
                 if (pageCountCell) {
                      pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
+                }
+                // --- NEW: Update displayed relevance if returned ---
+                // Find the relevance cell in the main row (adjust selector if needed)
+                const relevanceCell = row.querySelector('td:nth-child(7)'); // Or better, add a class like .relevance-cell to the <td> and use '.relevance-cell'
+                if (relevanceCell) {
+                     relevanceCell.textContent = data.relevance !== null && data.relevance !== undefined ? data.relevance : '';
                 }
                 // Note: The UI fields (model_name, features_other, user_trace) are NOT updated here
                 // from the server response because update_paper_custom_fields doesn't return them.

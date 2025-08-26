@@ -61,13 +61,14 @@ function toggleDetails(element) {   //OK
 // --- Count Logic ---
 // Define the fields for which we want to count '✔️'
 const COUNT_FIELDS = [
-    'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray', // Classification
-    'features_solder', 'features_polarity', 'features_wrong_component',
-    'features_missing_component', 'features_tracks', 'features_holes', 'features_cosmetic', // Features
-    'technique_classic_computer_vision_based', 'technique_machine_learning_based',
-    'technique_dl_cnn_based', 'technique_dl_rcnn_based', 'technique_dl_transformer_based','technique_dl_other', 
-    'technique_hybrid', 'technique_available_dataset', // Techniques
-    'changed_by', 'verified_by' // Add these for user counting
+    'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray', // Classification (Top-level)
+    'features_tracks', 'features_holes', 'features_solder_insufficient', 'features_solder_excess',
+    'features_solder_void', 'features_solder_crack', 'features_orientation', 'features_wrong_component',
+    'features_missing_component', 'features_cosmetic', 'features_other', // Features (Nested under 'features')
+    'technique_classic_cv_based', 'technique_ml_traditional',
+    'technique_dl_cnn_classifier', 'technique_dl_cnn_detector', 'technique_dl_rcnn_detector',
+    'technique_dl_transformer', 'technique_dl_other', 'technique_hybrid', 'technique_available_dataset', // Techniques (Nested under 'technique')
+    'changed_by', 'verified_by' // Add these for user counting (Top-level)
 ];
 // --- Modify updateCounts() ---
 function updateCounts() {
@@ -540,41 +541,46 @@ document.addEventListener('DOMContentLoaded', function () {
     function displayStats() {
         // --- NEW: Chart Creation Logic (Read counts from footer) ---
 
-        // Define the fields for Features and Techniques explicitly for charting
         const FEATURE_FIELDS = [
-            'features_tracks', 'features_holes', 'features_solder',
-            'features_missing_component', 'features_wrong_component',
-            'features_polarity', 'features_cosmetic'
+            'features_tracks', 'features_holes', 'features_solder_insufficient',
+            'features_solder_excess', 'features_solder_void', 'features_solder_crack',
+            'features_orientation', 'features_missing_component', 'features_wrong_component',
+            'features_cosmetic'
         ];
-
         // Include Datasets here temporarily to get the label mapping easily,
         // then filter it out for data/labels for the Techniques chart
         const TECHNIQUE_FIELDS_ALL = [
-            'technique_classic_computer_vision_based', 'technique_machine_learning_based',
-            'technique_dl_cnn_based', 'technique_dl_rcnn_based',
-            'technique_dl_transformer_based', 'technique_dl_other', 'technique_hybrid',
+            'technique_classic_cv_based', 'technique_ml_traditional',
+            'technique_dl_cnn_classifier', 'technique_dl_cnn_detector', 'technique_dl_rcnn_detector',
+            'technique_dl_transformer', 'technique_dl_other', 'technique_hybrid',
             'technique_available_dataset' // Included to get label easily
         ];
-
-        // Map field names to user-friendly labels (based on your table headers)
+        // Map NEW field names (data-field values / structure keys) to user-friendly labels (based on your table headers)
         const FIELD_LABELS = {
+            // Features
             'features_tracks': 'Tracks',
             'features_holes': 'Holes',
-            'features_solder': 'Solder',
-            'features_missing_component': 'Missing Component',
+            'features_solder_insufficient': 'Insufficient Solder',
+            'features_solder_excess': 'Excess Solder',
+            'features_solder_void': 'Solder Voids',
+            'features_solder_crack': 'Solder Cracks',
+            'features_orientation': 'Orientation/Polarity', // Combined as per previous logic
             'features_wrong_component': 'Wrong Component',
-            'features_polarity': 'Polarity',
+            'features_missing_component': 'Missing Component',
             'features_cosmetic': 'Cosmetic',
-            'technique_classic_computer_vision_based': 'Classic CV',
-            'technique_machine_learning_based': 'ML',
-            'technique_dl_cnn_based': 'CNN',
-            'technique_dl_rcnn_based': 'R-CNN',
-            'technique_dl_transformer_based': 'Transformer',
+            // 'features_other': 'Other Features', // Label for 'other'
+
+            // Techniques
+            'technique_classic_cv_based': 'Classic CV',
+            'technique_ml_traditional': 'Traditional ML',
+            'technique_dl_cnn_classifier': 'CNN Classifier',
+            'technique_dl_cnn_detector': 'CNN Detector (e.g., YOLO)',
+            'technique_dl_rcnn_detector': 'R-CNN Detector',
+            'technique_dl_transformer': 'Transformer',
             'technique_dl_other': 'Other DL',
             'technique_hybrid': 'Hybrid',
             'technique_available_dataset': 'Datasets' // Label for Datasets
         };
-
         // --- Read Counts from Footer Cells ---
         // We read the counts directly from the cells updated by updateCounts()
         function getCountFromFooter(fieldId) {

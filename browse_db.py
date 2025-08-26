@@ -272,7 +272,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     # Any remaining keys in 'data' are assumed to be direct column names
     for key, value in data.items(): # Iterate over the potentially modified data dict
         # Skip keys already handled or special keys
-        if key in ['id', 'changed', 'changed_by', 'verified_by'] or key.startswith(('features_', 'technique_')):
+        if key in ['id', 'changed', 'changed_by', 'verified_by'] or key in main_bool_fields or key.startswith(('features_', 'technique_')):
             continue
         # Treat remaining keys as direct column updates
         update_fields.append(f"{key} = ?")
@@ -311,6 +311,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             
             updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
             
+
             return_data = {
                 'status': 'success',
                 'changed': updated_dict.get('changed'),
@@ -324,9 +325,10 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 'is_through_hole': updated_dict.get('is_through_hole'),
                 'is_smt': updated_dict.get('is_smt'),
                 'is_x_ray': updated_dict.get('is_x_ray'),
+                'relevance': updated_dict.get('relevance'),
                 'features': updated_dict['features'], # Parsed dict
                 'technique': updated_dict['technique'], # Parsed dict
-                'user_trace': updated_dict.get('user_trace') # Add this line
+                'user_trace': updated_dict.get('user_trace')
             }
             return return_data
         else:
@@ -360,7 +362,7 @@ def fetch_updated_paper_data(paper_id):
                 'changed': updated_dict.get('changed'),
                 'changed_formatted': updated_dict['changed_formatted'],
                 'changed_by': updated_dict.get('changed_by'),
-                'verified_by': updated_dict.get('verified_by'), # Include verified_by
+                'verified_by': updated_dict.get('verified_by'),
                 # Include updated fields for frontend refresh
                 'research_area': updated_dict.get('research_area'),
                 'page_count': updated_dict.get('page_count'),
@@ -369,13 +371,14 @@ def fetch_updated_paper_data(paper_id):
                 'is_through_hole': updated_dict.get('is_through_hole'),
                 'is_smt': updated_dict.get('is_smt'),
                 'is_x_ray': updated_dict.get('is_x_ray'),
-                'verified': updated_dict.get('verified'), # Include verified
-                'estimated_score': updated_dict.get('estimated_score'), # Include estimated_score
+                'relevance': updated_dict.get('relevance'),
+                'verified': updated_dict.get('verified'),
+                'estimated_score': updated_dict.get('estimated_score'),
                 'features': updated_dict['features'], # Parsed dict
                 'technique': updated_dict['technique'], # Parsed dict
                 'reasoning_trace': updated_dict.get('reasoning_trace'), # Include traces
                 'verifier_trace': updated_dict.get('verifier_trace'),
-                'user_trace': updated_dict.get('user_trace') # Include user_trace if needed
+                'user_trace': updated_dict.get('user_trace')
             }
             return return_data
         else:
