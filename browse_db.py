@@ -6,6 +6,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from markupsafe import Markup # Import Markup for safe HTML rendering
 import argparse
+import tempfile
 import os
 import sys
 import threading # Import for background threads
@@ -51,18 +52,30 @@ def truncate_authors(authors_str, max_authors=2):
     else:
         return authors_str
 
-def fetch_papers():
-    """Fetch all papers from the database, optionally sorted."""
+
+def fetch_papers(hide_offtopic=True):
+    """Fetch papers from the database, optionally hiding offtopic ones."""
     conn = get_db_connection()
+    # Base query
     query = "SELECT * FROM papers"
     params = []
+
+    # Add filter conditionally
+    if hide_offtopic:
+        # Ensure is_offtopic is either NULL or 0/false. 
+        # Assumes 1=True, 0/NULL=False/Unknown. Adjust if your DB logic differs.
+        query += " WHERE (is_offtopic = 0)" #also hides undefined
+        # query += " WHERE (is_offtopic IS NULL OR is_offtopic = 0)"   
+
+        # params remains empty for this specific condition, but structure allows adding more easily
+
     papers = conn.execute(query, params).fetchall()
     conn.close()
     
-    # Convert rows to list of dicts, parse JSON, format timestamp, truncate authors
     paper_list = []
     for paper in papers:
         paper_dict = dict(paper)
+        # Existing logic for parsing features/technique and formatting
         try:
             paper_dict['features'] = json.loads(paper_dict['features'])
         except (json.JSONDecodeError, TypeError):
@@ -71,13 +84,8 @@ def fetch_papers():
             paper_dict['technique'] = json.loads(paper_dict['technique'])
         except (json.JSONDecodeError, TypeError):
             paper_dict['technique'] = {}
-        
-        # Format the changed timestamp for display
         paper_dict['changed_formatted'] = format_changed_timestamp(paper_dict.get('changed'))
-        
-        # Truncate authors for main table view
         paper_dict['authors_truncated'] = truncate_authors(paper_dict.get('authors', ''))
-        
         paper_list.append(paper_dict)
     return paper_list
 
@@ -337,8 +345,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         return {'status': 'error', 'message': 'No rows updated. Paper ID might not exist or no changes were made.'}
 
 
-
-# --- New Helper Function to Fetch Updated Paper Data ---
 def fetch_updated_paper_data(paper_id):
     """Fetches the full paper data after classification/verification for client-side update."""
     conn = get_db_connection()
@@ -393,15 +399,24 @@ def index():
     """Main page to display the table."""
     sort_by = request.args.get('sort_by')
     sort_order = request.args.get('sort_order', 'ASC')
-    papers = fetch_papers()
-    # Pass the render_status function and globals.TYPE_EMOJIS to the template
+
+    # Get hide_offtopic preference from URL parameter, default to True (1)
+    hide_offtopic_param = request.args.get('hide_offtopic', '1') 
+    # Convert string parameter to boolean
+    hide_offtopic = hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on'] 
+
+    # Pass the hide_offtopic flag to fetch_papers
+    papers = fetch_papers(hide_offtopic=hide_offtopic)
+
+    # Pass the current state to the template so the checkbox can be set correctly
     return render_template(
         'index.html', 
         papers=papers, 
         sort_by=sort_by, 
         sort_order=sort_order,
         type_emojis=globals.TYPE_EMOJIS,
-        default_type_emoji=globals.DEFAULT_TYPE_EMOJI
+        default_type_emoji=globals.DEFAULT_TYPE_EMOJI,
+        hide_offtopic=hide_offtopic # Pass state to template
     )
 
 @app.route('/update_paper', methods=['POST'])
@@ -529,6 +544,52 @@ def verify_paper():
             return jsonify({'status': 'error', 'message': f'Verification failed: {str(e)}'}), 500
     else:
         return jsonify({'status': 'error', 'message': 'Invalid mode or missing paper_id for single verification.'}), 400
+
+
+@app.route('/upload_bibtex', methods=['POST'])
+def upload_bibtex():
+    """Endpoint to handle BibTeX file upload and import."""
+    global DATABASE # Assuming DATABASE is defined globally as before
+
+    if 'file' not in request.files:
+        return jsonify({'status': 'error', 'message': 'No file part'}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'status': 'error', 'message': 'No selected file'}), 400
+
+    if file and file.filename.lower().endswith('.bib'):
+        try:
+            # Save the uploaded file to a temporary location
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.bib') as tmp_bib_file:
+                file.save(tmp_bib_file.name)
+                tmp_bib_path = tmp_bib_file.name
+
+            # Use the existing import_bibtex logic
+            # Import here to avoid potential circular imports if placed at the top
+            import import_bibtex 
+
+            # Call the import function with the temporary file and the global DB path
+            import_bibtex.import_bibtex(tmp_bib_path, DATABASE)
+
+            # Clean up the temporary file
+            os.unlink(tmp_bib_path)
+
+            return jsonify({'status': 'success', 'message': 'BibTeX file imported successfully.'})
+
+        except Exception as e:
+            # Ensure cleanup even if import fails
+            if 'tmp_bib_path' in locals():
+                try:
+                    os.unlink(tmp_bib_path)
+                except OSError:
+                    pass # Ignore errors during cleanup
+            print(f"Error importing BibTeX: {e}")
+            return jsonify({'status': 'error', 'message': f'Import failed: {str(e)}'}), 500
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid file type. Please upload a .bib file.'}), 400
+
 
 
 # --- Jinja2-like filter for status rendering ---

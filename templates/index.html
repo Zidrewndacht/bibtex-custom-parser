@@ -13,6 +13,8 @@
 </head>
 <body>
 
+<!-- Hidden file input for BibTeX upload -->
+<input type="file" id="bibtex-file-input" accept=".bib" style="display: none;">
 <div class="table-container"> <!-- Wrapper for horizontal scrolling -->
 <table id="papersTable">
     <thead>
@@ -42,7 +44,7 @@
             <th class="ontop-header" colspan="5" rowspan="2"> 
                 <div class="header-filters" style="min-width: 540px;">
                     <div class="filter-item">
-                        <input type="checkbox" id="hide-offtopic-checkbox">
+                        <input type="checkbox" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked{% endif %}>
                         <label for="hide-offtopic-checkbox">Hide<Br> offtopic</label>
                     </div>
                     <div class="filter-item">

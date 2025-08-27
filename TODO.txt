@@ -89,10 +89,11 @@ OK      Read manually-set page count.
 
         Automatically reset 'verified' after 're-classify this paper' or manual changes.
 
-        Import bibTeX from GUI?
+OK      Import bibTeX from GUI?
 OK              Automatic Dedup by DOI?
     
         Allow discarding a paper from DB in GUI?
                 Maybe not, be consistent with the search sentence
 
-        
+        Hide unclassified and off-topic server-side
+        Add year range instead of "older than x years"

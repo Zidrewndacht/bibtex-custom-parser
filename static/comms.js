@@ -82,7 +82,7 @@ function renderChangedBy(value) {
 
 
 document.addEventListener('DOMContentLoaded', function () {
-    
+        
     // Click Handler for Editable Status Cells
     document.addEventListener('click', function (event) {
         // Check if the clicked element is an editable status cell
@@ -406,6 +406,109 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     });
+
+
+    // --- BibTeX Import Logic ---
+    const importBibtexBtn = document.getElementById('import-bibtex');
+    const bibtexFileInput = document.getElementById('bibtex-file-input');
+    // const batchStatusMessage = document.getElementById('batch-status-message'); // Reuse existing status element
+
+    if (importBibtexBtn && bibtexFileInput) {
+        // Clicking the button triggers the hidden file input
+        importBibtexBtn.addEventListener('click', () => {
+            bibtexFileInput.click();
+        });
+
+        // Handle file selection and upload
+        bibtexFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.name.toLowerCase().endsWith('.bib')) {
+                    alert('Please select a .bib file.');
+                    bibtexFileInput.value = ''; // Clear the input
+                    return;
+                }
+
+                if (!confirm(`Are you sure you want to import '${file.name}'?`)) {
+                     bibtexFileInput.value = ''; // Clear the input
+                     return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Disable button and show status
+                importBibtexBtn.disabled = true;
+                importBibtexBtn.textContent = 'Importing...';
+                if (batchStatusMessage) {
+                    batchStatusMessage.textContent = `Uploading and importing '${file.name}'...`;
+                    batchStatusMessage.style.color = ''; // Reset color
+                }
+
+                fetch('/upload_bibtex', {
+                    method: 'POST',
+                    body: formData // Use FormData for file uploads
+                    // Don't set Content-Type header, let browser set it with boundary
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(errData => {
+                            throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+                        }).catch(() => {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log(data.message);
+                        if (batchStatusMessage) {
+                            batchStatusMessage.textContent = data.message;
+                            batchStatusMessage.style.color = 'green'; // Success color
+                        }
+                        // Optional: Reload the page or fetch new data to show imported papers
+                        // window.location.reload(); // Simple reload
+                        // Or, fetch updated papers list (requires more JS logic)
+                         setTimeout(() => { window.location.reload(); }, 1500); // Reload after delay
+                    } else {
+                        console.error("Import Error:", data.message);
+                        if (batchStatusMessage) {
+                            batchStatusMessage.textContent = `Import Error: ${data.message}`;
+                            batchStatusMessage.style.color = 'red'; // Error color
+                        }
+                        alert(`Import failed: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error uploading BibTeX file:', error);
+                    if (batchStatusMessage) {
+                        batchStatusMessage.textContent = `Upload Error: ${error.message}`;
+                        batchStatusMessage.style.color = 'red'; // Error color
+                    }
+                    alert(`An error occurred during upload: ${error.message}`);
+                })
+                .finally(() => {
+                    // Re-enable button and reset file input
+                    importBibtexBtn.disabled = false;
+                    importBibtexBtn.innerHTML = 'Import <strong>BibTeX</strong>'; // Restore original HTML
+                    bibtexFileInput.value = ''; // Clear the input for next use
+                    // Optionally clear status message after delay
+                    // if (batchStatusMessage) {
+                    //     setTimeout(() => {
+                    //         if (batchStatusMessage.style.color === 'green' || batchStatusMessage.style.color === 'red') {
+                    //              batchStatusMessage.textContent = '';
+                    //              batchStatusMessage.style.color = '';
+                    //         }
+                    //     }, 5000);
+                    // }
+                });
+            }
+        });
+    } else {
+        console.warn("Import BibTeX button or file input not found.");
+    }
+    // --- End BibTeX Import Logic ---
 });
 
 // --- Extracted AJAX logic for reuse ---

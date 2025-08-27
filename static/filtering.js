@@ -310,19 +310,32 @@ function applyFilters() {
 document.addEventListener('DOMContentLoaded', function () {
     const headers = document.querySelectorAll('th[data-sort]');
     let currentClientSort = { column: null, direction: 'ASC' }; 
-    //Start with both filters enabled:
-    hideOfftopicCheckbox.checked = true;
+    // hideOfftopicCheckbox.checked = true;
     hideShortCheckbox.checked = true;
     hideOlderCheckbox.checked = true;
 
     searchInput.addEventListener('input', scheduleFilterUpdate);
-    hideOfftopicCheckbox.addEventListener('change', scheduleFilterUpdate);
+    // hideOfftopicCheckbox.addEventListener('change', scheduleFilterUpdate);
     hideShortCheckbox.addEventListener('change', scheduleFilterUpdate);
     minPageCountInput.addEventListener('input', scheduleFilterUpdate);
     minPageCountInput.addEventListener('change', scheduleFilterUpdate);
     hideOlderCheckbox.addEventListener('change', scheduleFilterUpdate);
     maxAgeInput.addEventListener('input', scheduleFilterUpdate);
     maxAgeInput.addEventListener('change', scheduleFilterUpdate);
+
+
+    hideOfftopicCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Set the 'hide_offtopic' parameter based on checkbox state
+        // Using '1' for true and '0' for false aligns with common practices and our Flask logic
+        urlParams.set('hide_offtopic', isChecked ? '1' : '0');
+        
+        // Reload the page with the new parameters
+        // This triggers the Flask route with the updated parameter, fetching filtered data
+        window.location.search = urlParams.toString();
+    });
 
     // --- Close Modal with Escape Key ---
     document.addEventListener('keydown', function(event) {
@@ -677,7 +690,8 @@ document.addEventListener('DOMContentLoaded', function () {
             'hsla(180, 48%, 32%, 0.66)',  // Teal
             'hsla(260, 80%, 50%, 0.66)', // Purple
             'hsla(30, 100%, 43%, 0.66)',  // Orange
-            'hsla(0, 0%, 48%, 0.66)'  // Grey
+            'hsla(0, 0%, 48%, 0.66)',  // Grey
+            'hsla(96, 100%, 29%, 0.66)',  
         ];
 
         const techniquesBorderColors = [
@@ -687,7 +701,8 @@ document.addEventListener('DOMContentLoaded', function () {
             'hsla(180, 48%, 18%, 1.00)',
             'hsla(260, 100%, 30%, 1.00)',
             'hsla(30, 100%, 23%, 1.00)',
-            'hsla(0, 0%, 28%, 1.00)'
+            'hsla(0, 0%, 28%, 1.00)',
+            'hsla(147, 48%, 18%, 1.00)',
         ];
 
         const techniquesChartData = {
