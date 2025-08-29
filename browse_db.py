@@ -4,21 +4,23 @@ import json
 import argparse
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
-from markupsafe import Markup # Import Markup for safe HTML rendering
+from markupsafe import Markup 
 import argparse
 import tempfile
 import os
 import sys
-import threading # Import for background threads
+import threading
 import webbrowser
 
-
+# Import globals, the classification and verification modules
 import globals
-
-# Import the classification and verification modules
 import automate_classification
 import verify_classification
 
+# Define default year range
+DEFAULT_YEAR_FROM = 2020
+DEFAULT_YEAR_TO = 2025
+DEFAULT_MIN_PAGE_COUNT = 4
 
 app = Flask(__name__)
 DATABASE = None # Will be set from command line argument
@@ -52,30 +54,90 @@ def truncate_authors(authors_str, max_authors=2):
     else:
         return authors_str
 
-
-def fetch_papers(hide_offtopic=True):
-    """Fetch papers from the database, optionally hiding offtopic ones."""
+def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_count=None, search_query=None):
+    """Fetch papers from the database, applying various optional filters."""
     conn = get_db_connection()
-    # Base query
     query = "SELECT * FROM papers"
+    conditions = []
     params = []
 
-    # Add filter conditionally
+    # --- Existing Filters ---
     if hide_offtopic:
-        # Ensure is_offtopic is either NULL or 0/false. 
-        # Assumes 1=True, 0/NULL=False/Unknown. Adjust if your DB logic differs.
-        query += " WHERE (is_offtopic = 0)" #also hides undefined
-        # query += " WHERE (is_offtopic IS NULL OR is_offtopic = 0)"   
+        conditions.append("(is_offtopic = 0 OR is_offtopic IS NULL)")
 
-        # params remains empty for this specific condition, but structure allows adding more easily
+    if year_from is not None:
+        try:
+            year_from = int(year_from)
+            conditions.append("year >= ?")
+            params.append(year_from)
+        except (ValueError, TypeError):
+            pass
+
+    if year_to is not None:
+        try:
+            year_to = int(year_to)
+            conditions.append("year <= ?")
+            params.append(year_to)
+        except (ValueError, TypeError):
+            pass
+
+    if min_page_count is not None:
+        try:
+            min_page_count = int(min_page_count)
+            conditions.append("(page_count IS NULL OR page_count = '' OR page_count >= ?)")
+            params.append(min_page_count)
+        except (ValueError, TypeError):
+            pass
+
+    # --- NEW: Search Filter ---
+    if search_query:
+        # Define the columns to search (exclude reasoning_trace, verifier_trace, features, technique as they need special handling or are JSON)
+        searchable_columns = [
+            'id', 'type', 'title', 'authors', 'month', 'journal',
+            'volume', 'pages', 'doi', 'issn', 'abstract', 'keywords',
+            'research_area', 'user_trace' # Include user_trace in search
+        ]
+        # Create a list of LIKE conditions for each searchable column
+        search_conditions = []
+        # Add wildcard to the search term for partial matching
+        search_term_like = f"%{search_query}%"
+        for col in searchable_columns:
+            search_conditions.append(f"LOWER({col}) LIKE LOWER(?)")
+            params.append(search_term_like)
+
+        # Handle JSON columns (features, technique) - search within the JSON text representation
+        # Note: This is a basic text search within the JSON string. For complex JSON queries, consider using SQLite's JSON1 extension.
+        json_search_term = search_term_like # Use the same search term
+        json_conditions = []
+        for json_col in ['features', 'technique']:
+             # Search within the JSON string representation
+             json_conditions.append(f"LOWER({json_col}) LIKE LOWER(?)")
+             params.append(json_search_term)
+
+        # Combine column and JSON search conditions
+        all_search_conditions = search_conditions + json_conditions
+        if all_search_conditions:
+            # Group search conditions together with OR
+            combined_search_condition = " OR ".join(all_search_conditions)
+            # Wrap the search conditions in parentheses to ensure correct precedence with other filters
+            conditions.append(f"({combined_search_condition})")
+
+
+    # --- Build Final Query ---
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    # Debug: Print the final query and params (optional)
+    # print(f"DEBUG SQL Query: {query}")
+    # print(f"DEBUG SQL Params: {params}")
 
     papers = conn.execute(query, params).fetchall()
     conn.close()
-    
+
+    # --- Process Results (Same as before) ---
     paper_list = []
     for paper in papers:
         paper_dict = dict(paper)
-        # Existing logic for parsing features/technique and formatting
         try:
             paper_dict['features'] = json.loads(paper_dict['features'])
         except (json.JSONDecodeError, TypeError):
@@ -88,7 +150,6 @@ def fetch_papers(hide_offtopic=True):
         paper_dict['authors_truncated'] = truncate_authors(paper_dict.get('authors', ''))
         paper_list.append(paper_dict)
     return paper_list
-
 
 def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """Update the custom classification fields for a paper and audit fields.
@@ -391,33 +452,191 @@ def fetch_updated_paper_data(paper_id):
             return {'status': 'error', 'message': 'Paper not found after update.'}
     finally:
         conn.close()
+        
+def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None, search_query_param=None):
+    """Fetches papers based on filters and renders the papers_table.html template."""
+    try:
+        # Determine hide_offtopic state
+        hide_offtopic = True # Default
+        if hide_offtopic_param is not None:
+            hide_offtopic = hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on']
+
+        # Determine filter values, using defaults if not provided or invalid
+        year_from_value = int(year_from_param) if year_from_param is not None else DEFAULT_YEAR_FROM
+        year_to_value = int(year_to_param) if year_to_param is not None else DEFAULT_YEAR_TO
+        min_page_count_value = int(min_page_count_param) if min_page_count_param is not None else DEFAULT_MIN_PAGE_COUNT
+        # --- NEW: Determine search query value ---
+        search_query_value = search_query_param if search_query_param is not None else ""
+
+        # Fetch papers with ALL the filters applied, including the new search query
+        papers = fetch_papers(
+            hide_offtopic=hide_offtopic,
+            year_from=year_from_value,
+            year_to=year_to_value,
+            min_page_count=min_page_count_value,
+            search_query=search_query_value # Pass the search query
+        )
+
+        # Render the table template fragment, passing the search query value for the input field
+        rendered_table = render_template(
+            'papers_table.html',
+            papers=papers,
+            type_emojis=globals.TYPE_EMOJIS,
+            default_type_emoji=globals.DEFAULT_TYPE_EMOJI,
+            hide_offtopic=hide_offtopic,
+            # Pass the *string representations* of the values to the template for input fields
+            year_from_value=str(year_from_value),
+            year_to_value=str(year_to_value),
+            min_page_count_value=str(min_page_count_value),
+            # --- NEW: Pass search query value ---
+            search_query_value=search_query_value
+        )
+        return rendered_table
+    except Exception as e:
+        # Log the error or handle it appropriately
+        print(f"Error rendering papers table: {e}")
+        # Return an error fragment or re-raise if preferred for the main route
+        return "<p>Error loading table.</p>" # Basic error display
+
+@app.route('/get_detail_row', methods=['GET'])
+def get_detail_row():
+    """Endpoint to fetch and render the detail row content for a specific paper."""
+    paper_id = request.args.get('paper_id')
+    if not paper_id:
+        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        conn.close()
+
+        if paper:
+            # Process the paper data like in fetch_papers for consistency
+            paper_dict = dict(paper)
+            try:
+                paper_dict['features'] = json.loads(paper_dict['features'])
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['features'] = {}
+            try:
+                paper_dict['technique'] = json.loads(paper_dict['technique'])
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['technique'] = {}
+            # Note: We don't need changed_formatted or authors_truncated here probably,
+            # but including them keeps the template context consistent if needed.
+            # paper_dict['changed_formatted'] = format_changed_timestamp(paper_dict.get('changed'))
+            # paper_dict['authors_truncated'] = truncate_authors(paper_dict.get('authors', ''))
+
+            # Render the detail row template fragment for this specific paper
+            detail_html = render_template('detail_row.html', paper=paper_dict)
+            return jsonify({'status': 'success', 'html': detail_html})
+        else:
+            return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+    except Exception as e:
+        print(f"Error fetching detail row for paper {paper_id}: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
 
 
-# --- Routes ---
+# --- NEW ROUTE: Endpoint to load the table content via AJAX ---
+@app.route('/load_table', methods=['GET'])
+def load_table():
+    """Endpoint to fetch and render the table content based on current filters."""
+    # Get filter parameters from the request
+    hide_offtopic_param = request.args.get('hide_offtopic')
+    year_from_param = request.args.get('year_from')
+    year_to_param = request.args.get('year_to')
+    min_page_count_param = request.args.get('min_page_count')
+    # --- NEW: Get search query parameter ---
+    search_query_param = request.args.get('search_query')
+
+    # Use the updated helper function to render the table, passing the search query
+    table_html = render_papers_table(
+        hide_offtopic_param=hide_offtopic_param,
+        year_from_param=year_from_param,
+        year_to_param=year_to_param,
+        min_page_count_param=min_page_count_param,
+        search_query_param=search_query_param # Pass the search query
+    )
+    return table_html
+
 @app.route('/', methods=['GET'])
 def index():
     """Main page to display the table."""
-    sort_by = request.args.get('sort_by')
-    sort_order = request.args.get('sort_order', 'ASC')
+    # Get initial filter parameters from the request (or they will default inside render_papers_table)
+    hide_offtopic_param = request.args.get('hide_offtopic')
+    year_from_param = request.args.get('year_from')
+    year_to_param = request.args.get('year_to')
+    min_page_count_param = request.args.get('min_page_count')
 
-    # Get hide_offtopic preference from URL parameter, default to True (1)
-    hide_offtopic_param = request.args.get('hide_offtopic', '1') 
-    # Convert string parameter to boolean
-    hide_offtopic = hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on'] 
-
-    # Pass the hide_offtopic flag to fetch_papers
-    papers = fetch_papers(hide_offtopic=hide_offtopic)
-
-    # Pass the current state to the template so the checkbox can be set correctly
-    return render_template(
-        'index.html', 
-        papers=papers, 
-        sort_by=sort_by, 
-        sort_order=sort_order,
-        type_emojis=globals.TYPE_EMOJIS,
-        default_type_emoji=globals.DEFAULT_TYPE_EMOJI,
-        hide_offtopic=hide_offtopic # Pass state to template
+    search_query_param = request.args.get('search_query')
+    
+    papers_table_content = render_papers_table(
+        hide_offtopic_param=hide_offtopic_param,
+        year_from_param=year_from_param,
+        year_to_param=year_to_param,
+        min_page_count_param=min_page_count_param,
+        search_query_param=search_query_param  # Add this line
     )
+
+    # Pass the rendered table content and filter values to the main index template
+    # Determine values to display in the input fields (use defaults if URL params were missing/invalid)
+    try:
+        year_from_input_value = str(int(year_from_param)) if year_from_param is not None else str(DEFAULT_YEAR_FROM)
+    except ValueError:
+        year_from_input_value = str(DEFAULT_YEAR_FROM)
+
+    try:
+        year_to_input_value = str(int(year_to_param)) if year_to_param is not None else str(DEFAULT_YEAR_TO)
+    except ValueError:
+        year_to_input_value = str(DEFAULT_YEAR_TO)
+
+    try:
+        min_page_count_input_value = str(int(min_page_count_param)) if min_page_count_param is not None else str(DEFAULT_MIN_PAGE_COUNT)
+    except ValueError:
+        min_page_count_input_value = str(DEFAULT_MIN_PAGE_COUNT)
+
+    hide_offtopic_checkbox_checked = hide_offtopic_param is None or hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on']
+    search_input_value = search_query_param if search_query_param is not None else ""
+    
+    return render_template(
+        'index.html',
+        papers_table_content=papers_table_content,
+        hide_offtopic=hide_offtopic_checkbox_checked,
+        year_from_value=year_from_input_value,
+        year_to_value=year_to_input_value,
+        min_page_count_value=min_page_count_input_value,
+        search_query_value=search_input_value  # Add this line
+    )
+
+@app.route('/get_traces', methods=['GET'])
+def get_traces():
+    """Endpoint to fetch reasoning_trace and verifier_trace for a specific paper."""
+    paper_id = request.args.get('paper_id')
+    if not paper_id:
+        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+
+    try:
+        conn = get_db_connection()
+        # Fetch only the trace columns
+        cursor = conn.execute(
+            "SELECT reasoning_trace, verifier_trace FROM papers WHERE id = ?",
+            (paper_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return jsonify({
+                'status': 'success',
+                'reasoning_trace': row['reasoning_trace'],
+                'verifier_trace': row['verifier_trace']
+            })
+        else:
+            return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+
+    except Exception as e:
+        print(f"Error fetching traces for paper {paper_id}: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to fetch traces'}), 500
+
 
 @app.route('/update_paper', methods=['POST'])
 def update_paper():

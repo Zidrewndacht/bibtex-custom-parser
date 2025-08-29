@@ -1,0 +1,62 @@
+<!-- templates/detail_row.html -->
+{% block detail_row_content %}
+<div class="detail-flex-container">
+    <div class="detail-content detail-abstract">
+        <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+    </div>
+    <div class="detail-content detail-metadata">
+        <p><strong>Keywords:</strong> {{ paper.keywords }}</p>
+        <p><strong>Type:</strong> {{ paper.type }}</p>
+        <p><strong>DOI:</strong>
+            {% if paper.doi %}
+                <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>
+            {% else %}
+                {{ paper.doi }}
+            {% endif %}
+        </p>
+        <p><strong>ISSN:</strong> {{ paper.issn }}</p>
+        <p><strong>Pages:</strong> {{ paper.pages }}</p>
+        <p><strong>ID:</strong> {{ paper.id }}</p> <!-- Show ID in details -->
+        <p><strong>Full Authors:</strong> {{ paper.authors }}</p> <!-- Show full authors in details -->
+        <p><strong>Year:</strong> {{ paper.year }}</p>
+    </div>
+    <div class="edit-section detail-edit">
+        <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
+            <label>Research Area:
+                <input type="text" class="editable" name="research_area" value="{{ paper.research_area or '' }}">
+            </label>
+            <label>Model Name:
+                <input type="text" class="editable" name="model_name" value="{{ paper.technique.model or '' }}">
+            </label>
+            <label>Other defects:
+                <input type="text" class="editable" name="features_other" value="{{ paper.features.other or '' }}">
+            </label>
+            <label>Page count:
+                <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
+            </label>
+            <label>Relevance:
+                <input type="text" class="editable" name="relevance" value="{{ paper.relevance or '' }}" placeholder="0 - 10">
+            </label>
+            <label>User comments:
+                <textarea class="editable" name="user_trace">{{ paper.user_trace or '' }}</textarea>
+            </label>
+            <!-- NEW: Per-Row Action Buttons -->
+            <div class="row-actions">
+                <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
+                <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
+                <button type="button" class="action-btn save-btn" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
+            </div>
+            
+        </form>
+    </div>
+
+    <div class="detail-content detail-trace detail-evaluator-trace">
+        <strong>Evaluator Reasoning Trace:</strong>
+        <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div> <!-- Load trace directly -->
+    </div>
+    <div class="detail-content detail-trace detail-verifier-trace">
+        <strong>Verifier Reasoning Trace:</strong>
+        <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div> <!-- Load trace directly -->
+    </div>
+</div>
+{% endblock %}

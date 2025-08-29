@@ -16,294 +16,127 @@
 <!-- Hidden file input for BibTeX upload -->
 <input type="file" id="bibtex-file-input" accept=".bib" style="display: none;">
 <div class="table-container"> <!-- Wrapper for horizontal scrolling -->
-<table id="papersTable">
-    <thead>
-        <tr>
-            <div class="main-header">
-                <div class="header-controls">
-                    <button class="action-btn" id="import-bibtex">Import <strong>BibTeX</strong></button>
-                </div>
-                <div class="header-filters">
-                    <!-- Moved to ontop-header -->
-                </div>
-                <div class="header-controls">
-                    <div class="batch-actions">
-                        <span id="batch-status-message"></span> <!-- For feedback -->
-                        <button class="action-btn" id="stats-btn">Check <strong>Stats</strong></button>
-                        <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong></button>
-                        <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
-                        <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
-                        <button class="action-btn" id="verify-all-btn">Re-Verify <strong>All</strong></button>
-                        <button class="action-btn" id="fullscreen-btn" title="Fullscreen"><span>⇲</span></button>
-                    </div>
-                </div>
-            </div>
-
-        </tr>
-        <tr>
-            <th class="ontop-header" colspan="5" rowspan="2"> 
-                <div class="header-filters" style="min-width: 540px;">
-                    <div class="filter-item">
-                        <input type="checkbox" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked{% endif %}>
-                        <label for="hide-offtopic-checkbox">Hide<Br> offtopic</label>
-                    </div>
-                    <div class="filter-item">
-                        <input type="checkbox" id="hide-short-checkbox">
-                        <label for="hide-short-checkbox">Hide under</label>
-                        <input type="number" id="min-page-count" value="4" min="0" max="9">
-                        <label for="min-page-count">pages</label>
-                    </div>
-                    <div class="filter-item">
-                        <input type="checkbox" id="hide-older-checkbox">
-                        <label for="hide-older-checkbox">Hide older than</label>
-                        <input type="number" id="max-age" value="5" min="1" max="9">
-                        <label for="max-age">years</label>
-                    </div>
-                </div>
-
-            </th>
-            <th class="inferred-header" colspan="25" style="background: linear-gradient(90deg, hsl(170, 25%, 40%), rgb(77, 128, 92));">NLP-Inferred data</th>
-            
-            <th class="ontop-header" colspan="6" rowspan="2" >
-                <input type="search" id="search-input" placeholder="Type to search all fields...">
-            </th>
-        </tr>
-        <tr>
-            <th class="inferred-header ontop-header" colspan="6">Classification</th>
-            <th class="inferred-header inferred-header-2 ontop-header" colspan="2">Features:</th>
-            <th class="inferred-header inferred-header-2 ontop-header" colspan="4">Solder</th>
-            <th class="inferred-header inferred-header-2 ontop-header" colspan="4">PCBA</th>
-            <th class="inferred-header inferred-header-3 ontop-header" colspan="7">Techniques</th>
-            <!-- <th class="inferred-header inferred-header-3 ontop-header" colspan="6">DL-based</th> -->
-            <th class="inferred-header inferred-header-3 ontop-header" colspan="2"></th>
-        </tr>
-        <tr>
-            <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div></span><span class="sort-indicator"></span></th>
-
-            <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
-            <!-- <th data-sort="authors">Authors <span class="sort-indicator"></span></th> -->
-            <th data-sort="year">Year <span class="sort-indicator"></span></th>
-            <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
-            <th class="rotate-header" data-sort="page_count" style="width:28px; min-width:28px; max-width:28px"><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
-
-
-            <!-- Classification Summary Columns -->
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
-            <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><span class="sort-indicator"></span><div><span>Survey</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><span class="sort-indicator"></span><div><span>THT</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><span class="sort-indicator"></span><div><span>SMT</span></div></th>
-            <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
-
-            <!-- Features Summary Columns (Updated list) -->
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes / Vias</span></div></th>
-
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><div><span>Insufficient</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><div><span>Excessive</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><div><span>Void / Hole</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><div><span>Crack / Cold</span></div></th>
-            
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><div><span>Orientation</span></div></th>
-            <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><div><span>Cosmetic</span></div></th>
-
-            <!-- Techniques Summary Columns (Updated list) -->
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><div><span>Classic CV</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><div><span>ML</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><div><span>CNN Classifier</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><div><span>CNN Detector</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><div><span>R-CNN Detector</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><div><span>Transformer</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><div><span>Other DL</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
-            <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
-
-            <th data-sort="changed" style="width:46px; min-width:46px; max-width:46px">Last Changed <span class="sort-indicator"></span></th>
-            <th data-sort="changed_by" style="width:50px; min-width:50px; max-width:50px">Changed By <span class="sort-indicator"></span></th>
-            <th data-sort="verified" style="width:42px; min-width:42px; max-width:42px">Verified <span class="sort-indicator"></span></th>
-            <th class="rotate-header" data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
-            <th data-sort="verified_by" style="width:42px; min-width:42px; max-width:42px">Verified By <span class="sort-indicator"></span></th>
-            <th class="rotate-header" style="width:40px; min-width:40px; max-width:40px"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
-        </tr>
-    </thead>
-    <tbody>
-    {% for paper in papers %}
-        <tr data-paper-id="{{ paper.id }}" >
-            <!-- Use the emoji mapping passed from Python -->
-            <td class="status-cell" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }} 
-            </td><td class="title-cell">
-                {% if paper.doi %}
-                    <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>
-                {% else %}
-                    {{ paper.title }}
-                {% endif %}
-            </td>
-            <!-- <td class="secondary-text-cell">{{ paper.authors_truncated }}</td> -->
-            <td class="secondary-text-cell number-cell" style="width:28px; min-width:28px; max-width:28px">{{ paper.year or '' }}</td>
-            <td class="secondary-text-cell">{{ paper.journal }}</td>        
-            <td class="secondary-text-cell number-cell">{{ paper.page_count or '' }}</td>
-
-            <!-- Classification Summary Cells -->
-            <td class="status-cell editable-status" data-field="is_offtopic">{{ paper.is_offtopic | render_status }}</td>
-            <td class="secondary-text-cell number-cell">{{ paper.relevance or '' }}</td>        <!-- NEW DATA CELL: Relevance -->
-            <td class="status-cell editable-status" data-field="is_survey">{{ paper.is_survey | render_status }}</td>
-            <td class="status-cell editable-status" data-field="is_through_hole">{{ paper.is_through_hole | render_status }}</td>
-            <td class="status-cell editable-status" data-field="is_smt">{{ paper.is_smt | render_status }}</td>
-            <td class="status-cell editable-status" data-field="is_x_ray">{{ paper.is_x_ray | render_status }}</td>
-
-            <!-- IMPORTANT: Update these cells to use the new feature keys -->
-            <td class="status-cell editable-status highlight-status" data-field="features_tracks">{{ paper.features.tracks | render_status }}</td>
-            <td class="status-cell editable-status highlight-status" data-field="features_holes">{{ paper.features.holes | render_status }}</td>
-            <td class="status-cell editable-status"  data-field="features_solder_insufficient">{{ paper.features.solder_insufficient | render_status }}</td>
-            <td class="status-cell editable-status"  data-field="features_solder_excess">{{ paper.features.solder_excess | render_status }}</td>
-            <td class="status-cell editable-status"  data-field="features_solder_void">{{ paper.features.solder_void | render_status }}</td>
-            <td class="status-cell editable-status"  data-field="features_solder_crack">{{ paper.features.solder_crack | render_status }}</td>
-            <td class="status-cell editable-status highlight-status" data-field="features_missing_component">{{ paper.features.missing_component | render_status }}</td>
-            <td class="status-cell editable-status highlight-status" data-field="features_wrong_component">{{ paper.features.wrong_component | render_status }}</td>
-            <td class="status-cell editable-status highlight-status" data-field="features_orientation">{{ paper.features.orientation | render_status }}</td>
-            <td class="status-cell editable-status highlight-status" data-field="features_cosmetic">{{ paper.features.cosmetic | render_status }}</td>
-
-            <!-- Techniques Summary Cells (Updated list) -->
-            <td class="status-cell editable-status" data-field="technique_classic_cv_based">{{ paper.technique.classic_cv_based | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_ml_traditional">{{ paper.technique.ml_traditional | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_dl_cnn_classifier">{{ paper.technique.dl_cnn_classifier | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_dl_cnn_detector">{{ paper.technique.dl_cnn_detector | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_dl_rcnn_detector">{{ paper.technique.dl_rcnn_detector | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_dl_transformer">{{ paper.technique.dl_transformer | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_dl_other">{{ paper.technique.dl_other | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_hybrid">{{ paper.technique.hybrid | render_status }}</td>
-            <td class="status-cell editable-status" data-field="technique_available_dataset">{{ paper.technique.available_dataset | render_status }}</td>
-
-            <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td> <!-- Use formatted timestamp -->
-            <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>           
-            <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
-            <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
-            <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
-            <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span></td>
-        </tr>
-        <tr class="detail-row">
-            <td colspan="36"> <!-- Ensure colspan matches total header columns -->
-                <div class="detail-flex-container">
-                    <div class="detail-content detail-abstract">
-                        <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
-                    </div>
-                    <div class="detail-content detail-metadata">
-                        <p><strong>Keywords:</strong> {{ paper.keywords }}</p>
-                        <p><strong>Type:</strong> {{ paper.type }}</p>
-                        <p><strong>DOI:</strong>
-                            {% if paper.doi %}
-                                <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>
-                            {% else %}
-                                {{ paper.doi }}
-                            {% endif %}
-                        </p>
-                        <p><strong>ISSN:</strong> {{ paper.issn }}</p>
-                        <p><strong>Pages:</strong> {{ paper.pages }}</p>
-                        <p><strong>ID:</strong> {{ paper.id }}</p> <!-- Show ID in details -->
-                        <p><strong>Full Authors:</strong> {{ paper.authors }}</p> <!-- Show full authors in details -->
-                        <p><strong>Year:</strong> {{ paper.year }}</p>
-                    </div>
-                    <div class="edit-section detail-edit">
-                        <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
-                            <label>Research Area:
-                                <input type="text" class="editable" name="research_area" value="{{ paper.research_area or '' }}">
-                            </label>
-                            <label>Model Name:
-                                <input type="text" class="editable" name="model_name" value="{{ paper.technique.model or '' }}">
-                            </label>
-                            <label>Other defects:
-                                <input type="text" class="editable" name="features_other" value="{{ paper.features.other or '' }}">
-                            </label>
-                            <label>Page count:
-                                <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
-                            </label>
-                            <label>Relevance:
-                                <input type="text" class="editable" name="relevance" value="{{ paper.relevance or '' }}" placeholder="0 - 10">
-                            </label>
-                            <label>User comments:
-                                <textarea class="editable" name="user_trace">{{ paper.user_trace or '' }}</textarea>
-                            </label>
-                            <!-- NEW: Per-Row Action Buttons -->
-                            <div class="row-actions">
-                                <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
-                                <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
-                                <button type="button" class="action-btn save-btn" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
+    <div id="papers-table-container">
+        <table id="papersTable">
+            <thead>
+                <tr>
+                    <div class="main-header">
+                        <div class="header-controls">
+                            <button class="action-btn" id="import-bibtex">Import <strong>BibTeX</strong></button>
+                        </div>
+                        <div class="header-filters">
+                            <!-- Moved to ontop-header -->
+                        </div>
+                        <div class="header-controls">
+                            <div class="batch-actions">
+                                <span id="batch-status-message"></span> <!-- For feedback -->
+                                <button class="action-btn" id="stats-btn">Check <strong>Stats</strong></button>
+                                <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong></button>
+                                <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
+                                <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
+                                <button class="action-btn" id="verify-all-btn">Re-Verify <strong>All</strong></button>
+                                <button class="action-btn" id="fullscreen-btn" title="Fullscreen"><span>⇲</span></button>
                             </div>
-                            
-                        </form>
+                        </div>
                     </div>
 
-                    <!-- NEW (Updated): Evaluator Reasoning Trace Section -->
-                    <div class="detail-content detail-trace detail-evaluator-trace">
-                        <strong>Evaluator Reasoning Trace:</strong> 
-                        <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
-                        <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div>
-                    </div>
+                </tr>
+                <tr>
+                    <th class="ontop-header" colspan="5" rowspan="2"> 
+                        <div class="header-filters" style="min-width: 540px;">
+                            <div class="filter-item">
+                                <!-- <input type="checkbox" id="hide-short-checkbox"  style="display: none;"> <!-- obsolete  -->
+                                <label for="min-page-count">Min. page count ></label>
+                                <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="0" max="9">
+                            </div>
+                            <div class="filter-item">
+                                <label for="year-from">Year:</label>
+                                <input type="number" id="year-from" value="{{ year_from_value }}" min="2015" max="2026">
+                                <label for="year-to">to</label>
+                                <input type="number" id="year-to" value="{{ year_to_value }}" min="2015" max="2026">
+                            </div>
+                            <!-- This button will now trigger a page reload with updated URL parameters -->
+                            <button class="action-btn" id="apply-serverside-filters" style="display: none;"><span>Apply</span></button>
+                        </div>
 
-                    <!-- NEW (Updated): Verifier Reasoning Trace Section -->
-                    <div class="detail-content detail-trace detail-verifier-trace">
-                        <strong>Verifier Reasoning Trace:</strong>
-                        <!-- Use <div class="trace-content"> for formatted text with wrapping/scrolling -->
-                        <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div>
-                    </div>
+                    </th>
+                    <th class="inferred-header" colspan="25" style="background: linear-gradient(90deg, hsl(170, 25%, 40%), rgb(77, 128, 92));"><!--NLP--->Inferred data</th>
+                    
+                    <th class="ontop-header" colspan="6" rowspan="2" >
+                        <!-- <input type="search" id="search-input" placeholder="Type to search all fields..."> -->
+                        <input type="search" id="search-input" placeholder="Type to search all fields..." value="{{ search_query_value }}">
+                    </th>
+                </tr>
+                <tr>
+                    <th class="inferred-header ontop-header" colspan="1"><input type="checkbox" title="Hide Offtopic papers" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked{% endif %}></th>
+                    <th class="inferred-header ontop-header" colspan="1"></th>
+                    <th class="inferred-header ontop-header" colspan="1"></th>
+                    <th class="inferred-header ontop-header" colspan="3">Classification</th>
+                    <th class="inferred-header inferred-header-2 ontop-header" colspan="2">Features:</th>
+                    <th class="inferred-header inferred-header-2 ontop-header" colspan="4">Solder</th>
+                    <th class="inferred-header inferred-header-2 ontop-header" colspan="4">PCBA</th>
+                    <th class="inferred-header inferred-header-3 ontop-header" colspan="7">Techniques</th>
+                    <!-- <th class="inferred-header inferred-header-3 ontop-header" colspan="6">DL-based</th> -->
+                    <th class="inferred-header inferred-header-3 ontop-header" colspan="2"></th>
+                </tr>
+                <tr>
+                    <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div></span><span class="sort-indicator"></span></th>
 
-                </div>
-            </td>
-        </tr>
-    {% endfor %}
-    </tbody>
-    <tfoot id="counts-footer">
-        <tr>
-            <!-- Empty cells to align with non-count columns -->
-            <td></td> <!-- Type -->
-            <td id="visible-count-cell">Totals:</td> <!-- Title -->
-            <!-- <td></td> Authors -->
-            <td></td> <!-- Year -->
-            <td></td> <!-- Journal -->
-            <td></td> <!-- Page Count -->
-            <!-- Classification Counts -->
-            <td id="count-is_offtopic" class="count-cell"></td>
-            <td></td> <!-- Relevance -->
-            <td id="count-is_survey" class="count-cell"></td>
-            <td id="count-is_through_hole" class="count-cell"></td>
-            <td id="count-is_smt" class="count-cell"></td>
-            <td id="count-is_x_ray" class="count-cell"></td>
-            
-            <!-- Features Counts (Updated list - 10 columns now) -->
-            <td id="count-features_tracks" class="count-cell"></td>
-            <td id="count-features_holes" class="count-cell"></td>
-            <td id="count-features_solder_insufficient" class="count-cell"></td>
-            <td id="count-features_solder_excess" class="count-cell"></td>
-            <td id="count-features_solder_void" class="count-cell"></td>
-            <td id="count-features_solder_crack" class="count-cell"></td>
-            <td id="count-features_missing_component" class="count-cell"></td>
-            <td id="count-features_wrong_component" class="count-cell"></td>
-            <td id="count-features_orientation" class="count-cell"></td>
-            <td id="count-features_cosmetic" class="count-cell"></td>
+                    <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
+                    <!-- <th data-sort="authors">Authors <span class="sort-indicator"></span></th> -->
+                    <th data-sort="year">Year <span class="sort-indicator"></span></th>
+                    <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
+                    <th class="rotate-header" data-sort="page_count" style="width:28px; min-width:28px; max-width:28px"><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
 
-            <!-- Techniques Counts (Updated list - 9 columns now) -->
-            <td id="count-technique_classic_cv_based" class="count-cell"></td>
-            <td id="count-technique_ml_traditional" class="count-cell"></td>
-            <td id="count-technique_dl_cnn_classifier" class="count-cell"></td>
-            <td id="count-technique_dl_cnn_detector" class="count-cell"></td>
-            <td id="count-technique_dl_rcnn_detector" class="count-cell"></td>
-            <td id="count-technique_dl_transformer" class="count-cell"></td>
-            <td id="count-technique_dl_other" class="count-cell"></td>
-            <td id="count-technique_hybrid" class="count-cell"></td>
-            <td id="count-technique_available_dataset" class="count-cell"></td>
 
-            <!-- Empty cells for remaining columns -->
-            <td></td> <!-- Last Changed -->
-            <td id="count-changed_by" class="count-cell"></td>
-            <td></td> <!-- Verified -->
-            <td></td> <!-- Estimated Score -->
-            <td id="count-verified_by" class="count-cell"></td> 
-            <td></td> <!-- Actions -->
-        </tr>
-    </tfoot>
-</table>
+                    <!-- Classification Summary Columns -->
+                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
+                    <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
+                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><span class="sort-indicator"></span><div><span>Survey</span></div></th>
+                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><span class="sort-indicator"></span><div><span>THT</span></div></th>
+                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><span class="sort-indicator"></span><div><span>SMT</span></div></th>
+                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
+
+                    <!-- Features Summary Columns (Updated list) -->
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes / Vias</span></div></th>
+
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><div><span>Insufficient</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><div><span>Excessive</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><div><span>Void / Hole</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><div><span>Crack / Cold</span></div></th>
+                    
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><div><span>Orientation</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><div><span>Cosmetic</span></div></th>
+
+                    <!-- Techniques Summary Columns (Updated list) -->
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><div><span>Classic CV</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><div><span>ML</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><div><span>CNN Classifier</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><div><span>CNN Detector</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><div><span>R-CNN Detector</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><div><span>Transformer</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><div><span>Other DL</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
+
+                    <th data-sort="changed" style="width:46px; min-width:46px; max-width:46px">Last Changed <span class="sort-indicator"></span></th>
+                    <th data-sort="changed_by" style="width:50px; min-width:50px; max-width:50px">Changed By <span class="sort-indicator"></span></th>
+                    <th data-sort="verified" style="width:42px; min-width:42px; max-width:42px">Verified <span class="sort-indicator"></span></th>
+                    <th class="rotate-header" data-sort="estimated_score" style="width:28px; min-width:28px; max-width:28px"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
+                    <th data-sort="verified_by" style="width:42px; min-width:42px; max-width:42px">Verified By <span class="sort-indicator"></span></th>
+                    <th class="rotate-header" style="width:40px; min-width:40px; max-width:40px"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
+                </tr>
+            </thead>
+                <!-- tbody and tfoot come from the papers_table template-->
+                {{ papers_table_content | safe }}        
+                
+                {% include 'papers_table_tfoot.html' %}
+                <!-- Use the rendered table content passed from the server --> 
+        </table>
+    </div>
 </div>
 <!-- Stats Modal -->
 <div id="statsModal" class="modal">

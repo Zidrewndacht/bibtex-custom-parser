@@ -95,5 +95,17 @@ OK              Automatic Dedup by DOI?
         Allow discarding a paper from DB in GUI?
                 Maybe not, be consistent with the search sentence
 
-        Hide unclassified and off-topic server-side
-        Add year range instead of "older than x years"
+OK      Hide unclassified and off-topic server-side
+OK      Add year range instead of "older than x years"
+
+
+Refactor: optimizations for larger >1000 datasets:
+
+OK      Change min page count to server-side;
+OK      Change year to server-side;
+OK      Change search to server-side;
+OK      Change detail row to lazy load;
+        Reimplement repeated keywords, authors, areas count server-side 
+
+        Reimplement full-client-side GH Pages export?
+        Fix ugly hide offtopic checkbox

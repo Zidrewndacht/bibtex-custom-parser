@@ -366,9 +366,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Update detail row traces if expanded
                         if (detailRow && detailRow.classList.contains('expanded')) {
                             const evalTraceDiv = detailRow.querySelector('.detail-evaluator-trace .trace-content');
-                            if (evalTraceDiv) evalTraceDiv.textContent = data.reasoning_trace || 'No trace available.';
+                            if (evalTraceDiv) {
+                                evalTraceDiv.textContent = data.reasoning_trace || 'No trace available.';
+                                evalTraceDiv.classList.remove('trace-placeholder');
+                            }
                             const verifyTraceDiv = detailRow.querySelector('.detail-verifier-trace .trace-content');
-                            if (verifyTraceDiv) verifyTraceDiv.textContent = data.verifier_trace || 'No trace available.';
+                            if (verifyTraceDiv) {
+                                verifyTraceDiv.textContent = data.verifier_trace || 'No trace available.';
+                                verifyTraceDiv.classList.remove('trace-placeholder');
+                            }
                             // Update form fields if needed (e.g., model name, other defects might have changed)
                             const form = detailRow.querySelector(`form[data-paper-id="${paperId}"]`);
                             if(form){

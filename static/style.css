@@ -31,6 +31,7 @@ h3 {
     position: sticky;
     top: 0;
     width: calc(100% - 10px);
+    text-shadow: 1px 0 5px #0006;
 }
 table {
     border-collapse: collapse;
@@ -71,9 +72,10 @@ th {
     box-shadow: inset 0 -0px 0px 0.75px #0a5662;
     padding: 6px;
     text-align: left;
-    min-width: 29px;
+    min-width: 20px;
     z-index: 10;
     font-size: 8.5pt;
+    text-shadow: 1px 0 5px #0006;
 }
 
 th[data-sort]:hover {    
@@ -191,7 +193,7 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
 }
 .filter-item input[type="number"] {
     height: 28px;
-    width: 27px;
+    width: 55px;
     background: transparent;
     color: #eee;
     font-size: 10.5pt;
@@ -201,6 +203,7 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     transition: 0.25s all ease;
     -moz-appearance: textfield;
     appearance: textfield;
+    font-weight: bold;
 }
 
 
@@ -226,7 +229,8 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     transition: all 0.1s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     min-width: 175px;
-    height: 40px
+    height: 40px;
+    text-shadow: 1px 0 5px #0006;
 }
 
 .action-btn:hover {
@@ -385,10 +389,19 @@ form input[type="text"] {
 }
 
 #stats-btn {
-    background: rgb(60, 112, 75);
     width: 130px;
     max-width: 130px;
     min-width: 130px;
+    background: rgb(60, 112, 75);
+}
+#apply-serverside-filters{
+    background: rgb(185, 209, 209);
+    width: 80px;
+    max-width: 80px;
+    min-width: 80px;
+    color: #0a5662;
+    font-size: 10.5pt;
+    text-shadow: 1px 0 5px #fff6;
 }
 #fullscreen-btn {
     background: transparent;
@@ -433,20 +446,19 @@ th.inferred-header-2 {
     font-size: 11pt;
 }
 
-/* Optional: Adjust vertical alignment of the checkbox itself if needed */
-.filter-item input[type="checkbox"] {
-     /* You might be able to reduce or remove this */
-    margin-right: 5px; /* Add a small space between checkbox and label */
-    /* Adjust height/width if necessary, or remove the large height if it causes misalignment */
-    width: 36px;
-    height: 30px;
+input[type="checkbox"] {
+    height: 12px;
+    width: 12px;
+    margin: 0;
+    transform: scale(2.6,2) translate(2px,-0.5px);
+    border-radius: 0;
     opacity: 0.5;
 }
-.filter-item input[type="checkbox"]:checked {
+input[type="checkbox"]:checked {
     opacity: 1;
 /*! filter: invert() hue-rotate(135deg); */
     filter: hue-rotate(-50deg) brightness(1.3);
-    border: 2px solid white;
+    /* border: 2px solid white; */
     /*! border-radius: 2px; */
 }
 
@@ -725,6 +737,7 @@ tr.filter-hidden {
     top: 4px;
     cursor: pointer;
     z-index: 1001; /* Above content */
+    text-shadow: 1px 0 5px #0006;
 }
 
 .close:hover,

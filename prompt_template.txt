@@ -85,7 +85,7 @@ Below are some example outputs, from random papers, for structure reference only
 This paper presents an implementation of YOLOv5 applied to optical inspection of surface-mounted PCBs. It detects multiple defect types including solder bridges, missing components, and track issues. The dataset is publicly released. All relevant fields are set accordingly. Strongly on-topic with high relevance.
 
 ---
-**Survey paper on deep learning methods for PCB defect detection**
+**Mid 2010s survey paper on deep learning methods for PCB defect detection**
 
 {{
   "research_area": "computer sciences",
@@ -113,7 +113,7 @@ This paper presents an implementation of YOLOv5 applied to optical inspection of
     "ml_traditional": true,
     "dl_cnn_detector": true,
     "dl_rcnn_detector": true,
-    "dl_transformer": true,
+    "dl_transformer": false,
     "dl_other": false,
     "hybrid": true,
     "model": "ResNet, YOLOv3, Faster R-CNN, DETR",
@@ -122,7 +122,7 @@ This paper presents an implementation of YOLOv5 applied to optical inspection of
 }}
 
 **Justification**:  
-This is a comprehensive survey reviewing various techniques (ML, DL) used in PCB defect detection. It covers both SMT and through-hole (though not specified), and includes X-ray and optical methods. Since it's a survey, `is_survey = true`, and multiple techniques are marked as `true`. High relevance due to broad coverage of the target domain.
+This is a comprehensive survey reviewing various techniques (ML, DL) used in PCB defect detection. It covers both SMT and through-hole (though not specified), and includes X-ray and optical methods. Since it's a survey, `is_survey = true`, and multiple techniques are marked as `true`. High relevance due to broad coverage of the target domain. It does not cover Transformer because that wasn't yet a thing at the time of the survey.
 
 ---
 **X-ray based void detection in solder joints using CNN classifier**

@@ -1,0 +1,50 @@
+<!-- templates/papers_table_tfoot.html -->
+<tfoot id="counts-footer">
+    <tr>
+        <!-- Empty cells to align with non-count columns -->
+        <td></td> <!-- Type -->
+        <td id="visible-count-cell"></td> <!-- Title -->
+        <!-- <td></td> Authors -->
+        <td></td> <!-- Year -->
+        <td></td> <!-- Journal -->
+        <td></td> <!-- Page Count -->
+        <!-- Classification Counts -->
+        <td id="count-is_offtopic" class="count-cell"></td>
+        <td></td> <!-- Relevance -->
+        <td id="count-is_survey" class="count-cell"></td>
+        <td id="count-is_through_hole" class="count-cell"></td>
+        <td id="count-is_smt" class="count-cell"></td>
+        <td id="count-is_x_ray" class="count-cell"></td>
+        
+        <!-- Features Counts (Updated list - 10 columns now) -->
+        <td id="count-features_tracks" class="count-cell"></td>
+        <td id="count-features_holes" class="count-cell"></td>
+        <td id="count-features_solder_insufficient" class="count-cell"></td>
+        <td id="count-features_solder_excess" class="count-cell"></td>
+        <td id="count-features_solder_void" class="count-cell"></td>
+        <td id="count-features_solder_crack" class="count-cell"></td>
+        <td id="count-features_missing_component" class="count-cell"></td>
+        <td id="count-features_wrong_component" class="count-cell"></td>
+        <td id="count-features_orientation" class="count-cell"></td>
+        <td id="count-features_cosmetic" class="count-cell"></td>
+
+        <!-- Techniques Counts (Updated list - 9 columns now) -->
+        <td id="count-technique_classic_cv_based" class="count-cell"></td>
+        <td id="count-technique_ml_traditional" class="count-cell"></td>
+        <td id="count-technique_dl_cnn_classifier" class="count-cell"></td>
+        <td id="count-technique_dl_cnn_detector" class="count-cell"></td>
+        <td id="count-technique_dl_rcnn_detector" class="count-cell"></td>
+        <td id="count-technique_dl_transformer" class="count-cell"></td>
+        <td id="count-technique_dl_other" class="count-cell"></td>
+        <td id="count-technique_hybrid" class="count-cell"></td>
+        <td id="count-technique_available_dataset" class="count-cell"></td>
+
+        <!-- Empty cells for remaining columns -->
+        <td></td> <!-- Last Changed -->
+        <td id="count-changed_by" class="count-cell"></td>
+        <td></td> <!-- Verified -->
+        <td></td> <!-- Estimated Score -->
+        <td id="count-verified_by" class="count-cell"></td> 
+        <td></td> <!-- Actions -->
+    </tr>
+</tfoot>

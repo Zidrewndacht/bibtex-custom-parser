@@ -3,22 +3,14 @@
 // --- Filtering Logic ---
 const searchInput = document.getElementById('search-input');
 const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
-const hideShortCheckbox = document.getElementById('hide-short-checkbox');
 const minPageCountInput = document.getElementById('min-page-count');
+const yearFromInput = document.getElementById('year-from');
+const yearToInput = document.getElementById('year-to');
 
-const hideOlderCheckbox = document.getElementById('hide-older-checkbox');
-const maxAgeInput = document.getElementById('max-age');
-
-const fullscreenBtn = document.getElementById('fullscreen-btn');
-
-// Get all main rows (both visible and hidden by filters) only once:
-const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-const totalPaperCount = allRows.length;
 
 let filterTimeoutId = null;
 const FILTER_DEBOUNCE_DELAY = 200; 
 
-// --- Add a variable to hold the latest counts ---
 let latestCounts = {}; // This will store the counts calculated by updateCounts
 
 // --- Optimized Client-Side Sorting ---
@@ -38,23 +30,148 @@ function scheduleFilterUpdate() {
         // Use setTimeout(0) to defer the heavy work to the next event loop tick.
         // This allows the browser to process the 'progress' cursor change.
         setTimeout(() => {
-            applyFilters(); // Run the expensive filtering
-            // Apply rAF here if needed for post-filter updates, 
-            // though applyFilters already calls them.
+            applyFilters();
         }, 0);
     }, FILTER_DEBOUNCE_DELAY);
 }
 
-function toggleDetails(element) {   //OK
+
+// function loadTraces(detailRow, paperId) {
+//     const placeholders = detailRow.querySelectorAll('.trace-placeholder');
+//     placeholders.forEach(placeholder => {
+//         // Check if the trace has already been loaded for this placeholder
+//         if (placeholder.textContent === 'Loading trace...') {
+//             const traceType = placeholder.getAttribute('data-trace-type');
+//             if (traceType) {
+//                 // Make AJAX request to fetch the specific trace
+//                 fetch(`/get_traces?paper_id=${encodeURIComponent(paperId)}`)
+//                     .then(response => {
+//                         if (!response.ok) {
+//                             if (response.status === 404) {
+//                                  throw new Error('Paper not found');
+//                             } else {
+//                                 return response.json().then(errData => {
+//                                     throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+//                                 }).catch(() => {
+//                                     throw new Error(`HTTP error! status: ${response.status}`);
+//                                 });
+//                             }
+//                         }
+//                         return response.json();
+//                     })
+//                     .then(data => {
+//                         if (data.status === 'success') {
+//                             // Find the correct placeholder within this detail row and update it
+//                             const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
+//                             if (targetPlaceholder) {
+//                                 // Clear the placeholder content
+//                                 targetPlaceholder.textContent = '';
+//                                 // Set the actual trace content
+//                                 const traceContent = data[traceType] || 'No trace available.';
+//                                 targetPlaceholder.textContent = traceContent;
+//                             }
+//                         } else {
+//                             // Handle error from server
+//                             const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
+//                             if (targetPlaceholder) {
+//                                 targetPlaceholder.textContent = `Error loading trace: ${data.message || 'Unknown error'}`;
+//                             }
+//                             console.error(`Error loading ${traceType} for paper ${paperId}:`, data.message);
+//                         }
+//                     })
+//                     .catch(error => {
+//                         // Handle network or other errors
+//                         const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
+//                         if (targetPlaceholder) {
+//                             targetPlaceholder.textContent = `Error loading trace: ${error.message}`;
+//                         }
+//                         console.error(`Error fetching ${traceType} for paper ${paperId}:`, error);
+//                     });
+//             }
+//         }
+//         // If the placeholder text is NOT 'Loading trace...', it means it was already loaded or replaced, so do nothing.
+//     });
+// }
+
+// --- Updated toggleDetails function ---
+function toggleDetails(element) {
     const row = element.closest('tr');
-    const detailRow = row.nextElementSibling; // Assume detail row is the next sibling
-    const isExpanded = detailRow && detailRow.classList.contains('expanded'); // Check if detailRow exists
+    const detailRow = row.nextElementSibling;
+    const isExpanded = detailRow && detailRow.classList.contains('expanded');
+    const paperId = row.getAttribute('data-paper-id');
+
     if (isExpanded) {
+        // Collapse the detail row
         if (detailRow) detailRow.classList.remove('expanded');
         element.innerHTML = '<span>Show</span>';
     } else {
-        if (detailRow) detailRow.classList.add('expanded');
-        element.innerHTML = '<span>Hide</span>';
+        // Expand the detail row
+        if (detailRow) {
+            detailRow.classList.add('expanded');
+            element.innerHTML = '<span>Hide</span>';
+
+            if (paperId) {
+                // Find the placeholder content div within the detail row
+                const contentPlaceholder = detailRow.querySelector('.detail-content-placeholder');
+                // Check if content is already loaded (e.g., if it's not the loading message anymore)
+                // A simple check: if the placeholder contains the loading message or is empty-ish
+                if (contentPlaceholder && 
+                    (contentPlaceholder.children.length === 0 || 
+                     (contentPlaceholder.children.length === 1 && 
+                      contentPlaceholder.children[0].tagName === 'P' && 
+                      contentPlaceholder.children[0].textContent.trim() === 'Loading details...')
+                    )
+                   ) {
+                    // Content not loaded yet, fetch it via AJAX
+                    // Show loading indicator (optional, it's already there)
+                    if (contentPlaceholder) {
+                         contentPlaceholder.innerHTML = '<p>Loading details...</p>'; // Ensure loading message
+                    }
+
+                    // Make AJAX request to fetch the rendered detail row HTML
+                    fetch(`/get_detail_row?paper_id=${encodeURIComponent(paperId)}`)
+                        .then(response => {
+                            if (!response.ok) {
+                                if (response.status === 404) {
+                                    throw new Error('Paper not found');
+                                } else {
+                                    return response.json().then(errData => {
+                                        throw new Error(errData.message || `HTTP error! status: ${response.status}`);
+                                    }).catch(() => {
+                                        throw new Error(`HTTP error! status: ${response.status}`);
+                                    });
+                                }
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.status === 'success' && data.html) {
+                                // Successfully fetched HTML, inject it
+                                if (contentPlaceholder) {
+                                    contentPlaceholder.innerHTML = data.html;
+                                    // Re-attach any necessary event listeners for elements inside the new HTML
+                                    // if needed (e.g., if save buttons inside details need specific JS).
+                                    // For now, global listeners like the save button one should work.
+                                }
+                            } else {
+                                // Handle error from server
+                                console.error(`Error loading detail row for paper ${paperId}:`, data.message);
+                                if (contentPlaceholder) {
+                                    contentPlaceholder.innerHTML = `<p>Error loading details: ${data.message || 'Unknown error'}</p>`;
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            // Handle network or other errors
+                            console.error(`Error fetching detail row for paper ${paperId}:`, error);
+                            if (contentPlaceholder) {
+                                contentPlaceholder.innerHTML = `<p>Error loading details: ${error.message}</p>`;
+                            }
+                        });
+                }
+                // If content is already loaded, do nothing on expand.
+            }
+        }
     }
 }
 
@@ -70,7 +187,6 @@ const COUNT_FIELDS = [
     'technique_dl_transformer', 'technique_dl_other', 'technique_hybrid', 'technique_available_dataset', // Techniques (Nested under 'technique')
     'changed_by', 'verified_by' // Add these for user counting (Top-level)
 ];
-// --- Modify updateCounts() ---
 function updateCounts() {
     const counts = {};
     // Initialize counts for ALL status fields (including changed_by, verified_by)
@@ -103,17 +219,16 @@ function updateCounts() {
             }
         });
     });
-    // --- NEW: Store the counts globally ---
+
+    const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+    const totalPaperCount = allRows.length;
     latestCounts = counts; // Make counts available outside this function
-    // --- Update the Visible Count Cell ---
     const visibleCountCell = document.getElementById('visible-count-cell');
     if (visibleCountCell) {
         // Use textContent to prevent potential HTML injection issues if counts were user input (they aren't here, but good practice)
-        visibleCountCell.textContent = `${visiblePaperCount} paper${visiblePaperCount !== 1 ? 's' : ''} of ${totalPaperCount}`;
+        visibleCountCell.textContent = `Filtered: ${visiblePaperCount}, Loaded: ${totalPaperCount}`;
     }
-    // --- End Update Visible Count Cell ---
 
-    // Update the individual status count footer cells
     COUNT_FIELDS.forEach(field => {
         const countCell = document.getElementById(`count-${field}`);
         if (countCell) {
@@ -122,7 +237,6 @@ function updateCounts() {
         }
     });
 }
-// --- End Modify updateCounts() ---
 
 /**
  * Applies alternating row shading to visible main rows.
@@ -216,125 +330,172 @@ function applyJournalShading(rows) {
 }
 
 
-function applyFilters() {
+// Refactored function to apply server-side filters via AJAX
+function applyServerSideFilters() {
+    document.documentElement.classList.add('busyCursor');
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // Handle hide offtopic
+    const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
+    const isChecked = hideOfftopicCheckbox.checked;
+    urlParams.set('hide_offtopic', isChecked ? '1' : '0');
+
+    // Handle year range
+    const yearFromValue = document.getElementById('year-from').value.trim();
+    if (yearFromValue !== '' && !isNaN(parseInt(yearFromValue))) {
+        urlParams.set('year_from', yearFromValue);
+    } else {
+        urlParams.delete('year_from');
+    }
+
+    const yearToValue = document.getElementById('year-to').value.trim();
+    if (yearToValue !== '' && !isNaN(parseInt(yearToValue))) {
+        urlParams.set('year_to', yearToValue);
+    } else {
+        urlParams.delete('year_to');
+    }
+
+    const minPageCountValue = document.getElementById('min-page-count').value.trim();
+    if (minPageCountValue !== '' && !isNaN(parseInt(minPageCountValue))) {
+        urlParams.set('min_page_count', minPageCountValue);
+    } else {
+        urlParams.delete('min_page_count');
+    }
+
+    const searchValue = document.getElementById('search-input').value.trim();
+    if (searchValue !== '') {
+        urlParams.set('search_query', searchValue);
+    } else {
+        urlParams.delete('search_query');
+    }
+    // Construct the URL for the /load_table endpoint with current parameters
+    const loadTableUrl = `/load_table?${urlParams.toString()}`;
+
+    // Fetch the new table body content
+    fetch(loadTableUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text();
+        })
+        .then(html => {
+            const tbody = document.querySelector('#papersTable tbody');
+            if (tbody) {
+                tbody.innerHTML = html; // Replace the tbody content
+                // Re-attach event listeners for the new detail toggle buttons
+                // (Assuming toggleDetails function exists globally)
+                // Using event delegation on tbody for toggle buttons is preferred (see DOMContentLoaded)
+
+                // --- UPDATE THE BROWSER'S URL TO REFLECT THE NEW STATE ---
+                const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+                window.history.replaceState({ path: newUrl }, '', newUrl);
+                // --- END URL UPDATE ---
+
+                // Trigger post-update functions
+                const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
+                applyJournalShading(currentVisibleRows);
+                updateCounts();
+                applyAlternatingShading();
+                // Re-apply filter in case there was a search term
+                applyFilters();
+            }
+            document.documentElement.classList.remove('busyCursor');
+        })
+        .catch(error => {
+            console.error('Error fetching updated table:', error);
+            // Optional: Display an error message to the user
+            document.documentElement.classList.remove('busyCursor');
+        });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+function applyFilters() { // This function now only handles client-side filters
     const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
     const tbody = document.querySelector('#papersTable tbody');
-    if (!tbody) return;
     const rows = tbody.querySelectorAll('tr[data-paper-id]');
     rows.forEach(row => {
         let showRow = true;
-        const paperId = row.getAttribute('data-paper-id');
-        let detailRow = null;
-        if (paperId) {
-            let nextSibling = row.nextElementSibling;
-            while (nextSibling && !nextSibling.classList.contains('detail-row')) {
-                if (nextSibling.hasAttribute('data-paper-id')) break; // Stop if another main row is found
-                nextSibling = nextSibling.nextElementSibling;
-            }
-            if (nextSibling && nextSibling.classList.contains('detail-row')) {
-                detailRow = nextSibling;
-            }
-        }
-        if (showRow && hideOfftopicCheckbox.checked) {
-            const offtopicCell = row.querySelector('.editable-status[data-field="is_offtopic"]');
-            if (offtopicCell && offtopicCell.textContent.trim() === '✔️') {
-                showRow = false;
-            }
-        }
-        if (showRow && hideShortCheckbox.checked) {
-            const pageCountCell = row.cells[4]; //moved afer hiding authors column
-            if (pageCountCell) {
-                const minPageCountValue = minPageCountInput ? parseInt(minPageCountInput.value, 10) || 0 : 0;
-                const pageCountText = pageCountCell.textContent.trim();
-                const pageCount = pageCountText ? parseInt(pageCountText, 10) : NaN;
-                if (!isNaN(pageCount) && pageCount < minPageCountValue) {
-                    showRow = false;
-                }
-            }
-        }
-        if (showRow && hideOlderCheckbox && hideOlderCheckbox.checked) {
-            const maxAgeValue = parseInt(maxAgeInput.value, 10);
-            // Only apply if the max age is a valid number greater than 0
-            if (!isNaN(maxAgeValue) && maxAgeValue > 0) {
-                const yearCell = row.cells[2]; //moved afer hiding authors column
-                if (yearCell) {
-                    const yearText = yearCell.textContent.trim();
-                    const paperYear = yearText ? parseInt(yearText, 10) : NaN;
-                    // Check if the paper year is a valid number and older than the cutoff
-                    if (!isNaN(paperYear)) {
-                         const currentYear = new Date().getFullYear();
-                         const cutoffYear = currentYear - maxAgeValue;
-                         if (paperYear < cutoffYear) {
-                              showRow = false;
-                         }
-                    }
-                }
-            }
-        }
-        if (showRow && searchTerm) {
-            let rowText = (row.textContent || '').toLowerCase();
+        // const paperId = row.getAttribute('data-paper-id'); // Not needed for client filters here
 
-            let detailText = '';
-            if (detailRow) {
-                // Create a clone to avoid modifying the original DOM temporarily
-                const detailClone = detailRow.cloneNode(true);
-                detailClone.querySelector('.detail-evaluator-trace .trace-content').remove(); // Remove the evaluator trace content
-                detailClone.querySelector('.detail-verifier-trace .trace-content').remove();  // Remove the verifier trace content
+        /** Client-side search disabled for now -- to be kept on GH Pages version: */
+        // let detailRow = null;
+        // // Find detail row if needed for search
+        // if (searchTerm) {
+        //      let nextSibling = row.nextElementSibling;
+        //      while (nextSibling && !nextSibling.classList.contains('detail-row')) {
+        //          nextSibling = nextSibling.nextElementSibling;
+        //      }
+        //      if (nextSibling && nextSibling.classList.contains('detail-row')) {
+        //          detailRow = nextSibling;
+        //      }
+        // }
+        // // Apply search filter (client-side)
+        // if (showRow && searchTerm) {
+        //     let rowText = (row.textContent || '').toLowerCase();
+        //     let detailText = '';
+        //     if (detailRow) {
+        //         // Clone and remove dynamic content to avoid searching loading messages
+        //         const detailClone = detailRow.cloneNode(true);
+        //         const traceContents = detailClone.querySelectorAll('.trace-content');
+        //         traceContents.forEach(tc => tc.remove());
+        //         detailText = (detailClone.textContent || '').toLowerCase();
+        //     }
+        //     if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
+        //         showRow = false;
+        //     }
+        // }
 
-                // Now get the text content of the modified clone (excluding traces)
-                detailText = (detailClone.textContent || '').toLowerCase();
-            }
-            // Check if the search term is present in either the main row or the filtered detail row text
-            if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
-                showRow = false;
-            }
-        }
-        // --- Show/Hide Row and Detail Row ---
-        // Use classList.toggle for cleaner, more readable code
+        // Toggle visibility
         row.classList.toggle('filter-hidden', !showRow);
-        // if main row is hidden by filter, detail row is hidden by filter.
-        // If main row is shown by filter, detail row is shown by filter (but might be collapsed).
-        detailRow.classList.toggle('filter-hidden', !showRow);
+        // Ensure detail row visibility follows main row
+        let nextSibling = row.nextElementSibling;
+        while (nextSibling && !nextSibling.classList.contains('detail-row')) {
+            nextSibling = nextSibling.nextElementSibling;
+        }
+        if (nextSibling && nextSibling.classList.contains('detail-row')) {
+             nextSibling.classList.toggle('filter-hidden', !showRow);
+        }
     });
 
-    // --- Reapply Journal Shading based on visible rows ---
-    const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+    // Update counts and shading based on *currently visible* rows (after client filters)
+    const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     applyJournalShading(currentVisibleRows);
     updateCounts();
     applyAlternatingShading();
-    
-    // Reset cursor after filtering is complete
     document.documentElement.classList.remove('busyCursor');
+    document.getElementById('apply-serverside-filters').style.display = 'none';
 }
+
 
 document.addEventListener('DOMContentLoaded', function () {
     const headers = document.querySelectorAll('th[data-sort]');
-    let currentClientSort = { column: null, direction: 'ASC' }; 
-    // hideOfftopicCheckbox.checked = true;
-    hideShortCheckbox.checked = true;
-    hideOlderCheckbox.checked = true;
+    let currentClientSort = { column: null, direction: 'ASC' };
+    
+    document.getElementById('hide-offtopic-checkbox').addEventListener('change', applyServerSideFilters);
+    document.getElementById('apply-serverside-filters').addEventListener('click', applyServerSideFilters); 
+    
+    const applyButton = document.getElementById('apply-serverside-filters');
+    document.getElementById('year-to').addEventListener('change',   function(){applyButton.style.display = 'inline-block'});
+    document.getElementById('year-from').addEventListener('change', function(){applyButton.style.display = 'inline-block'});
+    document.getElementById('min-page-count').addEventListener('change', function(){applyButton.style.display = 'inline-block'});
 
-    searchInput.addEventListener('input', scheduleFilterUpdate);
-    // hideOfftopicCheckbox.addEventListener('change', scheduleFilterUpdate);
-    hideShortCheckbox.addEventListener('change', scheduleFilterUpdate);
-    minPageCountInput.addEventListener('input', scheduleFilterUpdate);
-    minPageCountInput.addEventListener('change', scheduleFilterUpdate);
-    hideOlderCheckbox.addEventListener('change', scheduleFilterUpdate);
-    maxAgeInput.addEventListener('input', scheduleFilterUpdate);
-    maxAgeInput.addEventListener('change', scheduleFilterUpdate);
-
-
-    hideOfftopicCheckbox.addEventListener('change', function() {
-        const isChecked = this.checked;
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        // Set the 'hide_offtopic' parameter based on checkbox state
-        // Using '1' for true and '0' for false aligns with common practices and our Flask logic
-        urlParams.set('hide_offtopic', isChecked ? '1' : '0');
-        
-        // Reload the page with the new parameters
-        // This triggers the Flask route with the updated parameter, fetching filtered data
-        window.location.search = urlParams.toString();
+    // document.getElementById('search-input').addEventListener('input', scheduleFilterUpdate);
+    document.getElementById('search-input').addEventListener('input', function() {
+        clearTimeout(filterTimeoutId);
+        filterTimeoutId = setTimeout(() => {
+            applyServerSideFilters();
+        }, FILTER_DEBOUNCE_DELAY);
     });
 
     // --- Close Modal with Escape Key ---
@@ -344,8 +505,8 @@ document.addEventListener('DOMContentLoaded', function () {
             closeModal(); // Call your existing closeModal function
         }
     });
-    applyFilters(); //apply initial filtering
-    
+    applyFilters(); //apply initial filtering    
+
     // --- Single Event Listener for Headers (Handles Optimized Client-Side Sorting) ---
     headers.forEach(header => {
         header.addEventListener('click', function () {
@@ -543,8 +704,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function displayStats() {
-        // --- NEW: Chart Creation Logic (Read counts from footer) ---
-
         const FEATURE_FIELDS = [
             'features_tracks', 'features_holes', 'features_solder_insufficient',
             'features_solder_excess', 'features_solder_void', 'features_solder_crack',
@@ -731,104 +890,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const featuresCtx = document.getElementById('featuresPieChart')?.getContext('2d');
         const techniquesCtx = document.getElementById('techniquesPieChart')?.getContext('2d');
 
-        // // Pizza chart version:
-        // if (featuresCtx) {
-        //     window.featuresPieChartInstance = new Chart(featuresCtx, {
-        //         type: 'pie',
-        //         data: featuresChartData,
-        //         options: {
-        //             responsive: true,
-        //             maintainAspectRatio: false, // Important with fixed container height
-        //             plugins: {
-        //                 legend: {
-        //                     position: 'top',
-        //                 },
-        //                 title: {
-        //                     display: false, // Title is in the H3
-        //                 },
-        //                 tooltip: {
-        //                     callbacks: {
-        //                         // Optional: Customize tooltip label
-        //                         label: function(context) {
-        //                             return `${context.label}: ${context.raw}`;
-        //                         }
-        //                     }
-        //                 }
-        //                 // Optional: Add data labels inside slices (requires chartjs-plugin-datalabels)
-        //                 // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
-        //             }
-        //         }
-        //     });
-        // } else {
-        //     console.warn("Canvas context for featuresPieChart not found.");
-        // }
-                // if (techniquesCtx) {
-        //     window.techniquesPieChartInstance = new Chart(techniquesCtx, {
-        //         type: 'bar', // Changed from 'pie' to 'bar'
-        //         data: techniquesChartData,
-        //         options: {
-        //             indexAxis: 'y', // This makes it horizontal
-        //             responsive: true,
-        //             maintainAspectRatio: false,
-        //             plugins: {
-        //                 legend: {
-        //                     display: false // Hide legend for cleaner look
-        //                 },
-        //                 title: {
-        //                     display: false
-        //                 },
-        //                 tooltip: {
-        //                     callbacks: {
-        //                         label: function(context) {
-        //                             return `${context.label}: ${context.raw}`;
-        //                         }
-        //                     }
-        //                 }
-        //             },
-        //             scales: {
-        //                 x: {
-        //                     beginAtZero: true,
-        //                     ticks: {
-        //                         precision: 0 // Only show whole numbers
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     });
-        // } else {
-        //     console.warn("Canvas context for techniquesPieChart not found.");
-        // }
-        // if (techniquesCtx) {
-        //     window.techniquesPieChartInstance = new Chart(techniquesCtx, {
-        //         type: 'pie',
-        //         data: techniquesChartData,
-        //         options: {
-        //             responsive: true,
-        //             maintainAspectRatio: false, // Important with fixed container height
-        //             plugins: {
-        //                 legend: {
-        //                     position: 'top',
-        //                 },
-        //                 title: {
-        //                     display: false, // Title is in the H3
-        //                 },
-        //                 tooltip: {
-        //                     callbacks: {
-        //                         // Optional: Customize tooltip label
-        //                         label: function(context) {
-        //                             return `${context.label}: ${context.raw}`;
-        //                         }
-        //                     }
-        //                 }
-        //                 // Optional: Add data labels inside slices
-        //                 // datalabels: { anchor: 'center', align: 'center', formatter: (value) => value > 0 ? value : '' }
-        //             }
-        //         }
-        //     });
-        // } else {
-        //     console.warn("Canvas context for techniquesPieChart not found.");
-        // }
-        // --- Render Charts if contexts exist ---
         if (featuresCtx) {
             window.featuresPieChartInstance = new Chart(featuresCtx, {
                 type: 'bar', // Changed from 'pie' to 'bar'
@@ -983,68 +1044,4 @@ document.addEventListener('DOMContentLoaded', function () {
             closeModal();
         }
     });
-    // --- End Stats Modal Functionality ---
-
-        // Helper function to check if fullscreen is active
-    function isFullscreen() {
-        return !!(document.fullscreenElement /* Standard syntax */
-            || document.webkitFullscreenElement /* WebKit */
-            || document.mozFullScreenElement /* Mozilla */
-            || document.msFullscreenElement /* IE11 */);
-    }
-
-    // Helper function to request fullscreen
-    function requestFullscreen(element) {
-        if (element.requestFullscreen) {
-            element.requestFullscreen();
-        } else if (element.webkitRequestFullscreen) { /* Safari */
-            element.webkitRequestFullscreen();
-        } else if (element.mozRequestFullScreen) { /* Mozilla */
-            element.mozRequestFullScreen();
-        } else if (element.msRequestFullscreen) { /* IE11 */
-            element.msRequestFullscreen();
-        }
-    }
-
-    // Helper function to exit fullscreen
-    function exitFullscreen() {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) { /* Safari */
-            document.webkitExitFullscreen();
-        } else if (document.mozCancelFullScreen) { /* Mozilla */
-            document.mozCancelFullScreen();
-        } else if (document.msExitFullscreen) { /* IE11 */
-            document.msExitFullscreen();
-        }
-    }
-
-    // Update button text based on state
-    function updateFullscreenButton() {
-        const span = fullscreenBtn.querySelector('span');
-        if (span) {
-            span.textContent = isFullscreen() ? '⇱' : '⇲'; // Toggle arrow characters
-        }
-    }
-
-    // Listen for fullscreen change events to update the button
-    document.addEventListener('fullscreenchange', updateFullscreenButton);
-    document.addEventListener('webkitfullscreenchange', updateFullscreenButton); // Safari
-    document.addEventListener('mozfullscreenchange', updateFullscreenButton);    // Mozilla
-    document.addEventListener('MSFullscreenChange', updateFullscreenButton);     // IE11
-
-    // Add click event listener to the button
-    fullscreenBtn.addEventListener('click', function () {
-        if (isFullscreen()) {
-            exitFullscreen();
-        } else {
-            // Request fullscreen for the entire document element
-            requestFullscreen(document.documentElement);
-        }
-        // Update button immediately after click, before the async fullscreen change event
-        updateFullscreenButton();
-    });
-
-    // Initialize button text on page load
-    updateFullscreenButton();
 });
