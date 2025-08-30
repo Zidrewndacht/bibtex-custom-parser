@@ -132,7 +132,7 @@ tr:nth-child(4n+2) {    background-color: #0000000a;} */
 .sort-indicator {
     position: absolute;
     right: 8px;
-    top: 50%;
+    top: 36px;
     transform: translateY(-50%);
     font-size: 0.9em;
 }
@@ -261,7 +261,6 @@ input[type="search"]::-webkit-input-placeholder { /* For older Webkit */
     margin-top: 15px;
     padding-top: 15px;
 }
-
 form label {
     display: block;
     /*! margin-bottom: 5px; */
@@ -388,6 +387,12 @@ form input[type="text"] {
     text-decoration: underline;
 }
 
+#import-bibtex-btn, #export-html-btn{
+    min-width: 150px;
+}
+#export-html-btn{
+    background: rgb(54, 77, 145);
+}
 #stats-btn {
     width: 130px;
     max-width: 130px;
@@ -535,7 +540,7 @@ tr.filter-hidden {
 .main-header {
     /*! width: calc(100% - 30px); */
     display: grid;
-    grid-template-columns: min-content 1fr auto; /* Title, Filters, Controls */
+    grid-template-columns: auto 1fr auto; /* Title, Filters, Controls */
     grid-template-rows: auto; /* Single row */
     gap: 20px; /* Space between items */
     align-items: center; /* Align items vertically */

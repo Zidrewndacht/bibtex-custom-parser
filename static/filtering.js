@@ -35,65 +35,6 @@ function scheduleFilterUpdate() {
     }, FILTER_DEBOUNCE_DELAY);
 }
 
-
-// function loadTraces(detailRow, paperId) {
-//     const placeholders = detailRow.querySelectorAll('.trace-placeholder');
-//     placeholders.forEach(placeholder => {
-//         // Check if the trace has already been loaded for this placeholder
-//         if (placeholder.textContent === 'Loading trace...') {
-//             const traceType = placeholder.getAttribute('data-trace-type');
-//             if (traceType) {
-//                 // Make AJAX request to fetch the specific trace
-//                 fetch(`/get_traces?paper_id=${encodeURIComponent(paperId)}`)
-//                     .then(response => {
-//                         if (!response.ok) {
-//                             if (response.status === 404) {
-//                                  throw new Error('Paper not found');
-//                             } else {
-//                                 return response.json().then(errData => {
-//                                     throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-//                                 }).catch(() => {
-//                                     throw new Error(`HTTP error! status: ${response.status}`);
-//                                 });
-//                             }
-//                         }
-//                         return response.json();
-//                     })
-//                     .then(data => {
-//                         if (data.status === 'success') {
-//                             // Find the correct placeholder within this detail row and update it
-//                             const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
-//                             if (targetPlaceholder) {
-//                                 // Clear the placeholder content
-//                                 targetPlaceholder.textContent = '';
-//                                 // Set the actual trace content
-//                                 const traceContent = data[traceType] || 'No trace available.';
-//                                 targetPlaceholder.textContent = traceContent;
-//                             }
-//                         } else {
-//                             // Handle error from server
-//                             const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
-//                             if (targetPlaceholder) {
-//                                 targetPlaceholder.textContent = `Error loading trace: ${data.message || 'Unknown error'}`;
-//                             }
-//                             console.error(`Error loading ${traceType} for paper ${paperId}:`, data.message);
-//                         }
-//                     })
-//                     .catch(error => {
-//                         // Handle network or other errors
-//                         const targetPlaceholder = detailRow.querySelector(`.trace-placeholder[data-trace-type="${traceType}"]`);
-//                         if (targetPlaceholder) {
-//                             targetPlaceholder.textContent = `Error loading trace: ${error.message}`;
-//                         }
-//                         console.error(`Error fetching ${traceType} for paper ${paperId}:`, error);
-//                     });
-//             }
-//         }
-//         // If the placeholder text is NOT 'Loading trace...', it means it was already loaded or replaced, so do nothing.
-//     });
-// }
-
-// --- Updated toggleDetails function ---
 function toggleDetails(element) {
     const row = element.closest('tr');
     const detailRow = row.nextElementSibling;
@@ -131,28 +72,11 @@ function toggleDetails(element) {
                     // Make AJAX request to fetch the rendered detail row HTML
                     fetch(`/get_detail_row?paper_id=${encodeURIComponent(paperId)}`)
                         .then(response => {
-                            if (!response.ok) {
-                                if (response.status === 404) {
-                                    throw new Error('Paper not found');
-                                } else {
-                                    return response.json().then(errData => {
-                                        throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-                                    }).catch(() => {
-                                        throw new Error(`HTTP error! status: ${response.status}`);
-                                    });
-                                }
-                            }
                             return response.json();
                         })
                         .then(data => {
                             if (data.status === 'success' && data.html) {
-                                // Successfully fetched HTML, inject it
-                                if (contentPlaceholder) {
-                                    contentPlaceholder.innerHTML = data.html;
-                                    // Re-attach any necessary event listeners for elements inside the new HTML
-                                    // if needed (e.g., if save buttons inside details need specific JS).
-                                    // For now, global listeners like the save button one should work.
-                                }
+                                contentPlaceholder.innerHTML = data.html;
                             } else {
                                 // Handle error from server
                                 console.error(`Error loading detail row for paper ${paperId}:`, data.message);
@@ -185,17 +109,16 @@ const COUNT_FIELDS = [
     'technique_classic_cv_based', 'technique_ml_traditional',
     'technique_dl_cnn_classifier', 'technique_dl_cnn_detector', 'technique_dl_rcnn_detector',
     'technique_dl_transformer', 'technique_dl_other', 'technique_hybrid', 'technique_available_dataset', // Techniques (Nested under 'technique')
-    'changed_by', 'verified_by' // Add these for user counting (Top-level)
+    'changed_by', 'verified', 'verified_by' // Add these for user counting (Top-level)
 ];
-function updateCounts() {
+function updateCounts() {   //move to server-side as well? Required if adding pagination, otherwise don't bother:
     const counts = {};
     // Initialize counts for ALL status fields (including changed_by, verified_by)
     COUNT_FIELDS.forEach(field => counts[field] = 0);
-    // --- Paper Count Logic ---
-    // Select only VISIBLE main rows for counting '✔️' and calculating visible count
+
+    // Select only VISIBLE main rows for counting '✔️' and calculating visible count - won't be really needed anymore with all filtering server-side:
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     const visiblePaperCount = visibleRows.length;
-    // --- End Paper Count Logic ---
 
     // Count symbols in visible rows
     visibleRows.forEach(row => {
@@ -329,7 +252,6 @@ function applyJournalShading(rows) {
     });
 }
 
-
 // Refactored function to apply server-side filters via AJAX
 function applyServerSideFilters() {
     document.documentElement.classList.add('busyCursor');
@@ -382,22 +304,9 @@ function applyServerSideFilters() {
         .then(html => {
             const tbody = document.querySelector('#papersTable tbody');
             if (tbody) {
-                tbody.innerHTML = html; // Replace the tbody content
-                // Re-attach event listeners for the new detail toggle buttons
-                // (Assuming toggleDetails function exists globally)
-                // Using event delegation on tbody for toggle buttons is preferred (see DOMContentLoaded)
-
-                // --- UPDATE THE BROWSER'S URL TO REFLECT THE NEW STATE ---
+                tbody.innerHTML = html;
                 const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
                 window.history.replaceState({ path: newUrl }, '', newUrl);
-                // --- END URL UPDATE ---
-
-                // Trigger post-update functions
-                const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
-                applyJournalShading(currentVisibleRows);
-                updateCounts();
-                applyAlternatingShading();
-                // Re-apply filter in case there was a search term
                 applyFilters();
             }
             document.documentElement.classList.remove('busyCursor');
@@ -409,68 +318,8 @@ function applyServerSideFilters() {
         });
 }
 
-
-
-
-
-
-
-
-
-
-
-
-function applyFilters() { // This function now only handles client-side filters
-    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    const tbody = document.querySelector('#papersTable tbody');
-    const rows = tbody.querySelectorAll('tr[data-paper-id]');
-    rows.forEach(row => {
-        let showRow = true;
-        // const paperId = row.getAttribute('data-paper-id'); // Not needed for client filters here
-
-        /** Client-side search disabled for now -- to be kept on GH Pages version: */
-        // let detailRow = null;
-        // // Find detail row if needed for search
-        // if (searchTerm) {
-        //      let nextSibling = row.nextElementSibling;
-        //      while (nextSibling && !nextSibling.classList.contains('detail-row')) {
-        //          nextSibling = nextSibling.nextElementSibling;
-        //      }
-        //      if (nextSibling && nextSibling.classList.contains('detail-row')) {
-        //          detailRow = nextSibling;
-        //      }
-        // }
-        // // Apply search filter (client-side)
-        // if (showRow && searchTerm) {
-        //     let rowText = (row.textContent || '').toLowerCase();
-        //     let detailText = '';
-        //     if (detailRow) {
-        //         // Clone and remove dynamic content to avoid searching loading messages
-        //         const detailClone = detailRow.cloneNode(true);
-        //         const traceContents = detailClone.querySelectorAll('.trace-content');
-        //         traceContents.forEach(tc => tc.remove());
-        //         detailText = (detailClone.textContent || '').toLowerCase();
-        //     }
-        //     if (!rowText.includes(searchTerm) && !detailText.includes(searchTerm)) {
-        //         showRow = false;
-        //     }
-        // }
-
-        // Toggle visibility
-        row.classList.toggle('filter-hidden', !showRow);
-        // Ensure detail row visibility follows main row
-        let nextSibling = row.nextElementSibling;
-        while (nextSibling && !nextSibling.classList.contains('detail-row')) {
-            nextSibling = nextSibling.nextElementSibling;
-        }
-        if (nextSibling && nextSibling.classList.contains('detail-row')) {
-             nextSibling.classList.toggle('filter-hidden', !showRow);
-        }
-    });
-
-    // Update counts and shading based on *currently visible* rows (after client filters)
-    const currentVisibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
-    applyJournalShading(currentVisibleRows);
+function applyFilters() { //deceiving name after functionality change.
+    applyJournalShading(document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)'));
     updateCounts();
     applyAlternatingShading();
     document.documentElement.classList.remove('busyCursor');
@@ -497,15 +346,6 @@ document.addEventListener('DOMContentLoaded', function () {
             applyServerSideFilters();
         }, FILTER_DEBOUNCE_DELAY);
     });
-
-    // --- Close Modal with Escape Key ---
-    document.addEventListener('keydown', function(event) {
-        // Check if the pressed key is 'Escape' and if the modal is currently active
-        if (event.key === 'Escape' && modal.classList.contains('modal-active')) {
-            closeModal(); // Call your existing closeModal function
-        }
-    });
-    applyFilters(); //apply initial filtering    
 
     // --- Single Event Listener for Headers (Handles Optimized Client-Side Sorting) ---
     headers.forEach(header => {
@@ -595,113 +435,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const statsBtn = document.getElementById('stats-btn');
     const modal = document.getElementById('statsModal');
     const spanClose = document.querySelector('#statsModal .close'); // Specific close button
-
-    // Function to calculate statistics from visible rows
-    function calculateStats() {
-        const stats = {
-            journals: {},
-            keywords: {},
-            authors: {}, // NEW: Initialize authors object
-            researchAreas: {}
-        };
-
-        const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
-
-        visibleRows.forEach(row => {
-            // --- Journal/Conf ---
-            const journalCell = row.cells[3]; // Index 3 for Journal/Conf
-            if (journalCell) {
-                const journal = journalCell.textContent.trim();
-                if (journal) {
-                    stats.journals[journal] = (stats.journals[journal] || 0) + 1;
-                }
-            }
-
-            // Keywords are in the detail row.
-            const detailRow = row.nextElementSibling;
-            if (detailRow && detailRow.classList.contains('detail-row')) {
-                // Find the Keywords paragraph within the detail metadata div
-                const keywordsPara = detailRow.querySelector('.detail-metadata p strong');
-                if (keywordsPara && keywordsPara.textContent.trim() === 'Keywords:') {
-                    // Get the text content *after* the <strong>Keywords:</strong>
-                    // A simple way is to get the parent's text and remove the strong part
-                    const keywordsParent = keywordsPara.parentElement;
-                    if (keywordsParent) {
-                        // Extract text content and remove the "Keywords:" part
-                        let keywordsText = keywordsParent.textContent.trim();
-                        const prefix = "Keywords:";
-                        if (keywordsText.startsWith(prefix)) {
-                            keywordsText = keywordsText.substring(prefix.length).trim();
-                        }
-                        // Split by ';', trim whitespace, filter out empty strings
-                        const keywordsList = keywordsText.split(';')
-                            .map(kw => kw.trim())
-                            .filter(kw => kw.length > 0);
-
-                        keywordsList.forEach(keyword => {
-                            stats.keywords[keyword] = (stats.keywords[keyword] || 0) + 1;
-                        });
-                    }
-                }
-            }
-            // Authors are also in the detail row metadata, like keywords.
-            let authorsList = []; // Initialize an empty list for authors for this row
-            const detailRowForAuthors = row.nextElementSibling;
-            if (detailRowForAuthors && detailRowForAuthors.classList.contains('detail-row')) {
-                const authorsPara = Array.from(detailRowForAuthors.querySelectorAll('.detail-metadata p')).find(p => {
-                    const strongTag = p.querySelector('strong');
-                    return strongTag && strongTag.textContent.trim() === 'Full Authors:';
-                });
-
-                if (authorsPara) {
-                    // Get the full text content of the paragraph
-                    let authorsText = authorsPara.textContent.trim();
-                    const prefix = "Full Authors:";
-                    // Check if it starts with the prefix and remove it
-                    if (authorsText.startsWith(prefix)) {
-                        authorsText = authorsText.substring(prefix.length).trim();
-                    }
-                    // Safety check: ensure we have text left after removing the prefix
-                    if (authorsText) {
-                        // Split by ';', trim whitespace, filter out empty strings
-                        authorsList = authorsText.split(';')
-                            .map(author => author.trim())
-                            .filter(author => author.length > 0);
-                    } else {
-                        console.warn("Found 'Full Authors:' paragraph but no author text following it.", row);
-                    }
-                } else {
-                    // It's possible the paper has no authors listed, or the format is unexpected.
-                    // This might be common enough not to warn, but uncomment if debugging:
-                    console.warn("Could not find 'Full Authors:' paragraph in detail row.", row);
-                }
-            }
-            // Now, increment counts for the authors found for this row
-            authorsList.forEach(author => {
-                // Ensure stats.authors object exists
-                stats.authors = stats.authors || {};
-                // Increment count for the author
-                stats.authors[author] = (stats.authors[author] || 0) + 1;
-            });
-
-
-            // --- Research Area ---
-            const detailRowForResearchArea = row.nextElementSibling;
-            if (detailRowForResearchArea && detailRowForResearchArea.classList.contains('detail-row')) {
-                const researchAreaInput = detailRowForResearchArea.querySelector('.detail-edit input[name="research_area"]');
-                if (researchAreaInput) {
-                    const researchArea = researchAreaInput.value.trim();
-                    if (researchArea) {
-                        // If research areas are also multi-valued like keywords, adapt parsing here.
-                        // For now, treat the whole input value as a single research area.
-                        stats.researchAreas[researchArea] = (stats.researchAreas[researchArea] || 0) + 1;
-                    }
-                }
-            }
-        });
-
-        return stats;
-    }
 
     function displayStats() {
         const FEATURE_FIELDS = [
@@ -965,48 +698,41 @@ document.addEventListener('DOMContentLoaded', function () {
             console.warn("Canvas context for techniquesPieChart not found.");
         }
 
-        const stats = calculateStats(); 
-        
-        // Helper function to populate a list element
-        function populateList(listElementId, dataObj) {
-            // ... (existing populateList code remains exactly the same) ...
-            const listElement = document.getElementById(listElementId);
-            listElement.innerHTML = ''; // Clear previous content
-            // Convert object to array, filter for count > 1, then sort
-            // 1. Convert to array of [name, count] pairs
-            // 2. Filter: keep only entries where count > 1
-            // 3. Sort: by count (desc) then name (asc)
-            const sortedEntries = Object.entries(dataObj)
-                .filter(([name, count]) => count > 1) // Only include counts > 1
-                .sort((a, b) => {
-                    // Sort by count descending
-                    if (b[1] !== a[1]) {
-                        return b[1] - a[1];
+        // --- 1. FETCH SERVER STATS ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const statsUrl = `/get_stats?${urlParams.toString()}`;
+
+        fetch(statsUrl).then(response => {
+            return response.json();
+        }).then(data => {
+            if (data.status === 'success' && data.data) {
+                const statsData = data.data;
+
+                // --- 2. POPULATE LISTS WITH SERVER DATA (ONLY) ---
+                function populateListFromServer(listElementId, dataArray) {
+                    const listElement = document.getElementById(listElementId);
+                    listElement.innerHTML = '';
+                    if (!dataArray || dataArray.length === 0) {
+                        listElement.innerHTML = '<li>No items with count > 1.</li>';
+                        return;
                     }
-                    // If counts are equal, sort by name ascending
-                    return a[0].localeCompare(b[0]);
-                });
-            if (sortedEntries.length === 0) {
-                listElement.innerHTML = '<li>No items with count > 1.</li>';
-                return;
+                    dataArray.forEach(item => {
+                        const listItem = document.createElement('li');
+                        const escapedName = (item.name || '').toString()
+                            .replace(/&/g, "&amp;").replace(/</g, "<")
+                            .replace(/>/g, ">").replace(/"/g, "&quot;")
+                            .replace(/'/g, "&#39;");
+                        listItem.innerHTML = `<span class="count">${item.count}</span> <span class="name">${escapedName}</span>`;
+                        listElement.appendChild(listItem);
+                    });
+                }
+
+                populateListFromServer('journalStatsList', statsData.journals);
+                populateListFromServer('keywordStatsList', statsData.keywords);
+                populateListFromServer('authorStatsList', statsData.authors);
+                populateListFromServer('researchAreaStatsList', statsData.research_areas);
             }
-            sortedEntries.forEach(([name, count]) => {
-                const listItem = document.createElement('li');
-                // Escape potential HTML in names (basic)
-                const escapedName = name.replace(/&/g, "&amp;").replace(/</g, "<").replace(/>/g, ">");
-                // Swap the order: count first, then name
-                listItem.innerHTML = `<span class="count">${count}</span> <span class="name">${escapedName}</span>`;
-                listElement.appendChild(listItem);
-            });
-        }
-
-        // --- Animate In ---
-        // Populate content first (existing calls - these also remain unchanged)
-        populateList('journalStatsList', stats.journals);
-        populateList('keywordStatsList', stats.keywords);
-        populateList('authorStatsList', stats.authors);
-        populateList('researchAreaStatsList', stats.researchAreas);
-
+        })
         // Trigger reflow to ensure styles are applied before adding the active class
         // This helps ensure the transition plays correctly on the first open
         modal.offsetHeight;
@@ -1022,26 +748,24 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Event Listeners for Stats Modal
-    if (statsBtn) {
-        statsBtn.addEventListener('click', function() {
-            // Add busy cursor while calculating
-            document.documentElement.classList.add('busyCursor');
-            // Use setTimeout to allow cursor change to render
-            setTimeout(() => {
-                displayStats();
-                document.documentElement.classList.remove('busyCursor');
-            }, 10);
-        });
-    }
-
-    if (spanClose) {
-        spanClose.addEventListener('click', closeModal);
-    }
-
-    // Close modal if user clicks outside the modal content
-    window.addEventListener('click', function(event) {
-        if (event.target === modal) {
-            closeModal();
-        }
+    statsBtn.addEventListener('click', function() {
+        // Add busy cursor while calculating
+        document.documentElement.classList.add('busyCursor');
+        // Use setTimeout to allow cursor change to render
+        setTimeout(() => {
+            displayStats();
+            document.documentElement.classList.remove('busyCursor');
+        }, 10);
     });
+    spanClose.addEventListener('click', closeModal);
+
+    // --- Close Modal
+    document.addEventListener('keydown', function(event) {
+        // Check if the pressed key is 'Escape' and if the modal is currently active
+        if (event.key === 'Escape' && modal.classList.contains('modal-active')) {  closeModal();  }
+    });
+    window.addEventListener('click', function(event) {
+        if (event.target === modal) {    closeModal();      }
+    });
+    applyFilters(); //apply initial filtering    
 });

@@ -12,12 +12,10 @@
                     {{ paper.title }}
                 {% endif %}
             </td>
-            <!-- <td class="secondary-text-cell">{{ paper.authors_truncated }}</td> -->
             <td class="secondary-text-cell number-cell" style="width:28px; min-width:28px; max-width:28px">{{ paper.year or '' }}</td>
             <td class="secondary-text-cell">{{ paper.journal }}</td>        
             <td class="secondary-text-cell number-cell">{{ paper.page_count or '' }}</td>
 
-            <!-- Classification Summary Cells -->
             <td class="status-cell editable-status" data-field="is_offtopic">{{ paper.is_offtopic | render_status }}</td>
             <td class="secondary-text-cell number-cell">{{ paper.relevance or '' }}</td>        <!-- NEW DATA CELL: Relevance -->
             <td class="status-cell editable-status" data-field="is_survey">{{ paper.is_survey | render_status }}</td>
@@ -25,7 +23,6 @@
             <td class="status-cell editable-status" data-field="is_smt">{{ paper.is_smt | render_status }}</td>
             <td class="status-cell editable-status" data-field="is_x_ray">{{ paper.is_x_ray | render_status }}</td>
 
-            <!-- IMPORTANT: Update these cells to use the new feature keys -->
             <td class="status-cell editable-status highlight-status" data-field="features_tracks">{{ paper.features.tracks | render_status }}</td>
             <td class="status-cell editable-status highlight-status" data-field="features_holes">{{ paper.features.holes | render_status }}</td>
             <td class="status-cell editable-status"  data-field="features_solder_insufficient">{{ paper.features.solder_insufficient | render_status }}</td>
@@ -37,7 +34,6 @@
             <td class="status-cell editable-status highlight-status" data-field="features_orientation">{{ paper.features.orientation | render_status }}</td>
             <td class="status-cell editable-status highlight-status" data-field="features_cosmetic">{{ paper.features.cosmetic | render_status }}</td>
 
-            <!-- Techniques Summary Cells (Updated list) -->
             <td class="status-cell editable-status" data-field="technique_classic_cv_based">{{ paper.technique.classic_cv_based | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_ml_traditional">{{ paper.technique.ml_traditional | render_status }}</td>
             <td class="status-cell editable-status" data-field="technique_dl_cnn_classifier">{{ paper.technique.dl_cnn_classifier | render_status }}</td>
@@ -54,13 +50,11 @@
             <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
             <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>           
             <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span></td>
-            <!-- <td class="toggle-btn"><span>Show</span></td> -->
         </tr>
         <tr class="detail-row">
             <td colspan="36">
-                <!-- Content will be loaded dynamically -->
-                <div class="detail-content-placeholder"> <!-- Add a placeholder div -->
-                    <!-- <p>Loading details...</p> Optional loading message -->
+                <div class="detail-content-placeholder"> 
+                    <!-- Content will be loaded dynamically -->
                 </div>
             </td>
         </tr>

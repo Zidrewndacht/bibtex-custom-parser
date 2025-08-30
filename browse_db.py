@@ -11,6 +11,7 @@ import os
 import sys
 import threading
 import webbrowser
+from collections import Counter
 
 # Import globals, the classification and verification modules
 import globals
@@ -84,7 +85,7 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
     if min_page_count is not None:
         try:
             min_page_count = int(min_page_count)
-            conditions.append("(page_count IS NULL OR page_count = '' OR page_count >= ?)")
+            conditions.append("(page_count IS NULL OR page_count = '' OR page_count > ?)")
             params.append(min_page_count)
         except (ValueError, TypeError):
             pass
@@ -151,6 +152,7 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
         paper_list.append(paper_dict)
     return paper_list
 
+# Editing functions: update_paper_custom_fields, fetch_updated_paper_data
 def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """Update the custom classification fields for a paper and audit fields.
        Handles partial updates based on keys present in `data`."""
@@ -194,7 +196,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_values.append(data['research_area'])
 
 
-    # Handle Page Count (Partial Update) - MODIFIED SECTION
     page_count_value_for_pages_update = None # Variable to hold the value for potential 'pages' update
     if 'page_count' in data:
         page_count_value = data['page_count']
@@ -212,8 +213,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_fields.append("page_count = ?")
         update_values.append(page_count_value)
 
-        # --- NEW LOGIC: Check if 'pages' should also be updated ---
-        # Fetch the current 'pages' value from the database
         cursor.execute("SELECT pages FROM papers WHERE id = ?", (paper_id,))
         row = cursor.fetchone()
         if row:
@@ -405,7 +404,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     else:
         return {'status': 'error', 'message': 'No rows updated. Paper ID might not exist or no changes were made.'}
 
-
 def fetch_updated_paper_data(paper_id):
     """Fetches the full paper data after classification/verification for client-side update."""
     conn = get_db_connection()
@@ -452,7 +450,8 @@ def fetch_updated_paper_data(paper_id):
             return {'status': 'error', 'message': 'Paper not found after update.'}
     finally:
         conn.close()
-        
+
+# render_papers_table Used for initial render from / and XHR updates     
 def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None, search_query_param=None):
     """Fetches papers based on filters and renders the papers_table.html template."""
     try:
@@ -498,66 +497,8 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
         # Return an error fragment or re-raise if preferred for the main route
         return "<p>Error loading table.</p>" # Basic error display
 
-@app.route('/get_detail_row', methods=['GET'])
-def get_detail_row():
-    """Endpoint to fetch and render the detail row content for a specific paper."""
-    paper_id = request.args.get('paper_id')
-    if not paper_id:
-        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
 
-    try:
-        conn = get_db_connection()
-        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        conn.close()
-
-        if paper:
-            # Process the paper data like in fetch_papers for consistency
-            paper_dict = dict(paper)
-            try:
-                paper_dict['features'] = json.loads(paper_dict['features'])
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['features'] = {}
-            try:
-                paper_dict['technique'] = json.loads(paper_dict['technique'])
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['technique'] = {}
-            # Note: We don't need changed_formatted or authors_truncated here probably,
-            # but including them keeps the template context consistent if needed.
-            # paper_dict['changed_formatted'] = format_changed_timestamp(paper_dict.get('changed'))
-            # paper_dict['authors_truncated'] = truncate_authors(paper_dict.get('authors', ''))
-
-            # Render the detail row template fragment for this specific paper
-            detail_html = render_template('detail_row.html', paper=paper_dict)
-            return jsonify({'status': 'success', 'html': detail_html})
-        else:
-            return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
-    except Exception as e:
-        print(f"Error fetching detail row for paper {paper_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
-
-
-# --- NEW ROUTE: Endpoint to load the table content via AJAX ---
-@app.route('/load_table', methods=['GET'])
-def load_table():
-    """Endpoint to fetch and render the table content based on current filters."""
-    # Get filter parameters from the request
-    hide_offtopic_param = request.args.get('hide_offtopic')
-    year_from_param = request.args.get('year_from')
-    year_to_param = request.args.get('year_to')
-    min_page_count_param = request.args.get('min_page_count')
-    # --- NEW: Get search query parameter ---
-    search_query_param = request.args.get('search_query')
-
-    # Use the updated helper function to render the table, passing the search query
-    table_html = render_papers_table(
-        hide_offtopic_param=hide_offtopic_param,
-        year_from_param=year_from_param,
-        year_to_param=year_to_param,
-        min_page_count_param=min_page_count_param,
-        search_query_param=search_query_param # Pass the search query
-    )
-    return table_html
-
+#Routes: 
 @app.route('/', methods=['GET'])
 def index():
     """Main page to display the table."""
@@ -607,36 +548,253 @@ def index():
         search_query_value=search_input_value  # Add this line
     )
 
-@app.route('/get_traces', methods=['GET'])
-def get_traces():
-    """Endpoint to fetch reasoning_trace and verifier_trace for a specific paper."""
+@app.route('/static_export', methods=['GET'])
+def static_export():
+    """Generate and serve a downloadable HTML snapshot based on current filters."""
+    try:
+        # --- Get filter parameters from the request (URL query params) ---
+        hide_offtopic_param = request.args.get('hide_offtopic')
+        year_from_param = request.args.get('year_from')
+        year_to_param = request.args.get('year_to')
+        min_page_count_param = request.args.get('min_page_count')
+        search_query_param = request.args.get('search_query') # Include search
+
+        # --- Determine filter values, using defaults if not provided or invalid ---
+        hide_offtopic = True # Default
+        if hide_offtopic_param is not None:
+            hide_offtopic = hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on']
+
+        year_from_value = int(year_from_param) if year_from_param is not None else DEFAULT_YEAR_FROM
+        year_to_value = int(year_to_param) if year_to_param is not None else DEFAULT_YEAR_TO
+        min_page_count_value = int(min_page_count_param) if min_page_count_param is not None else DEFAULT_MIN_PAGE_COUNT
+        search_query_value = search_query_param if search_query_param is not None else ""
+
+        # --- Fetch papers based on these filters ---
+        papers = fetch_papers(
+            hide_offtopic=hide_offtopic,
+            year_from=year_from_value,
+            year_to=year_to_value,
+            min_page_count=min_page_count_value,
+            search_query=search_query_value # Pass the search query
+        )
+
+        # --- Read static file contents ---
+        fonts_css_content = ""
+        style_css_content = ""
+        chart_js_content = ""
+        ghpages_js_content = ""
+        # Assuming static files are in a 'static' directory relative to the script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        static_dir = os.path.join(script_dir, 'static')
+        with open(os.path.join(static_dir, 'fonts.css'), 'r') as f:
+            fonts_css_content = f.read()
+        with open(os.path.join(static_dir, 'style.css'), 'r') as f:
+            style_css_content = f.read()
+        with open(os.path.join(static_dir, 'chart.js'), 'r') as f:
+            chart_js_content = f.read()
+        with open(os.path.join(static_dir, 'ghpages.js'), 'r', encoding='utf-8') as f:
+            ghpages_js_content = f.read()
+
+        # --- Render the static export template ---
+        papers_table_static_export = render_template(
+            'papers_table_static_export.html',
+            papers=papers,
+            type_emojis=globals.TYPE_EMOJIS,
+            default_type_emoji=globals.DEFAULT_TYPE_EMOJI,
+            hide_offtopic=hide_offtopic,
+            year_from_value=str(year_from_value),
+            year_to_value=str(year_to_value),
+            min_page_count_value=str(min_page_count_value),
+            search_query_value=search_query_value
+        )
+
+        # --- Render the main static export index template ---
+        full_html_content = render_template(
+            'index_static_export.html',
+            papers_table_static_export=papers_table_static_export,
+            hide_offtopic=hide_offtopic,
+            year_from_value=year_from_value, # Pass raw values if needed by template logic
+            year_to_value=year_to_value,
+            min_page_count_value=min_page_count_value,
+            search_query=search_query_value,
+            # --- Pass static content ---
+            fonts_css_content=Markup(fonts_css_content),
+            style_css_content=Markup(style_css_content),
+            chart_js_content=Markup(chart_js_content),
+            ghpages_js_content=Markup(ghpages_js_content)
+        )
+
+        # --- Create a filename based on filters ---
+        filename_parts = ["PCBPapers"]
+        if year_from_value == year_to_value:
+             filename_parts.append(str(year_from_value))
+        else:
+             filename_parts.append(f"{year_from_value}-{year_to_value}")
+        if min_page_count_value > 0:
+             filename_parts.append(f"min{min_page_count_value}pg")
+        if hide_offtopic:
+             filename_parts.append("noOfftopic")
+        if search_query_value:
+             # Sanitize search query for filename (basic)
+             safe_search = "".join(c for c in search_query_value if c.isalnum() or c in (' ', '-', '_')).rstrip()
+             if safe_search:
+                 filename_parts.append(f"search_{safe_search[:20]}") # Limit length
+        filename = "_".join(filename_parts) + ".html"
+
+        # --- Return as a downloadable attachment ---
+        from flask import Response
+        return Response(
+            full_html_content,
+            mimetype="text/html",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        print(f"Error generating static export: {e}")
+        # Return an error message or handle gracefully
+        return "Error generating export file.", 500
+
+
+@app.route('/get_detail_row', methods=['GET'])
+def get_detail_row():
+    """Endpoint to fetch and render the detail row content for a specific paper."""
     paper_id = request.args.get('paper_id')
     if not paper_id:
         return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
 
     try:
         conn = get_db_connection()
-        # Fetch only the trace columns
-        cursor = conn.execute(
-            "SELECT reasoning_trace, verifier_trace FROM papers WHERE id = ?",
-            (paper_id,)
-        )
-        row = cursor.fetchone()
+        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         conn.close()
 
-        if row:
-            return jsonify({
-                'status': 'success',
-                'reasoning_trace': row['reasoning_trace'],
-                'verifier_trace': row['verifier_trace']
-            })
+        if paper:
+            # Process the paper data like in fetch_papers for consistency
+            paper_dict = dict(paper)
+            try:
+                paper_dict['features'] = json.loads(paper_dict['features'])
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['features'] = {}
+            try:
+                paper_dict['technique'] = json.loads(paper_dict['technique'])
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['technique'] = {}
+            
+            # Render the detail row template fragment for this specific paper
+            detail_html = render_template('detail_row.html', paper=paper_dict)
+            return jsonify({'status': 'success', 'html': detail_html})
         else:
             return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+    except Exception as e:
+        print(f"Error fetching detail row for paper {paper_id}: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
+
+# Endpoint to load the table content via AJAX 
+@app.route('/load_table', methods=['GET'])
+def load_table():
+    """Endpoint to fetch and render the table content based on current filters."""
+    # Get filter parameters from the request
+    hide_offtopic_param = request.args.get('hide_offtopic')
+    year_from_param = request.args.get('year_from')
+    year_to_param = request.args.get('year_to')
+    min_page_count_param = request.args.get('min_page_count')
+    search_query_param = request.args.get('search_query')
+
+    # Use the updated helper function to render the table, passing the search query
+    table_html = render_papers_table(
+        hide_offtopic_param=hide_offtopic_param,
+        year_from_param=year_from_param,
+        year_to_param=year_to_param,
+        min_page_count_param=min_page_count_param,
+        search_query_param=search_query_param # Pass the search query
+    )
+    return table_html
+
+@app.route('/get_stats', methods=['GET'])
+def get_stats():
+    """Endpoint to fetch statistics (repeating journals, keywords, authors, research areas) based on current filters."""
+    
+    # --- Get filter parameters from the request (same as /load_table) ---
+    hide_offtopic_param = request.args.get('hide_offtopic')
+    year_from_param = request.args.get('year_from')
+    year_to_param = request.args.get('year_to')
+    min_page_count_param = request.args.get('min_page_count')
+    search_query_param = request.args.get('search_query')
+
+    try:
+        # --- Determine filter values, using defaults if not provided or invalid ---
+        # Replicating logic from render_papers_table for consistency
+        hide_offtopic = True # Default
+        if hide_offtopic_param is not None:
+            hide_offtopic = hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on']
+
+        year_from_value = int(year_from_param) if year_from_param is not None else DEFAULT_YEAR_FROM
+        year_to_value = int(year_to_param) if year_to_param is not None else DEFAULT_YEAR_TO
+        min_page_count_value = int(min_page_count_param) if min_page_count_param is not None else DEFAULT_MIN_PAGE_COUNT
+        search_query_value = search_query_param if search_query_param is not None else ""
+
+        # --- Fetch papers based on these filters ---
+        papers = fetch_papers(
+            hide_offtopic=hide_offtopic,
+            year_from=year_from_value,
+            year_to=year_to_value,
+            min_page_count=min_page_count_value,
+            search_query=search_query_value
+        )
+
+        # --- Calculate Stats from Fetched Papers ---
+        journal_counter = Counter()
+        keyword_counter = Counter()
+        author_counter = Counter()
+        research_area_counter = Counter()
+
+        for paper in papers:
+            # --- Journal/Conf ---
+            journal = paper.get('journal')
+            if journal:
+                journal_counter[journal] += 1
+
+            # --- Keywords ---
+            # Keywords are stored as a single string, split by ';'
+            keywords_str = paper.get('keywords', '')
+            if keywords_str:
+                 # Split robustly, handling potential extra spaces
+                 keywords_list = [kw.strip() for kw in keywords_str.split(';') if kw.strip()]
+                 keyword_counter.update(keywords_list)
+
+            # --- Authors ---
+            # Authors are stored as a single string, split by ';'
+            authors_str = paper.get('authors', '')
+            if authors_str:
+                # Split robustly, handling potential extra spaces
+                authors_list = [author.strip() for author in authors_str.split(';') if author.strip()]
+                author_counter.update(authors_list)
+
+            # --- Research Area ---
+            research_area = paper.get('research_area')
+            if research_area:
+                research_area_counter[research_area] += 1
+
+        # --- Filter counts > 1 and sort (matching client-side logic) ---
+        def filter_and_sort(counter):
+            # Filter items with count > 1
+            filtered_items = {item: count for item, count in counter.items() if count > 1}
+            # Sort by count descending, then by name ascending
+            sorted_items = sorted(filtered_items.items(), key=lambda x: (-x[1], x[0]))
+            # Convert back to a list of dictionaries for JSON serialization
+            return [{'name': name, 'count': count} for name, count in sorted_items]
+
+        stats_data = {
+            'journals': filter_and_sort(journal_counter),
+            'keywords': filter_and_sort(keyword_counter),
+            'authors': filter_and_sort(author_counter),
+            'research_areas': filter_and_sort(research_area_counter)
+        }
+
+        return jsonify({'status': 'success', 'data': stats_data})
 
     except Exception as e:
-        print(f"Error fetching traces for paper {paper_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch traces'}), 500
-
+        print(f"Error calculating stats: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to calculate statistics'}), 500
 
 @app.route('/update_paper', methods=['POST'])
 def update_paper():
@@ -654,7 +812,6 @@ def update_paper():
     except Exception as e:
         print(f"Error updating paper {paper_id}: {e}") # Log error
         return jsonify({'status': 'error', 'message': 'Failed to update database'}), 500
-
 
 # --- New Routes for Classification and Verification ---
 @app.route('/classify', methods=['POST'])
@@ -811,7 +968,7 @@ def upload_bibtex():
 
 
 
-# --- Jinja2-like filter for status rendering ---
+# --- Jinja2-like filters ---
 def render_status(value):
     """Render status value as emoji/symbol"""
     if value == 1 or value is True:
@@ -821,7 +978,6 @@ def render_status(value):
     else: # None or unknown
         return '❔' # Question mark for Unknown/Null
 
-# --- Jinja2-like filter for verified_by rendering (MODIFIED) ---
 def render_verified_by(value):
     """
     Render verified_by value as emoji.

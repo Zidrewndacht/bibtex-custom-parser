@@ -22,7 +22,8 @@
                 <tr>
                     <div class="main-header">
                         <div class="header-controls">
-                            <button class="action-btn" id="import-bibtex">Import <strong>BibTeX</strong></button>
+                            <button class="action-btn" id="import-bibtex-btn">Import <strong>BibTeX</strong></button>
+                            <button class="action-btn" id="export-html-btn">Export <strong>HTML</strong></button>
                         </div>
                         <div class="header-filters">
                             <!-- Moved to ontop-header -->
@@ -58,7 +59,6 @@
                             <!-- This button will now trigger a page reload with updated URL parameters -->
                             <button class="action-btn" id="apply-serverside-filters" style="display: none;"><span>Apply</span></button>
                         </div>
-
                     </th>
                     <th class="inferred-header" colspan="25" style="background: linear-gradient(90deg, hsl(170, 25%, 40%), rgb(77, 128, 92));"><!--NLP--->Inferred data</th>
                     
@@ -98,29 +98,29 @@
                     <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
 
                     <!-- Features Summary Columns (Updated list) -->
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><div><span>Tracks</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><div><span>Holes / Vias</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><span class="sort-indicator"></span><div><span>Tracks</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><span class="sort-indicator"></span><div><span>Holes / Vias</span></div></th>
 
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><div><span>Insufficient</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><div><span>Excessive</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><div><span>Void / Hole</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><div><span>Crack / Cold</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><span class="sort-indicator"></span><div><span>Insufficient</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><span class="sort-indicator"></span><div><span>Excessive</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><span class="sort-indicator"></span><div><span>Void / Hole</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><span class="sort-indicator"></span><div><span>Crack / Cold</span></div></th>
                     
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><div><span>Missing Comp</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><div><span>Wrong Comp</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><div><span>Orientation</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><div><span>Cosmetic</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><span class="sort-indicator"></span><div><span>Missing Comp</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><span class="sort-indicator"></span><div><span>Wrong Comp</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><span class="sort-indicator"></span><div><span>Orientation</span></div></th>
+                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><span class="sort-indicator"></span><div><span>Cosmetic</span></div></th>
 
                     <!-- Techniques Summary Columns (Updated list) -->
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><div><span>Classic CV</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><div><span>ML</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><div><span>CNN Classifier</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><div><span>CNN Detector</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><div><span>R-CNN Detector</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><div><span>Transformer</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><div><span>Other DL</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><div><span>Hybrid</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><div><span>Datasets</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><span class="sort-indicator"></span><div><span>Classic CV</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><span class="sort-indicator"></span><div><span>ML</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><span class="sort-indicator"></span><div><span>CNN Classifier</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><span class="sort-indicator"></span><div><span>CNN Detector</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><span class="sort-indicator"></span><div><span>R-CNN Detector</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><span class="sort-indicator"></span><div><span>Transformer</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><span class="sort-indicator"></span><div><span>Other DL</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><span class="sort-indicator"></span><div><span>Hybrid</span></div></th>
+                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><span class="sort-indicator"></span><div><span>Datasets</span></div></th>
 
                     <th data-sort="changed" style="width:46px; min-width:46px; max-width:46px">Last Changed <span class="sort-indicator"></span></th>
                     <th data-sort="changed_by" style="width:50px; min-width:50px; max-width:50px">Changed By <span class="sort-indicator"></span></th>

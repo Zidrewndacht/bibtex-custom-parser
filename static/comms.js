@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // --- BibTeX Import Logic ---
-    const importBibtexBtn = document.getElementById('import-bibtex');
+    const importBibtexBtn = document.getElementById('import-bibtex-btn');
     const bibtexFileInput = document.getElementById('bibtex-file-input');
     // const batchStatusMessage = document.getElementById('batch-status-message'); // Reuse existing status element
 
@@ -515,6 +515,57 @@ document.addEventListener('DOMContentLoaded', function () {
         console.warn("Import BibTeX button or file input not found.");
     }
     // --- End BibTeX Import Logic ---
+
+    // --- Export HTML Button ---
+    const exportHtmlBtn = document.getElementById('export-html-btn');
+    if (exportHtmlBtn) {
+        exportHtmlBtn.addEventListener('click', function() {
+            console.log("Export HTML button clicked");
+            // Gather current filter values from the UI elements
+            const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
+            const yearFromInput = document.getElementById('year-from');
+            const yearToInput = document.getElementById('year-to');
+            const minPageCountInput = document.getElementById('min-page-count');
+            const searchInput = document.getElementById('search-input'); // Get search input
+
+            let exportUrl = '/static_export?'; // Start building the URL
+
+            // Add filters to the URL query parameters
+            if (hideOfftopicCheckbox) {
+                exportUrl += `hide_offtopic=${hideOfftopicCheckbox.checked ? '1' : '0'}&`;
+            }
+            if (yearFromInput && yearFromInput.value) {
+                exportUrl += `year_from=${encodeURIComponent(yearFromInput.value)}&`;
+            }
+            if (yearToInput && yearToInput.value) {
+                exportUrl += `year_to=${encodeURIComponent(yearToInput.value)}&`;
+            }
+            if (minPageCountInput && minPageCountInput.value) {
+                exportUrl += `min_page_count=${encodeURIComponent(minPageCountInput.value)}&`;
+            }
+            if (searchInput && searchInput.value) { // Add search query
+                exportUrl += `search_query=${encodeURIComponent(searchInput.value)}&`;
+            }
+
+            // Remove trailing '&' or '?' if present
+            exportUrl = exportUrl.replace(/&$/, '');
+
+            console.log("Export URL:", exportUrl);
+
+            // --- Trigger the download asynchronously ---
+            // Create a temporary invisible anchor element
+            const link = document.createElement('a');
+            link.href = exportUrl;
+            link.style.display = 'none';
+            // The filename will be suggested by the server's Content-Disposition header
+            // link.download = 'PCBPapers_export.html'; // Optional: Suggest a default name if server doesn't set it
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            // Note: The browser's download manager should handle the file save dialog.
+        });
+    }
+
 });
 
 // --- Extracted AJAX logic for reuse ---
