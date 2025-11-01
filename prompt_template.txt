@@ -1,54 +1,207 @@
 Given the data from the specific paper at the end (mainly, Title, Abstract and Keywords), fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
-Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null. Do not guess true or false unless there's enough evidence in the provided abstract/keywords/etc.
+
+If the contents given explicitly states or strongly implies the fact, set true/false; otherwise set null. 
+
+# Read the paper data once, fill research_area and relevance first.
+# If relevance ≤ 2, set is_offtopic = true and null the rest.
+# Else set is_offtopic = false and proceed.
 
 research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
-is_offtopic: null     # We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all classification fields following this one (filling only the research area and relevance with actual contents). *Only set this to false if at least one feature from the 'features' list below (including "other") can be set to true.*
-relevance: 7          # An integer from 0 to 10 estimating how relevant the paper is for the topic according to the description above. 0 for completely irrelevant, 10 for completely relevant. Offtopic papers should have relevance around 0 to 1, rarely 2.
+is_offtopic: null     # We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated optical inspection / defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all classification fields following this one (other than the research area and relevance, which should still be filled accordingly to the actual contents). *Only set this to false if at least one feature from the 'features' list below (including any of the "other" ones) can be set to true.*
+relevance: 6          # An integer from 0 to 10 estimating how relevant the paper is for the topic according to the description above. 0 for completely irrelevant, 10 for completely relevant.
 is_survey: null       # true for survey/review/etc., false for implementations, new research, etc.
-is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
-is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear.
-is_x_ray: null        # true for X-ray inspection, false for standard optical (visible light) inspection.
-features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper (or the surveyed papers if it's a survey). Mark as false if the paper explicitly exclude a class, otherwise keep as unknown.
-	# Empty PCB issues:
+is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear. 
+is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear. Both is_through_hole and is_smt may be set simultaneously when applicable.
+is_x_ray: null        # true for X-ray inspection (including multimodal), false for standard optical (visible light only) inspection. Our focus is visible-light inspection so X-ray lowers the relevance score of a paper.
+features:             # true, false, null for unknown/unclear. Mark as true all the types of defect which are detected by the implementation(s) described in the paper (or the surveyed papers if it's a survey). Mark as false if the paper explicitly exclude a class, otherwise keep unknowns null.
+	# Bare PCB issues:
     tracks: null # any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
     holes: null # for hole plating, drilling defects and any other PCB hole issues.
-    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue. Set this to true if paper talks about bare PCB defects but *doesn't mention which ones.*
+    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue.  Set this to true if paper talks about bare PCB defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
 	
 	# soldering/welding issues:
     solder_insufficient: null # too little solder, dry joint, poor fillet
     solder_excess: null # solder ball / bridge / short between pads or leads
     solder_void: null # voids, blow-holes, pin-holes inside the joint
     solder_crack: null # fatigue cracks, fractured or “cold” joints
-    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects but *doesn't mention which ones.*
+    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
 	
-	# component issues: 
+	# component/PCBA issues: 
     orientation: null # for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
     wrong_component: null # for components installed in the wrong location, might also detect components being installed where none should be.
     missing_component: null # for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
-    component_other: null # for any other or unspecified component issue. Set this to true if paper talks about component defects *but doesn't mention which ones.*
+    component_other: null # for any other or unspecified component issue.  Set this to true if paper talks about component defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
 	
   # other issues:
 	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
-    other: "" #a string naming other types of detected defects not specified above, if any, blank if not applicable. Not a boolean field.
+    other: "" # This one is not a boolean field, but a string naming other types of detected defects not specified above, if any. Keep null or blank if not applicable.
 
-technique:                # true, false, null for unknown/unclear. Identify all techniques used (if it's an implementation), or all techniques reviewed (if it's a survey). For each single DL-based implementation, set exactly one dl_* flag to true. For surveys (or papers that make more than one implementation) there may be multiple ones:
-	classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
+technique:                  # true, false, null for unknown/unclear. Identify all techniques used (if it's an implementation), or all techniques reviewed (if it's a survey).
+    classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
 
-	ml_traditional: null    # true for any non-deep ML: SVM, RF, K-NN, LVQ, Boosting, etc. Does not include deep learning like CNNs or Transformers.
+    ml_traditional: null    # true for any non-deep ML: SVM, RF, K-NN, LVQ, Boosting, etc. Does not include deep learning like CNNs or Transformers.
 
-	dl_cnn_classifier: null # true when the only DL component is a plain CNN used as an image classifier (ResNet-50, EfficientNet-B0, VGG, …): no detection, no segmentation, no attention blocks.
-	dl_cnn_detector: null   # true for single-shot detectors whose backbone is CNN (YOLOv3, YOLOv4, YOLOv5, YOLOv6, YOLOv7, YOLOv9, YOLOv10, SSD, RetinaNet, FCOS, CenterNet, etc.). Also true for otherwise single-stage CNNs with an attached Transformer module.
-	dl_rcnn_detector: null  # true for two-stage (R-CNN family) or anchor-based region proposal detectors: R-CNN, Fast R-CNN, Faster R-CNN, Mask R-CNN, Cascade R-CNN, DetectoRS, Sparse R-CNN, etc.  Also true for otherwise two-stage CNNs with an attached Transformer module.
-	dl_transformer: null    # true for any model whose core is attention/transformer blocks, including pure ViT, DETR, Deformable DETR, YOLOv8-seg, YOLOv12, RT-DETR, SegFormer, Swin, etc. Also, if the paper adds a transformer module to another model like a CNN, set both this and the corresponding CNN field as true.
-	dl_other: null          # for any other DL architecture not covered above (e.g. pure Autoencoder, GAN, Diffusion, MLP-Mixer).
+    dl_cnn_classifier: null # true when the only DL component is a plain CNN used as an image classifier (ResNet-50, EfficientNet-B0, VGG, …): no detection, no segmentation, no attention blocks.
+    dl_cnn_detector: null   # true for single-shot detectors whose backbone is CNN (YOLOv3, YOLOv4, YOLOv5, YOLOv6, YOLOv7, YOLOv9, YOLOv10, SSD, RetinaNet, FCOS, CenterNet, etc.). Also true for otherwise single-stage CNNs with an attached Transformer module.
+    dl_rcnn_detector: null  # true for two-stage (R-CNN family) or anchor-based region proposal detectors: R-CNN, Fast R-CNN, Faster R-CNN, Mask R-CNN, Cascade R-CNN, DetectoRS, Sparse R-CNN, etc.  Also true for otherwise two-stage CNNs with an attached Transformer module.
+    dl_transformer: null    # true for any model whose core is attention/transformer blocks, including pure ViT, DETR, Deformable DETR, YOLOv8-seg, YOLOv12, RT-DETR, SegFormer, Swin, etc. Also, if the paper adds a transformer module to another model like a CNN, set both this and the corresponding CNN field as true.
+    dl_other: null          # for any other DL architecture not covered above (e.g. pure Autoencoder, GAN, Diffusion, MLP-Mixer). Unlike the "feature_other, this is a boolean field, as the related string goes on a different field below.
 
-	hybrid: null            # true if the paper explicitly combines categories above (classic + DL, classic + ML, ML + DL, but not DL + DL).  If hybrid is true, also set each constituent technique to true.
-	model: "name"			      # model name or comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
-	available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+    hybrid: null            # true if the paper explicitly combines *different* sub-categories (classic_, ml_, dl_) above (classic CV + DL, classic CV + traditional ML, traditional ML + DL, *but not DL + DL as those are all from the same sub-category*).  When hybrid is true, also set each constituent technique to true. For papers with an implementation that only mixes multiple DL techniques, just set all relevant DL techniques as true and keep this one as false.
+    model: "name"			      # model name or comma-separated list of model names if multiple models are mentioned (YOLO, ResNet, DETR, etc.), "in-house" if unnamed ML/DL model is developed in the paper itself, null if no model applies.
+    available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 
 Below are some example outputs, from random papers, for structure reference only:
 
-**Implementation using YOLO for SMT PCB inspection**
+Title: “Automated visual inspection of populated circuit boards with convolutional networks”  
+Abstract: “…We train a CNN to detect missing components on assembled PCBs… Experimental images come from a commercial SMT line…”  
+Keywords: missing component, CNN, SMT, PCBA
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 7,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": null,
+    "holes": null,
+    "bare_pcb_other": false,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": false,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": true,
+    "component_other": null,
+    "cosmetic": null,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": false,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "in-house",
+    "available_dataset": false
+  }}
+}}
+
+Justification: only “missing component” is explicitly mentioned; everything else stays null or false. Relevance 7 because the paper is narrow but clearly inside the target domain.
+
+---
+
+Title: “Automated optical inspection of solder-paste deposits on fine-pitch pads”  
+Abstract: “…We measure paste volume and flag insufficient or excessive deposits before component placement…”  
+Keywords: solder paste, AOI, fine-pitch, stencil printing
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 8,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": false,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "component_other": null,
+    "cosmetic": null,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": false,
+    "dl_cnn_classifier": false,
+    "dl_cnn_detector": false,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "in-house",
+    "available_dataset": false
+  }}
+}}
+
+Justification: the phrase “before component placement” and “fine-pitch pads” strongly implies SMT even though the acronym is absent; hence **is_smt** = true. Only solder-insufficient/excess are implied, the rest remain null.
+
+---
+
+Title: “Twenty years of automatic PCB inspection: a comprehensive review”  
+Abstract: “…We cover bare-board, solder and assembly defects … including lifted pads, mouse-bites, dewetting, …”  
+Keywords: PCB inspection, survey, defect review
+
+{{
+  "research_area": "computer sciences",
+  "is_offtopic": false,
+  "relevance": 9,
+  "is_survey": true,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": true,
+    "holes": true,
+    "bare_pcb_other": true,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": true,
+    "solder_crack": true,
+    "solder_other": true,
+    "orientation": true,
+    "wrong_component": true,
+    "missing_component": true,
+    "component_other": true,
+    "cosmetic": true,
+    "other": "lifted pads, mouse-bites, dewetting"
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": true,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": true,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": true,
+    "model": "in-house",
+    "available_dataset": null
+  }}
+}}
+
+Justification: broad survey ⇒ most feature flags set to true; unknown imaging modalities left null. The string field captures the extra defect names.
+
+Below are the **five original examples** rewritten in the new, fully-self-contained format:
+
+* Title  
+* Abstract  
+* Keywords  
+→ JSON output (new rules applied)  
+→ Short justification (any inconsistency fixed).
+
+---
+
+Title: “Real-time SMT defect detection with YOLOv5”  
+Abstract: “A YOLOv5 network is trained to recognise solder bridges, insufficient solder, missing components and track defects on surface-mounted PCB assemblies. 2 500 colour images acquired from a 12 MP industrial camera on an SMT line are used; the dataset is released publicly.”  
+Keywords: YOLOv5, SMT, solder bridge, missing component, track defect, dataset
 
 {{
   "research_area": "electrical engineering",
@@ -66,17 +219,18 @@ Below are some example outputs, from random papers, for structure reference only
     "solder_excess": true,
     "solder_void": null,
     "solder_crack": null,
-    "solder_other": null,
-    "orientation": true,
-    "wrong_component": true,
+    "solder_other": false,
+    "orientation": null,
+    "wrong_component": null,
     "missing_component": true,
-    "component_other": null,
-    "cosmetic": true,
-    "other": null
+    "component_other": false,
+    "cosmetic": null,
+    "other": ""
   }},
   "technique": {{
     "classic_cv_based": false,
     "ml_traditional": false,
+    "dl_cnn_classifier": false,
     "dl_cnn_detector": true,
     "dl_rcnn_detector": false,
     "dl_transformer": false,
@@ -87,11 +241,13 @@ Below are some example outputs, from random papers, for structure reference only
   }}
 }}
 
-**Justification**:  
-This paper presents an implementation of YOLOv5 applied to optical inspection of surface-mounted PCBs. It detects multiple defect types including solder bridges, missing components, and track issues. The dataset is publicly released. All relevant fields are set accordingly. Strongly on-topic with high relevance.
+Justification: paper explicitly lists every defect that is set to true; optical imaging ⇒ is_x_ray = false; dataset released ⇒ available_dataset = true; no through-hole mention ⇒ is_through_hole = false. Clean match with new rules.
 
 ---
-**Mid 2010s survey paper on deep learning methods for PCB defect detection**
+
+Title: “Deep-learning methods for PCB defect inspection: a comprehensive survey”  
+Abstract: “We review CNN-based classifiers and detectors (AlexNet, VGG, ResNet, R-CNN) applied to tracks, holes, solder joints (bridges, voids, cracks) and component errors. Earlier classic-CV and traditional-ML works are also summarised. Range 2000-2016”  
+Keywords: PCB inspection, deep learning, survey, CNN, R-CNN, solder defects
 
 {{
   "research_area": "computer sciences",
@@ -110,36 +266,39 @@ This paper presents an implementation of YOLOv5 applied to optical inspection of
     "solder_void": true,
     "solder_crack": true,
     "solder_other": true,
-    "orientation": null,
-    "wrong_component": null,
-    "missing_component": null,
-    "component_other": null,
+    "orientation": true,
+    "wrong_component": true,
+    "missing_component": true,
+    "component_other": true,
     "cosmetic": false,
     "other": "via misalignment, pad lifting"
   }},
   "technique": {{
-    "classic_cv_based": false,
+    "classic_cv_based": true,
     "ml_traditional": true,
+    "dl_cnn_classifier": true,
     "dl_cnn_detector": true,
     "dl_rcnn_detector": true,
     "dl_transformer": false,
     "dl_other": false,
     "hybrid": true,
-    "model": "ResNet, YOLOv3, Faster R-CNN, DETR",
+    "model": "AlexNet, VGG, ResNet, Faster R-CNN",
     "available_dataset": null
   }}
 }}
 
-**Justification**:  
-This is a comprehensive survey reviewing various techniques (ML, DL) used in PCB defect detection. It covers both SMT and through-hole (though not specified), and includes X-ray and optical methods. Since it's a survey, `is_survey = true`, and multiple techniques are marked as `true`. High relevance due to broad coverage of the target domain. It does not cover Transformer because that wasn't yet a thing at the time of the survey.
+Justification: broad survey ⇒ most flags true; imaging modality not specified ⇒ null; no Transformer coverage (given no Transformer papers even exist at the time) ⇒ dl_transformer = false; hybrid = true because classic-CV + traditional-ML + DL are all reviewed.
 
 ---
-**X-ray based void detection in solder joints using CNN classifier**
+
+Title: “X-ray void detection in BGA solder joints using a ResNet-50 classifier”  
+Abstract: “2-D X-ray images of BGA joints are classified by ResNet-50 into ‘void’ or ‘acceptable’. The method is validated on both SMT and PTH assemblies.”  
+Keywords: X-ray, BGA, void, ResNet-50, SMT, PTH
 
 {{
   "research_area": "electronics manufacturing",
   "is_offtopic": false,
-  "relevance": 7,
+  "relevance": 5,
   "is_survey": false,
   "is_through_hole": true,
   "is_smt": true,
@@ -152,17 +311,18 @@ This is a comprehensive survey reviewing various techniques (ML, DL) used in PCB
     "solder_excess": false,
     "solder_void": true,
     "solder_crack": null,
-    "solder_other": null,
+    "solder_other": false,
     "orientation": false,
     "wrong_component": false,
     "missing_component": false,
     "component_other": false,
     "cosmetic": false,
-    "other": null
+    "other": ""
   }},
   "technique": {{
     "classic_cv_based": false,
     "ml_traditional": false,
+    "dl_cnn_classifier": true,
     "dl_cnn_detector": false,
     "dl_rcnn_detector": false,
     "dl_transformer": false,
@@ -173,11 +333,13 @@ This is a comprehensive survey reviewing various techniques (ML, DL) used in PCB
   }}
 }}
 
-**Justification**:  
-The paper focuses specifically on detecting solder voids in BGA joints using X-ray imaging and a ResNet-50 classifier. It applies to both SMT and through-hole (implied by context). Very narrow scope but valid implementation in the target field. Relevance is moderate because it addresses only one defect type.
+Justification: only void detection is mentioned; BGA implies both SMT and (possibly) PTH ⇒ both true; plain classifier ⇒ dl_cnn_classifier = true, remaining DL flags false; no dataset offer ⇒ available_dataset = false.
 
 ---
-**Defect detection in textile manufacturing using computer vision**
+
+Title: “Computer-vision defect detection in woven fabrics”  
+Abstract: “A CNN-based system detects broken threads and colour stains on cotton textiles. Images are captured by a line-scan camera above the loom.”  
+Keywords: fabric inspection, textile, CNN, defect detection
 
 {{
   "research_area": "materials engineering",
@@ -201,11 +363,12 @@ The paper focuses specifically on detecting solder voids in BGA joints using X-r
     "missing_component": null,
     "component_other": null,
     "cosmetic": null,
-    "other": null
+    "other": ""
   }},
   "technique": {{
     "classic_cv_based": null,
     "ml_traditional": null,
+    "dl_cnn_classifier": null,
     "dl_cnn_detector": null,
     "dl_rcnn_detector": null,
     "dl_transformer": null,
@@ -216,12 +379,13 @@ The paper focuses specifically on detecting solder voids in BGA joints using X-r
   }}
 }}
 
-**Justification**:  
-Although this paper uses computer vision and deep learning for *defect detection*, it is applied to **textile manufacturing**, not PCBs or electronics. Therefore, it's **off-topic**. `is_offtopic = true`, so all subsequent fields are `null`. The research area is correctly identified as materials engineering.
+Justification: no electronics, no PCBs ⇒ offtopic; relevance 1 because “defect detection” vocabulary is shared; all downstream fields nulled per rule.
 
 ---
 
-**Blockchain-based voting system**
+Title: “A secure blockchain-based remote voting protocol”  
+Abstract: “Smart-contract architecture ensuring voter anonymity and verifiability for national elections.”  
+Keywords: blockchain, voting, smart contract
 
 {{
   "research_area": "computer sciences",
@@ -245,11 +409,12 @@ Although this paper uses computer vision and deep learning for *defect detection
     "missing_component": null,
     "component_other": null,
     "cosmetic": null,
-    "other": null
+    "other": ""
   }},
   "technique": {{
     "classic_cv_based": null,
     "ml_traditional": null,
+    "dl_cnn_classifier": null,
     "dl_cnn_detector": null,
     "dl_rcnn_detector": null,
     "dl_transformer": null,
@@ -260,10 +425,9 @@ Although this paper uses computer vision and deep learning for *defect detection
   }}
 }}
 
-**Justification**:  
-This paper proposes a blockchain solution for secure digital voting. There is **no mention of PCBs, defect detection, image processing, or hardware inspection**. It is **completely unrelated** to the topic. Hence, `is_offtopic = true`, all lower fields are `null`, and relevance is 0. Research area is broadly computer science, but still far off-topic.
+Justification: zero overlap with PCB or inspection ⇒ relevance 0, offtopic true, everything nulled.
 
---
+-----
 
 Finally, below is the paper you will process. Answer accordingly:
 
