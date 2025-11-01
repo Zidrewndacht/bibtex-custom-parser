@@ -704,7 +704,7 @@ function prepareScopeData(totalVisiblePaperCount, totalAllPaperCount) {
     //console.log(`[prepareScopeData] Document ID: ${document.body.id}, Total Loaded (Export) / Total DB (Main): ${document.body.id === 'html-export' ? document.querySelectorAll('#papersTable tbody tr[data-paper-id]').length : totalAllPaperCount}, Visible (On-topic): ${ontopicCount}, Calculated Off-topic: ${offtopicCount}`); // Debug log
 
     return {
-        labels: ['Filtered', 'Total'],
+        labels: ['On-topic', 'Off-topic'],
         datasets: [{
             label: 'Dataset Scope (On-topic vs Off-topic)',
             data: [ontopicCount, offtopicCount],

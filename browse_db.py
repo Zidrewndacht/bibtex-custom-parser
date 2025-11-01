@@ -5,20 +5,17 @@ import argparse
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, abort, send_from_directory, Response, send_file
 from markupsafe import Markup 
-import argparse
 import tempfile
 import os
 import sys
 import threading
 import webbrowser
-from collections import Counter
-import rcssmin
 import rjsmin
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill 
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from werkzeug.utils import secure_filename # Ensure this is imported
+from werkzeug.utils import secure_filename 
 import gzip
 import base64
 import zstandard as zstd

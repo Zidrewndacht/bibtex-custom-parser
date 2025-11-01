@@ -190,10 +190,10 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, mod
     
     chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
-    payload = { #official recommended parameters from Qwen:
+    payload = { #official recommended parameters from Qwen3 - Temperature=0.6 for Qwwen3-thinking, 1.0 for Qwen3VL-thinking
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6,
+        "temperature": 0.6, 
         "top_p": 0.95, 
         "top_k": 20, 
         "min_p": 0,

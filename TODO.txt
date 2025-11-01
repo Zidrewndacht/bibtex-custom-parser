@@ -196,22 +196,25 @@ OK             Add client filters to URL
 OK                      Respect defaults from HTML
 OK             Add searchable authors/keywords
 
-OK             Add client sorting to URL
+OK     Add client sorting to URL
 OK                      Fix sorting regression
-OK             Add open detail rows to URL
+OK     Add open detail rows to URL
 
-OK		Improve batch tasks from Web GUI;
-OK				Run batches in a separate process
-OK				Add no_features and on_topic_implementations batch modes to Web
-OK				Auto-verify after classification by default from Web.
+OK	Improve batch tasks from Web GUI;
+OK	        Run batches in a separate process
+OK		Add no_features and on_topic_implementations batch modes to Web
+OK		Auto-verify after classification by default from Web.
 
-OK		Embed fonts (Inter Tight / Twemoji) in HTML export for consistency;
+OK	Embed fonts (Inter Tight / Twemoji) in HTML export for consistency;
 
-OK		Fix sort by alphabetic fields
-OK		Fix sort by last changed date
+OK	Fix sort by alphabetic fields
+OK	Fix sort by last changed date
 
         Improve ugly/inconsistent default checkboxes
 OK                Show negative vs positive checkboxes differently (tri-state) 
+
+        Better onboarding:
+                Automatic delete placeholder ID 1 when first importing
 
         Refactor browse_db.py (too large)?
 OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~1900 lines though;
@@ -220,10 +223,13 @@ OK              Getting rid of server-side stats and search already reduced it a
                 Moving helpers away is fine, but there are few.
 
 		Add some 'agentic' functionality:
-				Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) - check existing conference names before creating to ensure no two names for the same conference;
+				Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
+                                        check existing conference names before creating to ensure no two names for the same conference;
+                                        Also look at the existing model names and research areas, etc. when inferring a new one?
+                                Automatic group together synonym keywords
 				Automatic re-run misclassifications indefinitely (with some way to avoid eternal loop in the same ambiguous paper?);
 				Potential tools: 
-						PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
+					PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
 						...?
 
         Refactor comms.js

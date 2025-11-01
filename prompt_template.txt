@@ -1,4 +1,4 @@
-Given the data from the specific paper at the end, fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
+Given the data from the specific paper at the end (mainly, Title, Abstract and Keywords), fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
 Only write 'true' or 'false' if the contents given (abstract, title, keywords, etc.) make it clear that it is the case. If unsure, fill the field with null. Do not guess true or false unless there's enough evidence in the provided abstract/keywords/etc.
 
 research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
@@ -29,7 +29,7 @@ features:             # true, false, null for unknown/unclear. Mark as true all 
 	
   # other issues:
 	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
-    other: "" #"string naming other types of detected defects not specified above, if any"
+    other: "" #a string naming other types of detected defects not specified above, if any, blank if not applicable. Not a boolean field.
 
 technique:                # true, false, null for unknown/unclear. Identify all techniques used (if it's an implementation), or all techniques reviewed (if it's a survey). For each single DL-based implementation, set exactly one dl_* flag to true. For surveys (or papers that make more than one implementation) there may be multiple ones:
 	classic_cv_based: null  # for general pattern recognition techniques that do not leverage machine learning: true if the method is entirely rule-based or uses classical image-processing / pattern-recognition without learned parameters (histogram matching, morphological filtering, template matching, etc.). May or may not leverage optimization algorithms, like genetic, PSO, etc.
@@ -42,7 +42,7 @@ technique:                # true, false, null for unknown/unclear. Identify all 
 	dl_transformer: null    # true for any model whose core is attention/transformer blocks, including pure ViT, DETR, Deformable DETR, YOLOv8-seg, YOLOv12, RT-DETR, SegFormer, Swin, etc. Also, if the paper adds a transformer module to another model like a CNN, set both this and the corresponding CNN field as true.
 	dl_other: null          # for any other DL architecture not covered above (e.g. pure Autoencoder, GAN, Diffusion, MLP-Mixer).
 
-	hybrid: null            # true if the paper explicitly combines categories above (classic + DL, classic + ML, ML + DL).  If hybrid is true, also set each constituent technique to true.
+	hybrid: null            # true if the paper explicitly combines categories above (classic + DL, classic + ML, ML + DL, but not DL + DL).  If hybrid is true, also set each constituent technique to true.
 	model: "name"			      # model name or comma-separated list if multiple models are used (YOLO, ResNet, DETR, etc.), null if not ML, "in-house" if unnamed ML model is developed in the paper itself.
 	available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
 

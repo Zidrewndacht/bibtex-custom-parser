@@ -24,215 +24,214 @@
     </script>
 </head>
 <body id="html-export">
-<div class="table-container">
-    <div id="papers-table-container">
-        <table id="papersTable" style="table-layout: fixed;">
-            <colgroup>
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- PDF (Rotated Header) -->
-                <col style="width: 66%"> <!-- Title (Should Expand)-->
-                <col style="width: 40px; min-width: 40px; max-width:40px;"> <!--  Year -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Pages (Rotated Header) -->
-                <col style="width: 34%"> <!-- Journal/Conf (Should Expand) -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Type (Rotated Header) -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Off-topic -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Relevance -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Survey -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- THT -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- SMT -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- X-Ray -->
+<div class="table-container" id="papers-table-container">
+    <table id="papersTable" style="table-layout: fixed;">
+        <colgroup>
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- PDF (Rotated Header) -->
+            <col style="width: 66%"> <!-- Title (Should Expand)-->
+            <col style="width: 40px; min-width: 40px; max-width:40px;"> <!--  Year -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Pages (Rotated Header) -->
+            <col style="width: 34%"> <!-- Journal/Conf (Should Expand) -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Type (Rotated Header) -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Off-topic -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Relevance -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Survey -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- THT -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- SMT -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- X-Ray -->
 
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Tracks -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Holes -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- pcb other -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Insufficient -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Excess -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Void -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Crack -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder other -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Missing Comp -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Wrong Comp -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Orientation -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- compoonet other -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Cosmetic -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Tracks -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Holes -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- pcb other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Insufficient -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Excess -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Void -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Crack -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Missing Comp -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Wrong Comp -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Orientation -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- compoonet other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Cosmetic -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
 
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Classic CV -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- ML -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Classifier -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Detector -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- R-CNN Detector -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Transformers -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Hybrid -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Datasets  -->
-                <!-- Columns 31-36: Other Data (Mixed Sizes) -->
-                <col style="width: 56px; min-width: 56px; max-width: 56px;"> <!-- Last Changed -->
-                <col style="width: 40px; min-width: 40px; max-width: 40px;"> <!-- Changed By -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified -->
-                <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
-                <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- user comments state -->
-                <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->               
-                <!-- hidden fields -->
-                <col style="display:none"> 
-                <col style="display:none"> 
-                <col style="display:none"> 
-                <col style="display:none"> 
-                <col style="display:none"> 
-            </colgroup>
-            <thead>
-                <tr>
-                    <th id="main-header-wrapper" colspan=42 style="display: none;"></th> <!-- this must exist for CSS consistency between export and real page (uses nth-child, etc.) -->
-                    
-                    <!-- Hidden metadata fields -->
-                    <th style="display:none" colspan="5"></th>
-                </tr>
-                <tr>
-                    <th class="ontop-header" colspan="6" rowspan="2"> 
-                        <div class="header-filters">
-                            <div class="filter-item">
-                                <input type="checkbox" id="hide-short-checkbox"  style="display: none;">
-                                <label for="min-page-count">Min. page count ≥</label>
-                                <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="{{ min_page_count_value }}" max="9" title="Exported file contains papers with at least {{ min_page_count_value }} pages">
-                            </div>
-                            <div class="filter-item">
-                                <label for="year-from">Year:</label>
-                                <input type="number" id="year-from" value="{{ year_from_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
-                                <label for="year-to">to</label>
-                                <input type="number" id="year-to" value="{{ year_to_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
-                            </div>
-                            <div>
-                                <button class="action-btn" id="about-btn" title="About / Help" ><span>?</span></button>
-                                <button class="action-btn" id="stats-btn">View <strong>Statistics</strong></button>
-                            </div>
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Classic CV -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- ML -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Classifier -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Detector -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- R-CNN Detector -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Transformers -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Hybrid -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Datasets  -->
+            <!-- Columns 31-36: Other Data (Mixed Sizes) -->
+            <col style="width: 56px; min-width: 56px; max-width: 56px;"> <!-- Last Changed -->
+            <col style="width: 40px; min-width: 40px; max-width: 40px;"> <!-- Changed By -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified -->
+            <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- user comments state -->
+            <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->               
+            <!-- hidden fields -->
+            <col style="display:none"> 
+            <col style="display:none"> 
+            <col style="display:none"> 
+            <col style="display:none"> 
+            <col style="display:none"> 
+        </colgroup>
+        <thead>
+            <tr>
+                <th id="main-header-wrapper" colspan=42 style="display: none;"></th> <!-- this must exist for CSS consistency between export and real page (uses nth-child, etc.) -->
+                
+                <!-- Hidden metadata fields -->
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="ontop-header" colspan="6" rowspan="2"> 
+                    <div class="header-filters">
+                        <div class="filter-item">
+                            <input type="checkbox" id="hide-short-checkbox"  style="display: none;">
+                            <label for="min-page-count">Min. page count ≥</label>
+                            <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="{{ min_page_count_value }}" max="9" title="Exported file contains papers with at least {{ min_page_count_value }} pages">
                         </div>
-                    </th>
-                    <th class="inferred-header" id="inferred-header-title" colspan="29">
+                        <div class="filter-item">
+                            <label for="year-from">Year:</label>
+                            <input type="number" id="year-from" value="{{ year_from_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
+                            <label for="year-to">to</label>
+                            <input type="number" id="year-to" value="{{ year_to_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
+                        </div>
                         <div>
-                            <span>Inferred data</span>
-                            <div style="font-size: 7pt; font-family: 'Arial Narrow'; text-shadow: var(--light-shadow); transform:scale(2.2) translateY(-2px);">
-                                <span style="font-weight: 400; opacity: 0.7;">Research</span><span style="font-weight: 600; opacity: 0.85;">Parça</span>
-                            </div>                            
-                            <div style="margin:0; padding:0">
-                                Potential Misclassifications:
-                                <input type="checkbox" title="Enable to show only papers with NO features filled in (including 'Other')" id="no-features-checkbox" style="margin-left:8px; margin-right:16px">
-                                <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox">
-                            </div>
+                            <button class="action-btn" id="about-btn" title="About / Help" ><span>?</span></button>
+                            <button class="action-btn" id="stats-btn">View <strong>Statistics</strong></button>
                         </div>
-                    </th>
-                    
-                    <th class="ontop-header" colspan="7" rowspan="2" >
-                        <div class="search-container">
-                            <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
-                            <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">&times;</button>
+                    </div>
+                </th>
+                <th class="inferred-header" id="inferred-header-title" colspan="29">
+                    <div>
+                        <span>Inferred data</span>
+                        <div style="font-size: 7pt; font-family: 'Arial Narrow'; text-shadow: var(--light-shadow); transform:scale(2.2) translateY(-1px);">
+                            <span style="font-weight: 400; opacity: 0.7;">Research</span><span style="font-weight: 600; opacity: 0.85;">Parça</span> 
+                        </div>                            
+                        <div style="margin:0; padding:0">
+                            Potential Misclassifications:
+                            <input type="checkbox" title="Enable to show only papers with NO features filled in (including 'Other')" id="no-features-checkbox" style="margin-left:8px; margin-right:16px">
+                            <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox">
                         </div>
-                    </th>
-                    <!-- Hidden metadata fields -->
-                    <th style="display:none" colspan="5"></th>
-                </tr>
-                <tr>
-                    <th class="inferred-header ontop-header" colspan="1">
-                        <div>
-                            <input type="checkbox" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked disabled title="Can't unhide offtopic papers. File was exported only with ontopic papers"{% endif %}></th>
-                        </div>
-                    <th class="inferred-header ontop-header" colspan="1"></th>
-                    <th class="inferred-header ontop-header" colspan="1">
-                        <div>
-                            <input type="checkbox" title="Enable to only show Surveys" id="only-survey-checkbox">
-                        </div>
-                    </th>
-                    <th class="inferred-header ontop-header" colspan="2"></th>
-                    <th class="inferred-header ontop-header" colspan="1">
-                        <div>
-                            <input type="checkbox" title="Enable to Hide X-Ray" id="hide-xray-checkbox" checked>    <!-- client-side, default enabled -->
-                        </div>
-                    </th>
-                    <th class="inferred-header inferred-header-2 ontop-header" colspan="3">
-                        <div>
-                            <span>PCB</span>
-                            <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCB features." id="show-pcb-checkbox">
-                        </div>
-                    </th>
-                    <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
-                        <div>
-                            <span>Solder</span>
-                            <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about solder features" id="show-solder-checkbox">
-                        </div>
-                    </th>
-                    <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
-                        <div>
-                            <span>PCBA / Other</span>
-                            <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCBA features" id="show-pcba-checkbox">    
-                        </div>
-                    </th>
-                    <th class="inferred-header inferred-header-2 ontop-header" colspan="1">
-                        <div>
-                            <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCBA features" id="show-other-checkbox">    
-                        </div>
-                    </th>
-                    <th class="inferred-header inferred-header-3 ontop-header" colspan="8">Techniques</th>
-                    <!-- <th class="inferred-header inferred-header-3 ontop-header" colspan="6">DL-based</th> -->
-                    <th class="inferred-header inferred-header-3 ontop-header" colspan="1"></th>
-                    <!-- Hidden metadata fields -->
-                    <th style="display:none" colspan="5"></th>
-                </tr>
-                <tr>
-                    <th class="rotate-header status-header editable-header" data-sort="pdf-link"><div><span>PDF</span></div> <span class="sort-indicator"></span></th>
-                    <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
-                    <th data-sort="year">Year <span class="sort-indicator"></span></th>
-                    <th class="rotate-header" data-sort="page_count" ><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
-                    <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
-                    <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div> <span class="sort-indicator"></span></th>
-                    <!-- Classification Summary Columns -->
-                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
-                    <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
-                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><span class="sort-indicator"></span><div><span>Survey</span></div></th>
-                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><span class="sort-indicator"></span><div><span>THT</span></div></th>
-                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><span class="sort-indicator"></span><div><span>SMT</span></div></th>
-                    <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
+                    </div>
+                </th>
+                
+                <th class="ontop-header" colspan="7" rowspan="2" >
+                    <div class="search-container">
+                        <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
+                        <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">&times;</button>
+                    </div>
+                </th>
+                <!-- Hidden metadata fields -->
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked disabled title="Can't unhide offtopic papers. File was exported only with ontopic papers"{% endif %}></th>
+                    </div>
+                <th class="inferred-header ontop-header" colspan="1"></th>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to only show Surveys" id="only-survey-checkbox">
+                    </div>
+                </th>
+                <th class="inferred-header ontop-header" colspan="2"></th>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to Hide X-Ray" id="hide-xray-checkbox" checked>    <!-- client-side, default enabled -->
+                    </div>
+                </th>
+                <th class="inferred-header inferred-header-2 ontop-header" colspan="3">
+                    <div>
+                        <span>PCB</span>
+                        <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCB features." id="show-pcb-checkbox">
+                    </div>
+                </th>
+                <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
+                    <div>
+                        <span>Solder</span>
+                        <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about solder features" id="show-solder-checkbox">
+                    </div>
+                </th>
+                <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
+                    <div>
+                        <span>PCBA / Other</span>
+                        <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCBA features" id="show-pcba-checkbox">    
+                    </div>
+                </th>
+                <th class="inferred-header inferred-header-2 ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about PCBA features" id="show-other-checkbox">    
+                    </div>
+                </th>
+                <th class="inferred-header inferred-header-3 ontop-header" colspan="8">Techniques</th>
+                <!-- <th class="inferred-header inferred-header-3 ontop-header" colspan="6">DL-based</th> -->
+                <th class="inferred-header inferred-header-3 ontop-header" colspan="1"></th>
+                <!-- Hidden metadata fields -->
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="rotate-header status-header editable-header" data-sort="pdf-link"><div><span>PDF</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
+                <th data-sort="year">Year <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="page_count" ><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
+                <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div> <span class="sort-indicator"></span></th>
+                <!-- Classification Summary Columns -->
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
+                <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_survey"><span class="sort-indicator"></span><div><span>Survey</span></div></th>
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_through_hole"><span class="sort-indicator"></span><div><span>THT</span></div></th>
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_smt"><span class="sort-indicator"></span><div><span>SMT</span></div></th>
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_x_ray"><span class="sort-indicator"></span><div><span>X-Ray</span></div></th>
 
-                    <!-- Features Summary Columns (Updated list) -->
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><span class="sort-indicator"></span><div><span>Tracks</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><span class="sort-indicator"></span><div><span>Holes / Vias</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_bare_pcb_other"><span class="sort-indicator"></span><div><span>(Bare) PCB Other</span></div></th>
+                <!-- Features Summary Columns (Updated list) -->
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_tracks"><span class="sort-indicator"></span><div><span>Tracks</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_holes"><span class="sort-indicator"></span><div><span>Holes / Vias</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_bare_pcb_other"><span class="sort-indicator"></span><div><span>(Bare) PCB Other</span></div></th>
 
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><span class="sort-indicator"></span><div><span>Insufficient</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><span class="sort-indicator"></span><div><span>Excessive</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><span class="sort-indicator"></span><div><span>Void / Hole</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><span class="sort-indicator"></span><div><span>Crack / Cold</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_other"><span class="sort-indicator"></span><div><span>Solder (Other)</span></div></th>
-                    
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><span class="sort-indicator"></span><div><span>Missing Comp</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><span class="sort-indicator"></span><div><span>Wrong Comp</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><span class="sort-indicator"></span><div><span>Orientation</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_component_other"><span class="sort-indicator"></span><div><span>Comp (Other)</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><span class="sort-indicator"></span><div><span>Cosmetic</span></div></th>
-                    <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_other_state"><span class="sort-indicator"></span><div><span>Other</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_insufficient"><span class="sort-indicator"></span><div><span>Insufficient</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_excess"><span class="sort-indicator"></span><div><span>Excessive</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_void"><span class="sort-indicator"></span><div><span>Void / Hole</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_crack"><span class="sort-indicator"></span><div><span>Crack / Cold</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_solder_other"><span class="sort-indicator"></span><div><span>Solder (Other)</span></div></th>
+                
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_missing_component"><span class="sort-indicator"></span><div><span>Missing Comp</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_wrong_component"><span class="sort-indicator"></span><div><span>Wrong Comp</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_orientation"><span class="sort-indicator"></span><div><span>Orientation</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_component_other"><span class="sort-indicator"></span><div><span>Comp (Other)</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_cosmetic"><span class="sort-indicator"></span><div><span>Cosmetic</span></div></th>
+                <th class="inferred-header inferred-header-2 rotate-header status-header editable-header" data-sort="features_other_state"><span class="sort-indicator"></span><div><span>Other</span></div></th>
 
-                    <!-- Techniques Summary Columns (Updated list) -->
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><span class="sort-indicator"></span><div><span>Classic CV</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><span class="sort-indicator"></span><div><span>Traditional ML</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><span class="sort-indicator"></span><div><span>CNN Classifier</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><span class="sort-indicator"></span><div><span>CNN Detector</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><span class="sort-indicator"></span><div><span>R-CNN Detector</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><span class="sort-indicator"></span><div><span>Transformer</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><span class="sort-indicator"></span><div><span>Other DL</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><span class="sort-indicator"></span><div><span>Hybrid</span></div></th>
-                    <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><span class="sort-indicator"></span><div><span>Datasets</span></div></th>
+                <!-- Techniques Summary Columns (Updated list) -->
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_classic_cv_based"><span class="sort-indicator"></span><div><span>Classic CV</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_ml_traditional"><span class="sort-indicator"></span><div><span>Traditional ML</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_classifier"><span class="sort-indicator"></span><div><span>CNN Classifier</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_cnn_detector"><span class="sort-indicator"></span><div><span>CNN Detector</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_rcnn_detector"><span class="sort-indicator"></span><div><span>R-CNN Detector</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_transformer"><span class="sort-indicator"></span><div><span>Transformer</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_dl_other"><span class="sort-indicator"></span><div><span>Other DL</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_hybrid"><span class="sort-indicator"></span><div><span>Hybrid</span></div></th>
+                <th class="inferred-header inferred-header-3 rotate-header status-header editable-header" data-sort="technique_available_dataset"><span class="sort-indicator"></span><div><span>Datasets</span></div></th>
 
-                    <th data-sort="changed">Last Changed <span class="sort-indicator"></span></th>
-                    <th class="rotate-header" data-sort="changed_by"><div><span>Changed By</span></div> <span class="sort-indicator"></span></th>
-                    <th class="rotate-header" data-sort="verified">
-                        <div><span>Verified</span></div> <span class="sort-indicator"></span>
-                    </th>
-                    <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
-                    <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
-                    <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
-                    <th class="rotate-header"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
+                <th data-sort="changed">Last Changed <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="changed_by"><div><span>Changed By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified">
+                    <div><span>Verified</span></div> <span class="sort-indicator"></span>
+                </th>
+                <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
+                <th class="rotate-header"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
 
-                    <!-- Hidden metadata fields -->
-                    <th style="display:none" colspan="5"></th>
-                </tr>
+                <!-- Hidden metadata fields -->
+                <th style="display:none" colspan="5"></th>
+            </tr>
         </thead>
         {{ papers_table_static_export | safe }}
         {% include 'papers_table_tfoot.html' %}

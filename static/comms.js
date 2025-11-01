@@ -855,13 +855,19 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Replace the existing feature updates with:
                         updateRowCell(row, '.editable-status[data-field="features_tracks"]', data.features?.tracks);
                         updateRowCell(row, '.editable-status[data-field="features_holes"]', data.features?.holes);
+                        updateRowCell(row, '.editable-status[data-field="features_bare_pcb_othe"]', data.features?.bare_pcb_other);
+
                         updateRowCell(row, '.editable-status[data-field="features_solder_insufficient"]', data.features?.solder_insufficient);
                         updateRowCell(row, '.editable-status[data-field="features_solder_excess"]', data.features?.solder_excess);
                         updateRowCell(row, '.editable-status[data-field="features_solder_void"]', data.features?.solder_void);
                         updateRowCell(row, '.editable-status[data-field="features_solder_crack"]', data.features?.solder_crack);
+                        updateRowCell(row, '.editable-status[data-field="features_solder_other"]', data.features?.solder_other);
+
                         updateRowCell(row, '.editable-status[data-field="features_orientation"]', data.features?.orientation);
                         updateRowCell(row, '.editable-status[data-field="features_wrong_component"]', data.features?.wrong_component);
                         updateRowCell(row, '.editable-status[data-field="features_missing_component"]', data.features?.missing_component);
+                        updateRowCell(row, '.editable-status[data-field="features_component_other"]', data.features?.component_other);
+
                         updateRowCell(row, '.editable-status[data-field="features_cosmetic"]', data.features?.cosmetic);
                         updateRowCell(row, '.editable-status[data-field="features_other"]', data.features?.other);
 

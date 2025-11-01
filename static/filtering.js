@@ -47,6 +47,16 @@ const SYMBOL_PDF_WEIGHTS = {
     '💰': 0 // Paywalled
 };
 
+// Define weights for 'verified_by' symbols specifically
+// Using the values from comms.js VERIFIED_BY_CYCLE logic or a direct mapping
+// Assuming 👤 (User) > ❔ (Unverified) > 🖥️ (Model) based on typical verification status priority
+// Adjust the numbers if a different priority is desired.
+const VERIFIED_BY_SORT_WEIGHTS = {
+    '👤': 2, // User
+    '❔': 1, // Unverified (or Unknown)
+    '🖥️': 0  // Model (Computer)
+};
+
 // Cache frequently accessed elements
 const tbody = document.querySelector('#papersTable tbody');
 const duplicateCountElement = document.getElementById('duplicate-papers-count');
@@ -679,7 +689,6 @@ function performSort(sortBy, direction, visibleRows = null) {
     const sortHeader = document.querySelector(`th[data-sort="${sortBy}"]`);
     if (!sortHeader) return;
     const headerIndex = Array.prototype.indexOf.call(sortHeader.parentNode.children, sortHeader);
-
     const sortData = new Array(rowsToSort.length);
 
     // Pre-calculate sort type to avoid repeated checks inside the loop
@@ -687,7 +696,9 @@ function performSort(sortBy, direction, visibleRows = null) {
     const isDateSort = sortBy === 'changed'; // Adjust 'changed' if your data-sort attribute is different
     const isNumericSort = ['year', 'estimated_score', 'page_count', 'relevance'].includes(sortBy);
     const isPDFSort = sortBy === 'pdf-link';
-    const isEditableStatusSort = !isNumericSort && !isPDFSort && !NON_EDITABLE_STATUS_FIELDS.has(sortBy) && !['title', 'journal', 'changed_by', 'changed'].includes(sortBy);
+    const isVerifiedBySort = sortBy === 'verified_by'; // Add this check
+    // Update the isEditableStatusSort condition to EXCLUDE 'verified_by'
+    const isEditableStatusSort = !isNumericSort && !isPDFSort && !isVerifiedBySort && !NON_EDITABLE_STATUS_FIELDS.has(sortBy) && !['title', 'journal', 'changed_by', 'changed'].includes(sortBy);
 
     for (let i = 0; i < rowsToSort.length; i++) {
         const mainRow = rowsToSort[i];
@@ -716,25 +727,29 @@ function performSort(sortBy, direction, visibleRows = null) {
         } else if (isPDFSort) {
             const cell = mainRow.cells[headerIndex];
             cellValue = SYMBOL_PDF_WEIGHTS[cell?.textContent.trim()] ?? 0;
-        } else if (isEditableStatusSort) {
+        } else if (isVerifiedBySort) { // Handle 'verified_by' specifically
+            const cell = mainRow.querySelector(`.editable-verify[data-field="${sortBy}"]`);
+            // Extract the symbol text from the inner span
+            const symbolText = cell?.querySelector('span')?.textContent?.trim() || '';
+            cellValue = VERIFIED_BY_SORT_WEIGHTS[symbolText] ?? 0; // Use the new map
+        } else if (isEditableStatusSort) { // This now correctly excludes 'verified_by'
             const cell = mainRow.querySelector(`.editable-status[data-field="${sortBy}"]`);
             cellValue = SYMBOL_SORT_WEIGHTS[cell?.textContent.trim()] ?? 0;
-        } else {
+        } else { // Handles NON_EDITABLE_STATUS_FIELDS and 'type'
             const cell = mainRow.cells[headerIndex];
             const cellText = cell ? cell.textContent.trim() : '';
             if (sortBy === 'type') {
                 cellValue = cellText;
             } else if (NON_EDITABLE_STATUS_FIELDS.has(sortBy)) {
+                // Use SYMBOL_SORT_WEIGHTS for these fields if they contain the symbols
                 cellValue = SYMBOL_SORT_WEIGHTS[cellText] ?? 0;
             } else {
                 cellValue = cellText;
             }
         }
-
         const detailRow = mainRow.nextElementSibling;
         sortData[i] = { value: cellValue, mainRow, detailRow, paperId };
     }
-
     // Sort the data array
     sortData.sort((a, b) => {
         let comparison = 0;
@@ -761,7 +776,6 @@ function performSort(sortBy, direction, visibleRows = null) {
             if (aValue > bValue) comparison = 1;
             else if (aValue < bValue) comparison = -1;
         }
-
         if (comparison === 0) {
             // Secondary sort by paperId to ensure stability
             if (a.paperId > b.paperId) comparison = 1;
@@ -769,7 +783,6 @@ function performSort(sortBy, direction, visibleRows = null) {
         }
         return direction === 'DESC' ? -comparison : comparison;
     });
-
     // Batch update the DOM
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < sortData.length; i++) {
@@ -779,7 +792,6 @@ function performSort(sortBy, direction, visibleRows = null) {
         }
     }
     tbody.appendChild(fragment); // Single DOM append operation
-
     // Update the sort indicator
     document.querySelectorAll('th .sort-indicator').forEach(ind => ind.textContent = '');
     const indicator = sortHeader.querySelector('.sort-indicator');
@@ -787,6 +799,7 @@ function performSort(sortBy, direction, visibleRows = null) {
         indicator.textContent = direction === 'ASC' ? '▲' : '▼';
     }
 }
+
 
 
 function sortTable() {

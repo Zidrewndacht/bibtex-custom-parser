@@ -72,7 +72,7 @@ html.busyCursor body,html.busyCursor body * {
     flex-direction: column;
     gap: 40px;
     min-width: var(--min-width);
-    /* max-width: var(--max-width); */ /* breaks batch tasks and export/backup modals positions*/
+    max-width: var(--max-width);
 }
 #html-export .loading-overlay {
     max-width: var(--max-width); 
@@ -100,7 +100,7 @@ html.busyCursor .loading-overlay {
     position: relative;
     border-radius: 8px;
     min-width: var(--min-width);
-    /* max-width: var(--max-width); */ /* breaks batch tasks and export/backup modals positions*/
+    max-width: var(--max-width);
     margin: auto;
 }
 #html-export .table-container {
@@ -145,7 +145,7 @@ table {
     width: 100%;
     background-color: #fff;
     min-width: var(--min-width);
-    /* max-width: var(--max-width); */ /* breaks batch tasks and export/backup modals positions*/
+    max-width: var(--max-width);
     border-radius: 6px
 }
 #html-export table {
@@ -187,7 +187,8 @@ tr:nth-child(4) th:not(.inferred-header) {
     filter: contrast(1);  /*Fix blurry transformed fonts on Firefox*/
 }
 
-th[data-sort]:hover {
+th[data-sort]:hover, tr:nth-child(4) th[data-sort]:not(.inferred-header):hover {
+    /*specificity workaround for hovering tr:nth-child(4) th:not(.inferred-header) */
     filter: contrast(1.25) brightness(.9);
     cursor: pointer
 }
@@ -488,7 +489,12 @@ form label {
 
 #batchModal,#exportModal,#importModal {
     backdrop-filter: unset;
-    background: unset
+    background: unset;
+    margin: auto;  
+    max-width: var(--max-width);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 #apply-serverside-filters,#html-export #stats-btn {
@@ -641,7 +647,7 @@ tr.filter-hidden {
     background-color: #e0e6ed;
     box-shadow: 0 1px 3px rgba(0,0,0,.1);
     min-width: var(--min-width);
-    /* max-width: var(--max-width); */ /* breaks batch tasks and export/backup modals positions*/
+    max-width: var(--max-width);
     height: 48px;
     background: var(--detail-button-background);
     border-radius: 8px 8px 0 0
