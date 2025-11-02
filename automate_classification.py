@@ -93,7 +93,7 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
     update_values.append("")
     update_fields.append("verifier_trace = ?")
     update_values.append("")
-    
+
     # Audit fields
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
@@ -111,7 +111,7 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
     conn.close()
     return rows_affected > 0
 
-def process_paper_worker(db_path, grammar_content, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias):
+def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias):
     """Worker function executed by each thread."""
     while True:
         try:
@@ -145,7 +145,6 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 
             json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
                 prompt_text, 
-                grammar_text=grammar_content, 
                 server_url_base=globals.LLM_SERVER_URL, 
                 model_name=model_alias,
                 is_verification=False
@@ -192,7 +191,7 @@ def process_paper_worker(db_path, grammar_content, prompt_template_content, pape
                 processed_count[0] += 1
                 print(f"[Progress] Processed {processed_count[0]}/{total_papers} papers.")
 
-def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_file=None, prompt_template=None, server_url=None):
+def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_template=None, server_url=None):
     """
     Runs the LLM classification process.
 
@@ -200,15 +199,12 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
         mode (str): 'all', 'remaining', or 'id'. Defaults to 'remaining'.
         paper_id (int, optional): The specific paper ID to classify (required if mode='id').
         db_file (str): Path to the SQLite database.
-        grammar_file (str): Path to the GBNF grammar file.
         prompt_template (str): Path to the prompt template file.
         server_url (str): Base URL of the LLM server.
     """
     # Use globals for defaults if not provided
     if db_file is None:
         db_file = globals.DATABASE_FILE
-    if grammar_file is None:
-        grammar_file = globals.GRAMMAR_FILE
     if prompt_template is None:
         prompt_template = globals.PROMPT_TEMPLATE
     if server_url is None:
@@ -224,15 +220,6 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
     except Exception as e:
         print(f"Failed to load prompt template: {e}")
         return False
-
-    grammar_content = None
-    if grammar_file:
-        try:
-            grammar_content = globals.load_grammar(grammar_file)
-            print(f"Loaded GBNF grammar from '{grammar_file}'")
-        except Exception as e:
-            print(f"Error reading grammar file '{grammar_file}': {e}")
-            grammar_content = None
 
     print("Fetching model alias from LLM server...")
     model_alias = globals.get_model_alias(server_url)
@@ -286,11 +273,11 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
         elif mode == 'on_topic_implementation':
             # Goal: Re-classify papers that are currently marked as on-topic AND non-survey.
             print("Fetching papers marked as on-topic and non-survey for re-classification...")
-            # Query for papers where is_offtopic is NULL or 0 AND is_survey is NULL or 0
             cursor.execute("""
                 SELECT id FROM papers
-                WHERE (is_offtopic = 0 OR is_offtopic IS NULL)
+                WHERE (is_offtopic = 0)
                 AND (is_survey = 0 OR is_survey IS NULL)
+                AND (changed_by IS NOT 'user')
             """)
             
         else: # Default to 'remaining'
@@ -332,7 +319,6 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, grammar_fi
                 future = executor.submit(
                     process_paper_worker,
                     db_file,
-                    grammar_content,
                     prompt_template_content,
                     paper_id_queue,
                     progress_lock,
@@ -380,8 +366,6 @@ if __name__ == "__main__":
     parser.add_argument('--paper_id', '-i', type=int, help='Paper ID to classify (required if --mode id).')
     parser.add_argument('--db_file', default=globals.DATABASE_FILE,
                        help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
-    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE,
-                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
     parser.add_argument('--prompt_template', '-t', default=globals.PROMPT_TEMPLATE,
                        help=f'Path to the prompt template file (default: {globals.PROMPT_TEMPLATE})')
     parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
@@ -400,7 +384,6 @@ if __name__ == "__main__":
         mode=args.mode,
         paper_id=args.paper_id,
         db_file=args.db_file,
-        grammar_file=args.grammar_file,
         prompt_template=args.prompt_template,
         server_url=args.server_url
     )
@@ -428,7 +411,6 @@ if __name__ == "__main__":
             mode=verification_mode,
             paper_id=verification_paper_id, # Will be None for modes other than 'id'
             db_file=args.db_file,
-            grammar_file=args.grammar_file, # Use the same grammar file if applicable, or default verification grammar
             prompt_template=globals.VERIFIER_TEMPLATE, # Use the dedicated verifier template
             server_url=args.server_url
         )

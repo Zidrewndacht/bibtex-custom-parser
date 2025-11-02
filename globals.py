@@ -5,15 +5,17 @@
 import requests
 import json
 import sqlite3
-
+import re
 import threading
 import os
 
-LLM_SERVER_URL = "http://localhost:8080"
-MAX_CONCURRENT_WORKERS = 8 # Match your server slots
-GRAMMAR_FILE = "" #"output.gbnf" # obsolete, disabled for reasoning models.
+LLM_SERVER_URL = "http://localhost:8086"
+MAX_CONCURRENT_WORKERS = 180 # Match your server slots
 PROMPT_TEMPLATE = "prompt_template.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
+
+# Optional API key support
+LLM_API_KEY = None
 
 DATABASE_FILE = os.path.join(os.getcwd(), 'data', 'db.sqlite')
 os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)  # Ensure the directory exists
@@ -120,6 +122,10 @@ def get_model_alias(server_url_base):
     """Fetches the model alias from the LLM server's /v1/models endpoint."""
     models_url = f"{server_url_base.rstrip('/')}/v1/models"
     headers = {"Content-Type": "application/json"}
+    
+    # Add authorization header if API key is provided
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
 
     try:
         response = requests.get(models_url, headers=headers, timeout=30)
@@ -168,28 +174,22 @@ def get_paper_by_id(db_path, paper_id):
     conn.close()
     return dict(row) if row else None
 
-def load_grammar(grammar_path):
-    """Loads the GBNF grammar from a file."""
-    try:
-        with open(grammar_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        print(f"Error: Grammar file '{grammar_path}' not found.")
-        raise
-    except Exception as e:
-        print(f"Error reading grammar file '{grammar_path}': {e}")
-        raise
-
-def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, model_name="default", is_verification=False):
+def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", is_verification=False):
     """
     Sends a prompt to the LLM via the OpenAI-compatible API. 
     Returns (content_str, model_name_used, reasoning_trace).
+    Supports both separate reasoning_content field and <think></think> tags in content.
     """
     if server_url_base is None:
         server_url_base = LLM_SERVER_URL  # Now this will work
     
     chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
+    
+    # Add authorization header if API key is provided
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+    
     payload = { #official recommended parameters from Qwen3 - Temperature=0.6 for Qwwen3-thinking, 1.0 for Qwen3VL-thinking
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
@@ -200,15 +200,12 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, mod
         "max_tokens": 32768,
         "stream": False
     }
-    if grammar_text:
-        payload["grammar"] = grammar_text
-    
     context = "verification " if is_verification else ""
     
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=600)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800) #30 minutes as the inference engine may have a long queue during batch processing.
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()
@@ -219,9 +216,36 @@ def send_prompt_to_llm(prompt_text, grammar_text=None, server_url_base=None, mod
             # Extract reasoning_content safely
             reasoning_content = None
             message = response_data['choices'][0]['message']
-            if 'reasoning_content' in message:
-                reasoning_content = message.get('reasoning_content', '').strip()
-            content = message.get('content', '').strip()
+            
+            # First, try to get reasoning_content from the structured field (for sane inference engines)
+            reasoning_content_raw = message.get('reasoning_content', '')
+            if reasoning_content_raw is not None and reasoning_content_raw != '':
+                reasoning_content = reasoning_content_raw.strip()
+            else:
+                reasoning_content = ''
+                
+            content_raw = message.get('content', '')
+            if content_raw is not None:
+                content = content_raw.strip()
+            else:
+                content = ''
+            
+            # If no separate reasoning_content was found, check for <think></think> tags in content
+            if not reasoning_content and content:
+                # Look for <think>...</think> pattern
+                think_pattern = r'<think>(.*?)</think>'
+                think_matches = re.findall(think_pattern, content, re.DOTALL | re.IGNORECASE)
+                
+                if think_matches:
+                    # Extract the reasoning content from the first <think> tag
+                    reasoning_content = think_matches[0].strip()
+                    
+                    # Remove the <think>...</think> section from the main content
+                    content = re.sub(think_pattern, '', content, flags=re.DOTALL | re.IGNORECASE).strip()
+                    # Clean up any extra whitespace that might remain
+                    content = re.sub(r'\n\s*\n', '\n\n', content)  # Normalize multiple newlines
+                    content = content.strip()
+            
             return content, model_name_from_response, reasoning_content
         else:
             print(f"Warning: Unexpected LLM {context}response structure: {response_data}")

@@ -7,7 +7,7 @@ If the contents given explicitly states or strongly implies the fact, set true/f
 # Else set is_offtopic = false and proceed.
 
 research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
-is_offtopic: null     # We are looking for PCB automated defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated optical inspection / defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all classification fields following this one (other than the research area and relevance, which should still be filled accordingly to the actual contents). *Only set this to false if at least one feature from the 'features' list below (including any of the "other" ones) can be set to true.*
+is_offtopic: null     # We are looking for PCB automated optical defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated optical inspection / defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all classification fields following this one (other than the research area and relevance, which should still be filled accordingly to the actual contents). *Only set this to false if at least one feature from the 'features' list below (including any of the "other" ones) can be set to true.*
 relevance: 6          # An integer from 0 to 10 estimating how relevant the paper is for the topic according to the description above. 0 for completely irrelevant, 10 for completely relevant.
 is_survey: null       # true for survey/review/etc., false for implementations, new research, etc.
 is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear. 
@@ -17,20 +17,20 @@ features:             # true, false, null for unknown/unclear. Mark as true all 
 	# Bare PCB issues:
     tracks: null # any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
     holes: null # for hole plating, drilling defects and any other PCB hole issues.
-    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue.  Set this to true if paper talks about bare PCB defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
+    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue.  Set this to true if paper talks about bare PCB defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed bare PCB* defects of unspecified nature (in which case just set this as true).
 	
 	# soldering/welding issues:
     solder_insufficient: null # too little solder, dry joint, poor fillet
     solder_excess: null # solder ball / bridge / short between pads or leads
     solder_void: null # voids, blow-holes, pin-holes inside the joint
     solder_crack: null # fatigue cracks, fractured or “cold” joints
-    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
+    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed solder* defects of unspecified nature (in which case just set this as true).
 	
 	# component/PCBA issues: 
     orientation: null # for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
     wrong_component: null # for components installed in the wrong location, might also detect components being installed where none should be.
     missing_component: null # for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
-    component_other: null # for any other or unspecified component issue.  Set this to true if paper talks about component defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are unspecified (in which case just set this as true).
+    component_other: null # for any other or unspecified component issue.  Set this to true if paper talks about component defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed component/PCBA* defects of unspecified nature (in which case just set this as true).
 	
   # other issues:
 	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);

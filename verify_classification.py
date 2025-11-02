@@ -93,7 +93,6 @@ def update_paper_verification(db_path, paper_id, verification_result, verified_b
 
 def process_paper_verification_worker(
     db_path, 
-    grammar_content, 
     verification_prompt_template_content, 
     paper_id_queue, 
     progress_lock, 
@@ -166,7 +165,6 @@ def process_paper_verification_worker(
             # 3. Send prompt to LLM
             json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
                 prompt_text,
-                grammar_text=grammar_content,
                 server_url_base=globals.LLM_SERVER_URL,
                 model_name=model_alias,
                 is_verification=True
@@ -217,7 +215,7 @@ def process_paper_verification_worker(
                 processed_count[0] += 1
                 print(f"[Progress] Verified {processed_count[0]}/{total_papers} papers.")
 
-def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file=None, prompt_template=None, server_url=None):
+def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_template=None, server_url=None):
     """
     Runs the LLM verification process.
 
@@ -225,14 +223,11 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
         mode (str): 'all', 'remaining', or 'id'. Defaults to 'remaining'.
         paper_id (int, optional): The specific paper ID to verify (required if mode='id').
         db_file (str): Path to the SQLite database.
-        grammar_file (str): Path to the GBNF grammar file.
         prompt_template (str): Path to the verification prompt template file.
         server_url (str): Base URL of the LLM server.
     """
     if db_file is None:
         db_file = globals.DATABASE_FILE
-    if grammar_file is None:
-        grammar_file = globals.GRAMMAR_FILE
     if prompt_template is None:
         prompt_template = globals.VERIFIER_TEMPLATE
     if server_url is None:
@@ -248,15 +243,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
     except Exception as e:
         print(f"Error loading verification prompt template: {e}")
         return False
-
-    grammar_content = None
-    if grammar_file:
-        try:
-            grammar_content = globals.load_grammar(grammar_file)
-            print(f"Loaded GBNF grammar from '{grammar_file}' for verification")
-        except Exception as e:
-            print(f"Warning: Error reading grammar file for verification: {e}")
-            grammar_content = None
 
     print("Fetching model alias from LLM server for verification...")
     model_alias = globals.get_model_alias(server_url)
@@ -326,7 +312,6 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, grammar_file
                 future = executor.submit(
                     process_paper_verification_worker,
                     db_file,
-                    grammar_content,
                     verification_prompt_template_content,
                     paper_id_queue,
                     progress_lock,
@@ -368,8 +353,6 @@ if __name__ == "__main__":
     parser.add_argument('--paper_id', '-i', type=int, help='Paper ID to verify (required if --mode id).')
     parser.add_argument('--db_file', default=globals.DATABASE_FILE,
                        help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
-    parser.add_argument('--grammar_file', '-g', default=globals.GRAMMAR_FILE,
-                       help=f'Path to the GBNF grammar file (default: {globals.GRAMMAR_FILE})')
     parser.add_argument('--prompt_template', '-t', default=globals.VERIFIER_TEMPLATE,
                        help=f'Path to the verification prompt template file (default: {globals.VERIFIER_TEMPLATE})')
     parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
@@ -385,7 +368,6 @@ if __name__ == "__main__":
         mode=args.mode,
         paper_id=args.paper_id,
         db_file=args.db_file,
-        grammar_file=args.grammar_file,
         prompt_template=args.prompt_template,
         server_url=args.server_url
     )
