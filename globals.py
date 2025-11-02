@@ -10,7 +10,7 @@ import threading
 import os
 
 LLM_SERVER_URL = "http://localhost:8086"
-MAX_CONCURRENT_WORKERS = 180 # Match your server slots
+MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr
 PROMPT_TEMPLATE = "prompt_template.txt"
 VERIFIER_TEMPLATE = "verifier_template.txt"
 
