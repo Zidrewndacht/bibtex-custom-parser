@@ -48,10 +48,11 @@ def create_database(db_path):
         estimated_score INTEGER,
         verified_by TEXT,                  -- Identifier of the verifier (e.g., 'user')
         reasoning_trace TEXT,              -- New column to store evaluator reasoning traces
-        verifier_trace TEXT,                -- New column to store verifier reasoning traces
-        user_trace TEXT,                     -- User comments.
+        verifier_trace TEXT,               -- New column to store verifier reasoning traces
+        user_trace TEXT,                   -- User comments.
         pdf_filename TEXT DEFAULT NULL,
-        pdf_state TEXT DEFAULT 'none'       -- 'none', 'annotated', 'PDF'
+        pdf_state TEXT DEFAULT 'none',     -- 'none', 'annotated', 'PDF'
+        deannualized_conference TEXT 
     )
     ''')
     # Enable WAL mode for better concurrency (optional)
@@ -196,6 +197,13 @@ def import_bibtex(bib_file, db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
+    total_entries = len(bib_db.entries)
+    processed_count = 0
+    duplicate_count = 0
+    
+    print(f"Starting import of {total_entries} entries...")
+    print(f"{'Progress:':<12} [{'':.<50}] 0% (0/{total_entries})")
+
     for entry in bib_db.entries:
         # Prepare data for insertion
         title_raw = entry.get('title', '')
@@ -271,6 +279,7 @@ def import_bibtex(bib_file, db_path):
                     duplicate_found = True
 
         if duplicate_found:
+            duplicate_count += 1
             continue  # Skip this entry
 
         # Insert into database
@@ -293,8 +302,19 @@ def import_bibtex(bib_file, db_path):
         except Exception as e:
             print(f"Error inserting entry '{data['id']}': {e}")
 
+        processed_count += 1
+        import sys  # Add this import at the top
+
+        # Then in the loop, change the progress update to:
+        if processed_count % 100 == 0 or processed_count == total_entries - duplicate_count:
+            progress_percentage = int((processed_count / total_entries) * 100)
+            filled_length = int(50 * processed_count // total_entries)
+            bar = '█' * filled_length + '.' * (50 - filled_length)
+            print(f"\r{'Progress:':<12} [{bar}] {progress_percentage}% ({processed_count}/{total_entries})", end='', flush=True)
+            sys.stdout.flush()  # Force immediate output
+
     conn.commit()
-    print(f"Imported {len(bib_db.entries)} records into database '{db_path}'")
+    print(f"\nImport completed: {processed_count} records imported, {duplicate_count} duplicates skipped")
     conn.close()
 
 

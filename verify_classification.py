@@ -110,15 +110,12 @@ def process_paper_verification_worker(
             if globals.is_shutdown_flag_set():
                 return
             continue
-
         # Poison pill - time to die
         if paper_id is None:
             return
-
         # Check for shutdown before processing
         if globals.is_shutdown_flag_set():
             return
-
         print(f"[Thread-{threading.get_ident()}] Verifying paper ID: {paper_id}")
         try:
             # 1. Fetch paper data and current classification from DB
@@ -126,7 +123,6 @@ def process_paper_verification_worker(
             if not paper_data:
                 print(f"[Thread-{threading.get_ident()}] Error: Paper {paper_id} not found in DB for verification.")
                 continue
-
             # Prepare classification data for the prompt
             # Parse JSON fields back into dicts for the prompt builder
             classification_data = {}
@@ -140,28 +136,22 @@ def process_paper_verification_worker(
                     classification_data[field] = False
                 else: # None or unexpected
                     classification_data[field] = None
-
             classification_data['research_area'] = paper_data.get('research_area')
-
             # Handle JSON fields
             try:
                 classification_data['features'] = json.loads(paper_data.get('features', '{}')) if paper_data.get('features') else {}
             except json.JSONDecodeError:
                 classification_data['features'] = {}
                 print(f"[Thread-{threading.get_ident()}] Warning: Could not parse features JSON for {paper_id}")
-
             try:
                 classification_data['technique'] = json.loads(paper_data.get('technique', '{}')) if paper_data.get('technique') else {}
             except json.JSONDecodeError:
                 classification_data['technique'] = {}
                 print(f"[Thread-{threading.get_ident()}] Warning: Could not parse technique JSON for {paper_id}")
-
             # 2. Build the verification prompt
             prompt_text = build_verification_prompt(paper_data, classification_data, verification_prompt_template_content)
-            
             if globals.is_shutdown_flag_set():
                 return
-
             # 3. Send prompt to LLM
             json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
                 prompt_text,
@@ -169,10 +159,8 @@ def process_paper_verification_worker(
                 model_name=model_alias,
                 is_verification=True
             )
-
             if globals.is_shutdown_flag_set():
                 return
-
             # 4. Process LLM response
             if json_result_str:
                 # print(f"[DEBUG] Raw LLM output for {paper_id}: {json_result_str}")
@@ -184,7 +172,6 @@ def process_paper_verification_worker(
                         reasoning_trace = f"As verified by {model_name_used}\n\n{reasoning_trace}"
                     else:
                         reasoning_trace = f"As verified by {model_name_used}"
-
                     success = update_paper_verification(
                         db_path,
                         paper_id,
@@ -195,7 +182,7 @@ def process_paper_verification_worker(
                     if success:
                         print(f"[Thread-{threading.get_ident()}] Verified paper {paper_id} (Model: {model_name_used})")
                     else:
-                        print(f"[Thread-{threading.get_ident()}] No verification changes or error for paper {paper_id}")
+                        print(f"[Thread-{threading.get_ident()}] Failed to verify paper {paper_id} (DB error)")
                 except json.JSONDecodeError as e:
                     print(f"[Thread-{threading.get_ident()}] Error parsing LLM verification output for {paper_id}: {e}")
                     print(f"LLM Output: {json_result_str}")
@@ -204,7 +191,6 @@ def process_paper_verification_worker(
             else:
                 if not globals.is_shutdown_flag_set():
                     print(f"[Thread-{threading.get_ident()}] No LLM verification response for {paper_id}")
-
         except Exception as e:
             if not globals.is_shutdown_flag_set():
                 print(f"[Thread-{threading.get_ident()}] Error verifying {paper_id}: {e}")
@@ -244,47 +230,51 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         print(f"Error loading verification prompt template: {e}")
         return False
 
-    print("Fetching model alias from LLM server for verification...")
-    model_alias = globals.get_model_alias(server_url)
-    if not model_alias:
-        print("Error: Could not determine model alias for verification. Exiting.")
-        return False
-
     print(f"Connecting to database '{db_file}' to fetch papers for verification...")
     try:
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
         
         if mode == 'all': #All classified papers (there's no sense in verifying classification of papers that weren't even classified)
-            print("Fetching ALL classified papers for re-verification...")
-            cursor.execute("SELECT id FROM papers WHERE (changed_by IS NOT NULL AND changed_by != '')")
+            print("Fetching ALL classified papers for re-verification (most recent to oldest)...")
+            cursor.execute("SELECT id FROM papers WHERE (changed_by IS NOT NULL AND changed_by != '') ORDER BY year DESC")
         elif mode == 'id':
             if paper_id is None:
                 print("Error: Mode 'id' requires a specific paper ID.")
                 conn.close()
                 return False
             print(f"Fetching specific paper ID: {paper_id} for verification...")
-            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+            cursor.execute("SELECT id FROM papers WHERE id = ? ORDER BY year DESC", (paper_id,))
             if not cursor.fetchone():
                  print(f"Warning: Paper ID {paper_id} not found or not classified.")
                  conn.close()
                  return True
-            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+            cursor.execute("SELECT id FROM papers WHERE id = ? ORDER BY year DESC", (paper_id,))
         else: # Default to 'remaining'
-            print("Fetching classified but unverified papers...")
+            print("Fetching classified but unverified papers (most recent to oldest)...")
             cursor.execute("""
                 SELECT id 
                 FROM papers 
                 WHERE (changed_by IS NOT NULL AND changed_by != '') 
                 AND (verified_by IS NULL OR verified_by = '' OR verified = 'unknown' OR verified = '')
+                ORDER BY year DESC
             """) #added  OR verified_by = 'unknown' to verify to manually set to ?
             
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
         print(f"Found {total_papers} paper(s) to verify based on mode '{mode}'.")
+
+        # Remove any None values that might have been included due to missing years
+        paper_ids = [pid for pid in paper_ids if pid is not None]
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
+        return False
+
+    print("Fetching model alias from LLM server for verification...")
+    model_alias = globals.get_model_alias(server_url)
+    if not model_alias:
+        print("Error: Could not determine model alias for verification. Exiting.")
         return False
 
     if not paper_ids:
@@ -296,19 +286,19 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         paper_id_queue.put(pid)
 
     # Add poison pills for each worker thread
-    for _ in range(globals.MAX_CONCURRENT_WORKERS):
+    for _ in range(globals.MAX_CONCURRENT_WORKERS_VERIFY):
         paper_id_queue.put(None)
 
     progress_lock = threading.Lock()
     processed_count = [0]
 
-    print(f"Starting ThreadPoolExecutor with {globals.MAX_CONCURRENT_WORKERS} workers for verification...")
+    print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS_VERIFY} workers for verification...")
     start_time = time.time()
 
     try:
-        with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS_VERIFY) as executor:
             futures = []
-            for _ in range(globals.MAX_CONCURRENT_WORKERS):
+            for _ in range(globals.MAX_CONCURRENT_WORKERS_VERIFY):
                 future = executor.submit(
                     process_paper_verification_worker,
                     db_file,

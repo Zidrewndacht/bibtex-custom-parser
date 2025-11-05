@@ -11,8 +11,17 @@ import os
 
 LLM_SERVER_URL = "http://localhost:8086"
 MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr
-PROMPT_TEMPLATE = "prompt_template.txt"
-VERIFIER_TEMPLATE = "verifier_template.txt"
+MAX_CONCURRENT_WORKERS_VERIFY = 480 # vLLM go brrr
+MAX_CONCURRENT_WORKERS_CONSENSUS = 96 # vLLM go brrr
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROMPT_TEMPLATES_DIR = os.path.join(BASE_DIR, 'prompt_templates')
+
+# Update the paths
+PROMPT_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'classify_template.txt') # Replace with your actual filename
+VERIFIER_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'verify_template.txt') # Replace with your actual filename
+RECLASSIFY_PROMPT_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'reclassify_template.txt') # Replace with your actual filename
 
 # Optional API key support
 LLM_API_KEY = None

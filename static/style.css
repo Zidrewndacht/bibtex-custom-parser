@@ -400,7 +400,7 @@ form label {
 }
 
 .detail-row.expanded .detail-flex-container {
-    max-height: 1000px;
+    max-height: 3000px;
     opacity: 1;
     /* transition: max-height 0s; */
     border-bottom: 1px solid #e0e0e0
@@ -447,11 +447,14 @@ form label {
     font-weight: 700
 }
 
-#classify-all-btn, #classify-remaining-btn, #classify-impl-btn, #classify-misclassified-btn, 
+#classify-all-btn, #classify-remaining-btn, #classify-impl-btn, #classify-misclassified-btn, #classify-consensus-btn, 
 .classify-btn {
-    background: var(--classify-btn-color)
+    background: var(--classify-btn-color);
 }
-
+#classify-consensus-btn{
+    width: 326px;
+    background: linear-gradient(167deg, var(--classify-btn-color) 30%, var(--verify-btn-color)100%);
+}
 #verify-all-btn,#verify-remaining-btn,.verify-btn {
     background: var(--verify-btn-color)
 }
@@ -711,7 +714,7 @@ tr.filter-hidden {
 #batch-actions {
     top: 56px;
     right: 240px;
-    transform: scale3d(.75,.66,1) translateY(-66px) translateX(40px)
+    transform: scale3d(.75,.66,1) translateY(-116px) translateX(40px);
 }
 
 #export-actions,#import-actions {
@@ -822,7 +825,7 @@ tr.filter-hidden {
 
 .modal-content,.modal-small-content {
 /*     background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px,white 20px); */
-    background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px, #f8fbfef0 20px);
+    background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 32px, #f8fbfef0 32px);
     border-radius: 8px;
     box-shadow: 0 16px 96px 0 rgba(0,0,0,.66);
     position: relative;

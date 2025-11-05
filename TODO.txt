@@ -213,8 +213,19 @@ OK	Fix sort by last changed date
         Improve ugly/inconsistent default checkboxes
 OK                Show negative vs positive checkboxes differently (tri-state) 
 
-        Better onboarding:
-                Automatic delete placeholder ID 1 when first importing
+OK      Set up vLLM backend via hardware-accelerated WSL2 Docker:
+Ok              Deprecate GBNF, make API generic enough for all main engines (llama.cpp, vLLM, TabbyAPI)
+OK              Improve batching (8 > ~256 threads), put vLLM to good use: inference time (full classification + verification) for ~14000 papers reduced from ~6 DAYS to ~8 HOURS in the same hardware (2x RTX 3090) with only ~20% increased power draw.
+OK              Make it 42000 papers instead, from 1985 to 2025.
+
+OK      Add agentic classification: Re-classify misclassifications (score <=6 starting from empty/worst) automatically until consensus. Agent prompt template should include full classification, classifier trace, verifier trace, user trace and should explains an imperfect verifier verified the imperfect classification (so it's not guaranteed that the verifier is correct in saying it was misclassified to start with).
+OK              ThreadPool all misclassifications through this same prompt, them after everything completes, run a new, "normal" verify remaining step (which will take all just re-classified papers), and a new re-classify misclassifications with whatever is still left as misclassified, until there's full consensus or user abort.
+OK              Do NOT alternate between classification/verification for each paper as this would fuck up prompt prefix caching. Do all tasks of same class at each step.
+
+OK      Deannualize conferences (imperfect, but it's a way harder natural language problem than initially expected -- still classifies the same conference with 2 or 3 different representations, but better than 9 or one for each year...)
+                Automatic deannualize conferences on input (from cached DB data or new inference if the conference wasn't previously seen)
+
+OK      Create new Lite branch for a generic, stripped down, non-domain-specific, free autosaving PDF annotator on steroids.
 
         Refactor browse_db.py (too large)?
 OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~1900 lines though;
@@ -222,15 +233,20 @@ OK              Getting rid of server-side stats and search already reduced it a
                         'sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 34640 and this is thread id 16976.'
                 Moving helpers away is fine, but there are few.
 
-		Add some 'agentic' functionality:
-				Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
-                                        check existing conference names before creating to ensure no two names for the same conference;
-                                        Also look at the existing model names and research areas, etc. when inferring a new one?
-                                Automatic group together synonym keywords
-				Automatic re-run misclassifications indefinitely (with some way to avoid eternal loop in the same ambiguous paper?);
-				Potential tools: 
-					PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
-						...?
+        Add further 'agentic' functionality:
+                Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
+                        check existing conference names before creating to ensure no two names for the same conference;
+                        Also look at the existing model names and research areas, etc. when inferring a new one?
+                        Access DB for "memory" of existing conferences so it doesn't deannualize the same conference in different ways somehow.
+                Automatic group together synonym keywords
+                Potential tools: 
+                        PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
+                                ...?
+
+        Better onboarding for both main and Lite:
+                Automatic delete placeholder ID 1 when first importing
+
+        Import papers from exactly 2000 (somehow missing?)
 
         Refactor comms.js
                 Works fine, just need some better mantainability. Low priority.

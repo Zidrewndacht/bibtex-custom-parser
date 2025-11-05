@@ -2,6 +2,8 @@
 
 Live Demo (read-only HTML export): [ResearchParça](https://zidrewndacht.github.io/bibtex-custom-parser).
 
+**Also check ResearchParça Lite (Minimal, generic PDF organizer/annotator):** [ResearchParça-Lite](https://github.com/Zidrewndacht/ResearchParsa-lite)
+
 The frontend was mostly tested with Mozilla Firefox and works well. The HTML export has some **known performance issues in Chromium-based browsers**. If the page lags, stops responding, etc, in reasonably modern hardware, please run it in Firefox instead.
 
 --
@@ -12,17 +14,38 @@ The system is designed to streamline literature reviews by allowing for advanced
 
 ## Features
 
-- **BibTeX Import**: Imports bibliographic data from `.bib` files into a structured SQLite database. The import process handles duplicate entries by checking for existing DOIs or matching titles and years.
+- **BibTeX Import**: Imports bibliographic data from `.bib` files into a structured SQLite database. The import process handles duplicate entries by checking for existing DOIs or matching titles and years. A tool to convert IEEE Xplore CSVs is included in `/tools`, but automatic CSV import isn't yet implemented.
+
 - **Web Interface**: A Flask-based web application (`browse_db.py`) provides a user-friendly interface to view, filter, and edit the paper database. The server starts up and automatically opens the interface in a web browser.
-- **LLM-Powered Classification**: The `automate_classification.py` script sends paper metadata to an OpenAI-compatible LLM server (e.g. llama.cpp) to classify papers based on a detailed prompt template. It can process all papers, only unprocessed ones, or a single paper by its ID. Classification results, **including the model's reasoning trace**, are saved to the database.
-- **LLM-Powered Verification**: `verify_classification.py` uses an LLM to review and verify the accuracy of a previous classification, providing a score and a "verified" status. This process also runs in different modes ('all', 'remaining', 'id').
-- **Advanced Filtering and Search**: The web UI allows for server-side filtering by year range, minimum page count, and off-topic. Every other filtering functionality, including search, is done purely client-side (which means search can NOT find papers outside the currently downloaded range (e.g. year, size, off-topic).
+
+- **LLM-Powered Classification (Optimized for Batching)**: The `automate_classification.py` script sends paper metadata to a local **OpenAI-compatible LLM server, supporting vLLM, TabbyAPI, and llama.cpp** to classify papers based on a detailed prompt template.
+    *   Classification results, **including the model's reasoning trace**, are saved to the database.
+    *   Optimized for **high concurrency** (defaults to up to 480 parallel requests) to utilize high-throughput engines like vLLM. This optimization reduced the full classification + verification time for approximately 14,000 papers from about 6 days to **around 8 hours** on testing hardware.
+    *   Includes an advanced **'Re-classify Until Consensus' agentic mode**. This iteratively re-classifies misclassified papers until verification consensus is reached. Note that this is still imperfect, as if classifier and verifier end up reaching consensus in an incorrect classification, it'll still go unnoticed.
+    *   Sample code for LLM engine startup is included at `/inference_engine_examples`.
+
+- **LLM-Powered Verification**: `verify_classification.py` uses the LLM to review and verify the accuracy of a previous classification, providing a score and a "verified" status. This process also runs in different modes ('all', 'remaining', 'id').
+
+- **Advanced Filtering and Search**: The web UI allows for server-side filtering by year range, minimum page count, and off-topic Every other filtering functionality, including search, is done purely client-side.
+
+- **Comprehensive Statistical Analysis and Visualization**: The web UI includes extensive client-side tools to view statistics and charts based on the **currently visible filtered data**. This includes a dedicated "View Statistics" modal presenting:
+    *   Lists of repeating entities such as **Journals, Conferences, Keywords, Authors, Research Areas**, and mentioned **Models**. Users can click items in these lists to instantly search the database for that term.
+    *   A dynamic **Keyword Cloud** view.
+    *   Distribution charts for **Publication Types**, **Survey vs Primary Papers**, **Techniques**, and **Features**. These can be viewed in various formats, including **Cumulative** and **Stacked**.
+    *   Histograms showing the distribution of **Relevance Scores** and **Verifier Scores**.
+    *   Metrics covering **Dataset Scope** (on-topic vs. off-topic), **SMT vs THT** papers, and counts of documents with PDFs or annotations.
+
+- **Conference Deannualization**: This is still half-implemented. `/tools/deannualize_conferences` and `/tools/post_process_conferences` scripts generate a deannualized_conference field in the DB, which is be used by the Web frontend for better "repeating conferences" statistics. The parsing isn't perfect, and doesn't happen automatically on import yet.
+
 - **Data Editing**: Users can directly edit classification fields, add comments (`user_trace`), and manage metadata through the web interface.
-- **PDF Management**: The application supports uploading, storing, and viewing PDF versions of papers. It includes an integrated, branded version of PDF.js that allows for annotating documents directly in the browser, with changes being automatically saved to the server.
+
+- **PDF Management**: The application supports uploading, storing, and viewing PDF versions of papers It includes an integrated, branded version of PDF.js that allows for annotating documents directly in the browser, with changes being automatically saved to the server
+
 - **Data Export**: The currently filtered view of the database can be exported to:
-    - A self-contained, interactive static **HTML file**. This export is compressed for a smaller file size and includes client-side filtering and charting capabilities.
-    - An **Excel (.xlsx) file**, with boolean fields conditionally formatted for readability, ready to be processed using pivot tables and/or any other Excel tools.
-- **Backup and Restore**: The system includes functionality to create a complete backup (`.parça.zst` file) containing the SQLite database, all stored PDFs (original and annotated), and a HTML/XLSX export. The backup file can also be manually extracted and browsed (including annotated PDFs) directly from the included HTML export.
+    *   A self-contained, interactive static **HTML file**. This export is compressed for a smaller file size and includes client-side filtering and charting capabilities
+    *   An **Excel (.xlsx) file**, with boolean fields conditionally formatted for readability, ready to be processed using pivot tables and/or any other Excel tools
+
+- **Backup and Restore**: The system includes functionality to create a complete backup (`.parça.zst` file) containing the SQLite database, all stored PDFs (original and annotated), and an HTML/XLSX export
 
 https://github.com/user-attachments/assets/a37ee7b6-27e8-459a-a092-be67ee769b5e
 
@@ -40,9 +63,15 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
     - You can import a BibTeX file directly from the web interface after the application is running. If no database is found on startup, the application will copy `fallback.sqlite` to the data directory to ensure it can launch for the first import or a backup restore.
       
 3.  **LLM Integration**:
-    - Start an OpenAI-compatible inference server (e.g., llama.cpp). `/lcpp` folder has sample settings for a **supported** llama.cpp configuration.
+    - Start an OpenAI-compatible inference server (e.g., vLLM or llama.cpp). 
     - From the web UI, you can trigger classification and verification tasks for individual papers or in batches ('all' or 'remaining').
     - Alternatively, manually run classification using `automate_classification.py` and `verify_classification.py`. Manual run supports (not yet properly documented) additional operating modes, check the script's usage hints.
+
+    
+    - Start an OpenAI-compatible inference server. If the hardware allows, **vLLM is highly recommended for high-speed batch processing** due to its optimization for heavy continuous batching, tested to be **15 times** faster than llama.cpp for this application in the developer's hardware.
+    - `/inference_engine_examples` folder has sample settings for multiple supported inference engines. Those are tailored for a specific environment (2x RTX 3090 on a Windows workstation) and should be taken as reference only.
+    - From the web UI, you can trigger classification and verification tasks for individual papers or in batches ('all', 'remaining', 'no_features', 'on_topic\_implementation', or the advanced **'Consensus'** mode).
+    - Alternatively, manually run classification using `automate_classification.py` and `verify_classification.py`. Manual run supports additional operating modes, check the script's usage hints.
 
 ## Acknowledgments
 

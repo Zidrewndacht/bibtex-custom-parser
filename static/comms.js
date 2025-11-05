@@ -567,6 +567,7 @@ const classifyAllBtn = document.getElementById('classify-all-btn');
 const classifyMisclassifiedBtn = document.getElementById('classify-misclassified-btn');
 const classifyImplBtn = document.getElementById('classify-impl-btn');
 const classifyRemainingBtn = document.getElementById('classify-remaining-btn');
+const classifyConsensusBtn = document.getElementById('classify-consensus-btn');
 const verifyAllBtn = document.getElementById('verify-all-btn');
 const verifyRemainingBtn = document.getElementById('verify-remaining-btn');
 const batchStatusMessage = document.getElementById('batch-status-message');
@@ -607,49 +608,47 @@ function showApplyButton(){  applyButton.style.opacity = '1'; applyButton.style.
 const allBatchButtons = [
     classifyAllBtn,
     classifyRemainingBtn,
-    classifyMisclassifiedBtn, // Add the new button
-    classifyImplBtn,          // Add the new button
+    classifyMisclassifiedBtn,
+    classifyImplBtn,         
+    classifyConsensusBtn, 
     verifyAllBtn,
     verifyRemainingBtn
 ];
 
-function runBatchAction(mode, actionType) { // actionType: 'classify' or 'verify'
+function runBatchAction(mode, actionType) { 
     if (isBatchRunning) {
         alert(`A ${actionType} batch is already running.`);
         return;
     }
-
-    let modeDescription = mode; // Default to the raw mode string
+    let modeDescription = mode; 
     if (mode === 'all') {
         modeDescription = 'ALL';
     } else if (mode === 'remaining') {
-        modeDescription = 'remaining'; // Keep 'REMAINING' for 'remaining' mode
+        modeDescription = 'remaining'; 
     } else if (mode === 'no_features') {
-        modeDescription = 'misclassification suspect'; // Custom description for 'no_features'
+        modeDescription = 'misclassification suspect';
     } else if (mode === 'on_topic_implementation') {
-        modeDescription = 'on-topic primary/implementation'; // Custom description for 'on_topic_implementation'
+        modeDescription = 'on-topic primary/implementation'; 
+    // Add description for 'consensus' mode
+    } else if (mode === 'consensus') {
+        modeDescription = 'misclassifications until consensus (reclassify + verify loop)';
     }
     if (!confirm(`Are you sure you want to ${actionType} ${modeDescription} papers? This might take a while.`)) {
         return;
     }
-
     isBatchRunning = true;
-
     // Disable ALL batch buttons when any batch action starts
     allBatchButtons.forEach(btn => {
         if (btn) btn.disabled = true; // Check if btn exists before disabling
     });
-
     if (batchStatusMessage) batchStatusMessage.textContent = `Starting ${actionType} (${mode})...`;
-
     const endpoint = actionType === 'classify' ? '/classify' : '/verify';
-
     fetch(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ mode: mode })
+        body: JSON.stringify({ mode: mode }) // Send the mode (including 'consensus')
     })
     .then(response => {
             if (!response.ok) {
@@ -677,6 +676,7 @@ function runBatchAction(mode, actionType) { // actionType: 'classify' or 'verify
         if (batchStatusMessage) batchStatusMessage.innerHTML = '';
     });
 }
+
 
 document.addEventListener('DOMContentLoaded', function () {
     
@@ -796,6 +796,7 @@ document.addEventListener('DOMContentLoaded', function () {
     classifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'classify'));
     classifyMisclassifiedBtn.addEventListener('click', () => runBatchAction('no_features', 'classify'));
     classifyImplBtn.addEventListener('click', () => runBatchAction('on_topic_implementation', 'classify'));
+    classifyConsensusBtn.addEventListener('click', () => runBatchAction('consensus', 'classify'));
     verifyAllBtn.addEventListener('click', () => runBatchAction('all', 'verify'));
     verifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'verify'));
 

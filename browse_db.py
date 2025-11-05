@@ -22,6 +22,7 @@ import zstandard as zstd
 import tarfile
 import shutil
 import subprocess
+import logging
 
 # Import globals, the classification and verification modules
 import globals
@@ -29,11 +30,12 @@ import automate_classification
 import verify_classification
 
 # Define default year range - For this app:
-DEFAULT_YEAR_FROM = 2011
+DEFAULT_YEAR_FROM = 2016
 DEFAULT_YEAR_TO = 2025
 DEFAULT_MIN_PAGE_COUNT = 4
 
 app = Flask(__name__)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 DATABASE = None # Will be set from command line argument
 
 def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None):
@@ -584,27 +586,23 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     # Load and embed fonts as Base64 data URIs
     fonts_css_content = embed_fonts_in_css(static_dir)
     
-    try:
-        with open(os.path.join(static_dir, 'libs/chart.min.js'), 'r', encoding='utf-8') as f:
-            chart_js_content = f.read()
-        with open(os.path.join(static_dir, 'libs/chartjs-plugin-datalabels.min.js'), 'r', encoding='utf-8') as f:
-            chart_js_datalabels_content = f.read()
-        with open(os.path.join(static_dir, 'libs/d3.min.js'), 'r', encoding='utf-8') as f:
-            d3_js_content = f.read()
-        with open(os.path.join(static_dir, 'libs/d3-cloud.min.js'), 'r', encoding='utf-8') as f:
-            d3_cloud_js_content = f.read()
+    with open(os.path.join(static_dir, 'libs/chart.min.js'), 'r', encoding='utf-8') as f:
+        chart_js_content = f.read()
+    with open(os.path.join(static_dir, 'libs/chartjs-plugin-datalabels.min.js'), 'r', encoding='utf-8') as f:
+        chart_js_datalabels_content = f.read()
+    with open(os.path.join(static_dir, 'libs/d3.min.js'), 'r', encoding='utf-8') as f:
+        d3_js_content = f.read()
+    with open(os.path.join(static_dir, 'libs/d3-cloud.min.js'), 'r', encoding='utf-8') as f:
+        d3_cloud_js_content = f.read()
 
-        with open(os.path.join(static_dir, 'style.css'), 'r', encoding='utf-8') as f:
-            style_css_content = f.read()
-        with open(os.path.join(static_dir, 'ghpages.js'), 'r', encoding='utf-8') as f:
-            ghpages_js_content = f.read()
-        with open(os.path.join(static_dir, 'stats.js'), 'r', encoding='utf-8') as f:
-            stats_js_content = f.read()
-        with open(os.path.join(static_dir, 'filtering.js'), 'r', encoding='utf-8') as f:
-            filtering_js_content = f.read()
-    except FileNotFoundError as e:
-        print(f"Warning: Static file not found during HTML export generation: {e}")
-        raise
+    with open(os.path.join(static_dir, 'style.css'), 'r', encoding='utf-8') as f:
+        style_css_content = f.read()
+    with open(os.path.join(static_dir, 'ghpages.js'), 'r', encoding='utf-8') as f:
+        ghpages_js_content = f.read()
+    with open(os.path.join(static_dir, 'stats.js'), 'r', encoding='utf-8') as f:
+        stats_js_content = f.read()
+    with open(os.path.join(static_dir, 'filtering.js'), 'r', encoding='utf-8') as f:
+        filtering_js_content = f.read()
 
     # Combine fonts CSS with main CSS
     style_css_content = fonts_css_content + "\n" + style_css_content
@@ -658,12 +656,8 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     compressed_base64 = base64.b64encode(compressed_bytes).decode('ascii')  # 3. Encode the compressed bytes to Base64 for embedding in JS
 
     pako_js_content = ""
-    try:
-        with open(os.path.join(static_dir, 'libs/pako.min.js'), 'r', encoding='utf-8') as f:
-            pako_js_content = f.read()
-    except FileNotFoundError as e:
-        print(f"Warning: pako.min.js not found during HTML export generation: {e}")
-        raise
+    with open(os.path.join(static_dir, 'libs/pako.min.js'), 'r', encoding='utf-8') as f:
+        pako_js_content = f.read()
 
     # --- Render the LOADER template, passing the compressed data ---
     loader_html_content = render_template(
@@ -820,17 +814,14 @@ def generate_xlsx_export_content(papers):
         ws.column_dimensions[column_letter].width = min(adjusted_width, 50)
 
     # Optional: Format the data as a table (requires openpyxl >= 2.5)
-    try:
-        if len(papers) > 0:
-            # Adjust the column reference to 'AQ' (assuming 37 columns now: A through AQ)
-            # Headers are row 1, data starts row 2, so last row is len(papers) + 1
-            tab = Table(displayName="PCBPapersTable", ref=f"A1:AQ{len(papers) + 1}")
-            style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
-                                   showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-            tab.tableStyleInfo = style
-            ws.add_table(tab)
-    except Exception as e:
-        print(f"Warning: Could not create Excel table: {e}")
+    if len(papers) > 0:
+        # Adjust the column reference to 'AQ' (assuming 37 columns now: A through AQ)
+        # Headers are row 1, data starts row 2, so last row is len(papers) + 1
+        tab = Table(displayName="PCBPapersTable", ref=f"A1:AQ{len(papers) + 1}")
+        style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        tab.tableStyleInfo = style
+        ws.add_table(tab)
 
     # --- NEW: Apply Conditional Formatting for Boolean Cells ---
     # Define fills for TRUE and FALSE
@@ -893,7 +884,7 @@ def run_classification_subprocess(mode, paper_id, db_file):
     # Add arguments based on mode
     if mode == 'id' and paper_id:
         cmd.extend(['--mode', 'id', '--paper_id', str(paper_id)])
-    elif mode in ['all', 'remaining', 'no_features', 'on_topic_implementation']: # Add new modes here
+    elif mode in ['all', 'remaining', 'no_features', 'on_topic_implementation', 'consensus']: # Add new modes here
         cmd.extend(['--mode', mode])
     else:
         print(f"Warning: Invalid mode '{mode}' for subprocess classification.")
@@ -1417,37 +1408,29 @@ def serve_pdf(paper_id):
     filename = paper['pdf_filename']
     current_db_state = paper['pdf_state']
     
-    # NEW LOGIC: Check for annotated and original files
+    # Check for annotated and original files
     annotated_path = os.path.join(globals.ANNOTATED_PDF_STORAGE_DIR, filename)
     original_path = os.path.join(globals.PDF_STORAGE_DIR, filename)
-
-    print(f"Serving PDF for paper_id {paper_id} (filename: {filename})") # Debug print
-    print(f"Looking for annotated: {annotated_path}") # Debug print
-    print(f"Looking for original: {original_path}") # Debug print
-
     new_state = None
     file_to_serve = None
 
     if os.path.exists(annotated_path):
-        print(f"Found annotated file: {filename}")
+        # print(f"Found annotated file: {filename}")
         new_state = 'annotated'
         file_to_serve = annotated_path
     elif os.path.exists(original_path):
-        print(f"Found original file: {filename}")
+        # print(f"Found original file: {filename}")
         new_state = 'PDF' # Reset to 'PDF' if annotated file is missing but original exists
         file_to_serve = original_path
     else:
         print(f"No PDF file found for paper_id: {paper_id} (filename: {filename})")
-        # File doesn't exist at all, set state to 'none'
         new_state = 'none'
-        # Update the database record
         update_query = "UPDATE papers SET pdf_state = ? WHERE id = ?"
         conn.execute(update_query, (new_state, paper_id))
         conn.commit()
         conn.close()
-        abort(404) # Still abort 404 as no file to serve
+        abort(404)
 
-    # Check if the state in the DB needs updating
     if current_db_state != new_state:
         print(f"Updating pdf_state for {paper_id} from '{current_db_state}' to '{new_state}'")
         update_query = "UPDATE papers SET pdf_state = ? WHERE id = ?"
@@ -1458,7 +1441,6 @@ def serve_pdf(paper_id):
 
     conn.close()
 
-    # Serve the determined file
     # Use os.path.basename to get just the filename from the full path for send_from_directory
     return send_from_directory(os.path.dirname(file_to_serve), os.path.basename(file_to_serve), as_attachment=False)
 
@@ -1501,7 +1483,7 @@ def upload_annotated_pdf(paper_id):
                 os.remove(filepath)
             return jsonify({'status': 'error', 'message': 'Failed to update paper state in DB'}), 500
 
-        print(f"Saved annotated PDF for paper {paper_id} as {filename}")
+        # print(f"Saved annotated PDF for paper {paper_id} as {filename}")
         return jsonify({'status': 'success', 'message': f'File {filename} updated successfully.'})
     except Exception as e:
         print(f"Error saving annotated PDF for paper {paper_id}: {e}")
@@ -1675,7 +1657,7 @@ def classify_paper():
     db_file = DATABASE 
 
     # Valid modes for batch classification subprocess
-    valid_batch_modes = ['all', 'remaining', 'no_features', 'on_topic_implementation']
+    valid_batch_modes = ['all', 'remaining', 'no_features', 'on_topic_implementation','consensus']
 
     if mode in valid_batch_modes:
         # Run batch classification as a separate process
@@ -1802,7 +1784,6 @@ if __name__ == '__main__':
     fallback_needed = False
     if DATABASE is None:
         fallback_needed = True
-        print("Info: No database file specified via argument or globals.DATABASE_FILE.")
     elif not os.path.exists(DATABASE):
         fallback_needed = True
         print(f"Warning: Specified database file not found: {DATABASE}")
@@ -1813,12 +1794,10 @@ if __name__ == '__main__':
         fallback_path = os.path.join(script_dir, 'fallback.sqlite')
         
         if not os.path.exists(fallback_path):
-            print(f"Error: Fallback database file not found: {fallback_path}")
-            print("Please ensure 'fallback.sqlite' exists in the script's directory.")
+            print(f"Error: Fallback database file not found: {fallback_path} \nPlease ensure 'fallback.sqlite' exists in the script's directory.")
             sys.exit(1)
         
         target_database = globals.DATABASE_FILE
-        print(f"Copying fallback database from {fallback_path} to {target_database}")
         
         # Copy the fallback database to the target location
         import shutil
@@ -1829,8 +1808,7 @@ if __name__ == '__main__':
 
     # Check if the final determined database file exists
     if not os.path.exists(DATABASE):
-        print(f"Error: Final database file not found: {DATABASE}")
-        print("Please provide a valid database file via command line argument, set globals.DATABASE_FILE correctly, or ensure 'fallback.sqlite' exists in the script's directory.")
+        print(f"Error: Final database file not found: {DATABASE} \nPlease provide a valid database file via command line argument, set globals.DATABASE_FILE correctly, or ensure 'fallback.sqlite' exists in the script's directory.")
         sys.exit(1) # Exit if even the fallback doesn't exist
 
     # Verify the database has the required tables

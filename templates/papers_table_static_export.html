@@ -43,7 +43,7 @@
 
         <td class="secondary-text-cell number-cell">{{ paper.year or '' }}</td>
         <td class="secondary-text-cell number-cell">{{ paper.page_count or '' }}</td>
-        <td class="secondary-text-cell">{{ paper.journal }}</td>        
+        <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>        
         <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
         
 
