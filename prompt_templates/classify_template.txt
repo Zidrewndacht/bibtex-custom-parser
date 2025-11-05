@@ -17,20 +17,20 @@ features:             # true, false, null for unknown/unclear. Mark as true all 
 	# Bare PCB issues:
     tracks: null # any track error detection: open track, short circuit, spurious copper, mouse bite, wrong trace space/width, etc.
     holes: null # for hole plating, drilling defects and any other PCB hole issues.
-    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue.  Set this to true if paper talks about bare PCB defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed bare PCB* defects of unspecified nature (in which case just set this as true).
+    bare_pcb_other: null # for any other or unspecified bare PCB (not assembled with components) issue.  Set this to true if paper talks about bare PCB defects that are specifically different to the above (in such case set it as true *and write the 'features: other' string* at the end *with the specified type of issue*) or are *confirmed bare PCB* defects of unspecified nature (in which case just set this as true).
 	
 	# soldering/welding issues:
     solder_insufficient: null # too little solder, dry joint, poor fillet
     solder_excess: null # solder ball / bridge / short between pads or leads
     solder_void: null # voids, blow-holes, pin-holes inside the joint
     solder_crack: null # fatigue cracks, fractured or “cold” joints
-    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed solder* defects of unspecified nature (in which case just set this as true).
+    solder_other: null # for any other or unspecified solder issue. Set this to true if paper talks about solder defects that are specifically different to the above (in such case set it as true *and write the 'features: other' string* at the end *with the specified type of issue*) or are *confirmed solder* defects of unspecified nature (in which case just set this as true).
 	
 	# component/PCBA issues: 
     orientation: null # for components installed in the correct place, but with wrong orientation (inverted polarity, wrong pin 1 placement, etc).
     wrong_component: null # for components installed in the wrong location, might also detect components being installed where none should be.
     missing_component: null # for detection of empty places where some component has to be installed (e.g. empty pads that aren't supposed to stay empty).
-    component_other: null # for any other or unspecified component issue.  Set this to true if paper talks about component defects that are specifically different to the above (in such case set it as true and write the 'other' string at the end with the specific issue) or are *confirmed component/PCBA* defects of unspecified nature (in which case just set this as true).
+    component_other: null # for any other or unspecified component issue.  Set this to true if paper talks about component defects that are specifically different to the above (in such case set it as true *and write the 'features: other' string* at the end *with the specified type of issue*) or are *confirmed component/PCBA* defects of unspecified nature (in which case just set this as true).
 	
   # other issues:
 	  cosmetic: null #cosmetic defects (any manufacturing defect that does not actually affect functionality: scratches, dirt, etc.);
@@ -50,6 +50,8 @@ technique:                  # true, false, null for unknown/unclear. Identify al
     hybrid: null            # true if the paper explicitly combines *different* sub-categories (classic_, ml_, dl_) above (classic CV + DL, classic CV + traditional ML, traditional ML + DL, *but not DL + DL as those are all from the same sub-category*).  When hybrid is true, also set each constituent technique to true. For papers with an implementation that only mixes multiple DL techniques, just set all relevant DL techniques as true and keep this one as false.
     model: "name"			      # model name or comma-separated list of model names if multiple models are mentioned (YOLO, ResNet, DETR, etc.), "in-house" if unnamed ML/DL model is developed in the paper itself, null if no model applies.
     available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+
+Look carefully at the publication year. A paper from before 2017 is very unlikely to use Transformer, a paper before 2015 is very unlikely to use a CNN detector, a paper from before 2012 is very unlikely to use any Deep Learning approach (instead it's probably ml_traditional if there's any ML) and so on. Consider your own knowledge when applicable.
 
 Below are some example outputs, from random papers, for structure reference only:
 
@@ -171,7 +173,7 @@ Keywords: PCB inspection, survey, defect review
     "missing_component": true,
     "component_other": true,
     "cosmetic": true,
-    "other": "lifted pads, mouse-bites, dewetting"
+    "other": "lifted pads, mouse-bites, dewetting, printing shift"
   }},
   "technique": {{
     "classic_cv_based": true,
@@ -225,7 +227,7 @@ Keywords: YOLOv5, SMT, solder bridge, missing component, track defect, dataset
     "missing_component": true,
     "component_other": false,
     "cosmetic": null,
-    "other": ""
+    "other": "solder bridges"
   }},
   "technique": {{
     "classic_cv_based": false,
