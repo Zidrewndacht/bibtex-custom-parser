@@ -18,7 +18,7 @@
     
 </head>
 <body>
-<input type="file" id="bibtex-file-input" accept=".bib" style="display: none;"> <!-- Hidden file input for BibTeX upload -->
+<input type="file" id="bibtex-file-input" accept=".bib,.csv" style="display: none;">
 <div class="table-container" id="papers-table-container">
     <table id="papersTable" style="table-layout: fixed;">
         <colgroup>
@@ -80,7 +80,7 @@
                     <div class="main-header">
                         <div class="header-controls">
                             <button class="action-btn" id="import-btn" style="display:none">Import / Restore</button> <!-- currently unused, kept if a menu is desired later here instead-->
-                            <button class="action-btn" id="import-bibtex-btn">Import <strong>BibTeX</strong></button>                                
+                            <button class="action-btn" id="import-bibtex-btn" title="Supported: Scopus, ACM, Zotero BibTeX, IEEE Xplore CSV">Import <strong>BibTeX / CSV</strong></button>                                
                         </div>
                         <div class="header-controls">
                             <button class="action-btn" id="export-btn"><strong>Export</strong> & Backup</button>

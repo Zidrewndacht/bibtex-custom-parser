@@ -1720,10 +1720,10 @@ def verify_paper():
             return jsonify({'status': 'error', 'message': f'Verification failed: {str(e)}'}), 500
     else:
         return jsonify({'status': 'error', 'message': 'Invalid mode or missing paper_id for single verification.'}), 400
-
+    
 @app.route('/upload_bibtex', methods=['POST'])
 def upload_bibtex():
-    """Endpoint to handle BibTeX file upload and import."""
+    """Endpoint to handle BibTeX/CSV file upload and import."""
     global DATABASE # Assuming DATABASE is defined globally as before
 
     if 'file' not in request.files:
@@ -1734,38 +1734,56 @@ def upload_bibtex():
     if file.filename == '':
         return jsonify({'status': 'error', 'message': 'No selected file'}), 400
 
-    if file and file.filename.lower().endswith('.bib'):
-        try:
-            # Save the uploaded file to a temporary location
+    filename = file.filename.lower()
+    
+    try:
+        import import_bibtex 
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            file.save(tmp_file.name)
+            tmp_file_path = tmp_file.name
+
+        if filename.endswith('.bib'):
+            import_bibtex.import_bibtex(tmp_file_path, DATABASE)
+            
+        elif filename.endswith('.csv'):
+            bibtex_entries = import_bibtex.convert_csv_to_bibtex(tmp_file_path)
+            
+            # Create temporary BibTeX file
             with tempfile.NamedTemporaryFile(delete=False, suffix='.bib') as tmp_bib_file:
-                file.save(tmp_bib_file.name)
+                for entry in bibtex_entries:
+                    tmp_bib_file.write(entry.encode('utf-8'))
                 tmp_bib_path = tmp_bib_file.name
-
-            # Use the existing import_bibtex logic
-            # Import here to avoid potential circular imports if placed at the top
-            import import_bibtex 
-
-            # Call the import function with the temporary file and the global DB path
+            
             import_bibtex.import_bibtex(tmp_bib_path, DATABASE)
-
-            # Clean up the temporary file
+            
+            # Clean up the temporary BibTeX file
             os.unlink(tmp_bib_path)
+            
+        else:
+            # Clean up the temporary file before returning error
+            os.unlink(tmp_file_path)
+            return jsonify({'status': 'error', 'message': 'Invalid file type. Please upload a .bib or .csv file.'}), 400
 
-            return jsonify({'status': 'success', 'message': 'BibTeX file imported successfully.'})
+        # Clean up the temporary file
+        os.unlink(tmp_file_path)
 
-        except Exception as e:
-            # Ensure cleanup even if import fails
-            if 'tmp_bib_path' in locals():
-                try:
-                    os.unlink(tmp_bib_path)
-                except OSError:
-                    pass # Ignore errors during cleanup
-            print(f"Error importing BibTeX: {e}")
-            return jsonify({'status': 'error', 'message': f'Import failed: {str(e)}'}), 500
-    else:
-        return jsonify({'status': 'error', 'message': 'Invalid file type. Please upload a .bib file.'}), 400
+        return jsonify({'status': 'success', 'message': f'{"BibTeX" if filename.endswith(".bib") else "CSV"} file imported successfully.'})
 
-
+    except Exception as e:
+        # Ensure cleanup even if import fails
+        if 'tmp_file_path' in locals():
+            try:
+                os.unlink(tmp_file_path)
+            except OSError:
+                pass # Ignore errors during cleanup
+        # Also clean up temporary BibTeX file if it was created
+        if 'tmp_bib_path' in locals():
+            try:
+                os.unlink(tmp_bib_path)
+            except OSError:
+                pass
+        print(f"Error importing file: {e}")
+        return jsonify({'status': 'error', 'message': f'Import failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Browse and edit PCB inspection papers database.')
