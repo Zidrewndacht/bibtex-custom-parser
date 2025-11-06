@@ -227,6 +227,8 @@ OK      Deannualize conferences (imperfect, but it's a way harder natural langua
 
 OK      Create new Lite branch for a generic, stripped down, non-domain-specific, free autosaving PDF annotator on steroids.
 
+OK      Further remove "Ultra Graphics", e.g., eyecandy that gives too much performance concerns with too little visual changes. Namely removed backdrop-filters, translucent modals and 3D transforms globally since newer Intel Arc Xe iGPU also disliked those.
+
         Refactor browse_db.py (too large)?
 OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~1900 lines though;
                 Moving SQLite logic to a separate file for DB operations may cause 

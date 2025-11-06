@@ -19,7 +19,8 @@
     --inferred-ui-color: hsl(154.6, 35.8%, 32.4%);
     --inferred-gradient-end-color: rgb(57, 106, 53);
     --stats-primary-ui-color: var(--primary-ui-color);
-    --modal-wrapper-background: #eee6;
+    /* --modal-wrapper-background: #eee6; */
+    --modal-wrapper-background: hsla(204, 4%, 96%, 0.92);
     --classify-btn-color: hsl(246, 29%, 40%);
     --verify-btn-color: hsl(276, 29%, 40%);
     --save-btn-color: rgb(58, 136, 47);
@@ -59,7 +60,8 @@ html.busyCursor body,html.busyCursor body * {
     padding: 0;
     width: calc(100% - 18px);
     height: calc(100% - 67px);
-    backdrop-filter: blur(12px);
+    /* backdrop-filter: blur(12px); */
+    background: var(--modal-wrapper-background);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -68,7 +70,6 @@ html.busyCursor body,html.busyCursor body * {
     transition: opacity .3s ease;
     transition-delay: .33s;
     border-radius: 8px;
-    background: var(--modal-wrapper-background);
     flex-direction: column;
     gap: 40px;
     min-width: var(--min-width);
@@ -387,7 +388,7 @@ form label {
 .detail-flex-container {
     max-height: 0;
     overflow: hidden;
-    transition: max-height .33s ease-in-out,opacity .5s ease-in-out;
+    transition: max-height .4s ease-in-out,opacity .6s ease-in-out;
     display: grid;
     grid-template-columns: 1fr 1fr 720px;
     grid-template-rows: auto;
@@ -479,10 +480,10 @@ form label {
     background: var(--restore-btn-color)
 }
 
-#stats-btn {
-    width: 180px;
-    max-width: 180px;
-    min-width: 180px;
+#stats-btn, #import-bibtex-btn {
+    width: 200px;
+    max-width: 200px;
+    min-width: 200px;
     background: var(--stats-primary-ui-color)
 }
 
@@ -695,14 +696,14 @@ tr.filter-hidden {
     justify-content: center;
     align-items: center;
     position: fixed;
-    background: var(--modal-wrapper-background);
-    backdrop-filter: blur(16px);
+    /* backdrop-filter: blur(16px); 
+    background: #f5f7fad9;*/
+    background: var(--detail-button-background);
     perspective: 100vh;
     flex-direction: column;
     padding: 10px;
     gap: 16px;
     border-radius: 8px;
-    background: #f5f7fad9;
     border: 1px solid #444;
     box-shadow: 0 48px 96px 32px rgba(64,64,64,.5);
     box-sizing: border-box;
@@ -713,7 +714,7 @@ tr.filter-hidden {
 
 #batch-actions {
     top: 56px;
-    right: 240px;
+    right: 260px;
     transform: scale3d(.75,.66,1) translateY(-116px) translateX(40px);
 }
 
@@ -724,7 +725,7 @@ tr.filter-hidden {
 }
 
 #export-actions {
-    left: 180px
+    left: 210px;
 }
 
 .header-controls {
@@ -824,14 +825,15 @@ tr.filter-hidden {
 }
 
 .modal-content,.modal-small-content {
-/*     background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px,white 20px); */
-    background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 32px, #f8fbfef0 32px);
+    background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px,white 20px);
+    /* background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 32px, #f8fbfef0 32px); */
     border-radius: 8px;
     box-shadow: 0 16px 96px 0 rgba(0,0,0,.66);
     position: relative;
     box-sizing: border-box;
     overflow: hidden;
-    transform: scale3d(.94,.94,1) rotate3d(2,1,0,2.5deg) translateY(-20px);
+    /* transform: scale3d(.94,.94,1) rotate3d(2,1,0,2.5deg) translateY(-20px); */
+    transform: scale(0.94);
     transition: transform .3s ease-out;
     display: grid
 }
@@ -925,7 +927,7 @@ tr.filter-hidden {
     width: 100%;
     height: 100%;
     background: var(--modal-wrapper-background);
-    backdrop-filter: blur(12px);
+    /* backdrop-filter: blur(12px); */
     perspective: 100vh
 }
 
@@ -1244,7 +1246,7 @@ li {
 
     #batch-actions {
         top: 48px;
-        right: 232px;
+        right: 252px;
     }
 
     #import-actions {
@@ -1254,7 +1256,7 @@ li {
 
     #export-actions {
         top: 48px;
-        left: 176px
+        left: 206px;
     }
 
     .modal-content {
@@ -1276,43 +1278,18 @@ li {
 
 /* Media query for high device pixel ratio (HiDPI) screens */
 /* This targets the *physical* pixel density of the screen */
-@media screen and (min-resolution: 2dppx) {
-    /* Minimum 2 device pixels per CSS pixel */
-    /* Specifically target the most demanding transition */
-    .detail-flex-container {
-    /* Overrides max-height/opacity transitions */
-        transition: none !important;
-    }
-    .modal-content,.modal-small-content  {
-        background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px,white 20px);
-        backdrop-filter: none !important;
-    }
+@media screen and (min-resolution: 2dppx) {   /* Minimum 2 device pixels per CSS pixel */
 
     /* Slows down the spin animation */
     .loading-spinner {
         animation: spin 1.5s linear infinite !important;
     }
 
-    /* Target the modal backdrop filter specifically */
-    .loading-overlay, .modal {
-        backdrop-filter: none !important;
-        background: #eeee
+    /* Overrides max-height/opacity transitions */
+    .detail-flex-container {
+        transition: none !important;
     }
-
-    /*remove translucid background as it requires backdrop-filter for legibility otherwise*/
-    #batch-actions, #import-actions, #export-actions {
-        background: var(--detail-button-background) 
-    }
-
-    /* Removes initial modal 3D scaling/rotation */
-    .modal-content,
-    .modal-small-content,
-    #batch-actions,
-    #import-actions,
-    #export-actions {
-        transform: none !important;
-    }
-
+    
     /* Target potential hover effects causing frequent redraws */
     .editable-status:hover,
     .editable-verify:hover,
@@ -1324,4 +1301,27 @@ li {
     .detail-flex-container, .detail-row.expanded .detail-flex-container{
         transition: none;
     }
+    /* The effects below are now disabled globally instead: */
+    /* .modal-content,.modal-small-content  {
+        background: linear-gradient(180deg,var(--stats-primary-ui-color) 0%,var(--stats-primary-ui-color) 20px,white 20px);
+        backdrop-filter: none !important;
+    } */
+
+
+    /* Target the modal backdrop filter specifically */
+    /* .loading-overlay, .modal {
+        backdrop-filter: none !important;
+        background: #eeee
+    } */
+
+    /* Removes initial modal 3D scaling/rotation */
+    /* ,.modal-content,
+    .modal-small-content
+    #batch-actions,
+    #import-actions,
+    #export-actions
+    {
+        transform: scale(0.9);
+    }  */
+
 }

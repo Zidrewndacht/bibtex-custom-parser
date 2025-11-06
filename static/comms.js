@@ -971,8 +971,8 @@ document.addEventListener('DOMContentLoaded', function () {
     bibtexFileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file) {
-            if (!file.name.toLowerCase().endsWith('.bib')) {
-                alert('Please select a .bib file.');
+            if (!file.name.toLowerCase().endsWith('.bib') && !file.name.toLowerCase().endsWith('.csv')) {
+                alert('Please select a .bib or .csv file.');
                 bibtexFileInput.value = ''; // Clear the input
                 return;
             }

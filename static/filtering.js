@@ -265,7 +265,6 @@ const FEATURE_GROUPS = {
         'features_wrong_component',
         'features_component_other',
         'features_cosmetic',
-        'features_other_state'
     ],
     other: ['features_other_state']
 };

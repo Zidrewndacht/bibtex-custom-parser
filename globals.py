@@ -10,9 +10,9 @@ import threading
 import os
 
 LLM_SERVER_URL = "http://localhost:8086"
-MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr
-MAX_CONCURRENT_WORKERS_VERIFY = 480 # vLLM go brrr
-MAX_CONCURRENT_WORKERS_CONSENSUS = 96 # vLLM go brrr
+MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr 
+MAX_CONCURRENT_WORKERS_VERIFY = 480
+MAX_CONCURRENT_WORKERS_CONSENSUS = 96
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

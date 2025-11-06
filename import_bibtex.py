@@ -463,7 +463,28 @@ def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
                 continue
     
     return bibtex_entries
-
+def normalize_title_for_comparison(title):
+    """Normalize title for duplicate detection by removing case, extra whitespace, and common variations."""
+    if not title:
+        return ""
+    
+    # Convert to lowercase
+    normalized = title.lower()
+    
+    # Remove extra whitespace and normalize spaces
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    # Remove common punctuation variations that don't change meaning
+    # Replace various dash types with standard space
+    normalized = re.sub(r'[-–—]', ' ', normalized)
+    
+    # Remove extra spaces created by dash replacement
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    # Remove common leading/trailing punctuation
+    normalized = normalized.strip(' .,;:')
+    
+    return normalized
 
 def import_bibtex(bib_file, db_path):
     """Import BibTeX file into SQLite database"""
@@ -511,12 +532,55 @@ def import_bibtex(bib_file, db_path):
         is_offtopic = None  # Default to unknown
         relevance = None    # Default to unknown
         
+        # Get the original ID and make it unique if needed
+        original_id = entry.get('ID', '')
+        
+        # Check for duplicates: prioritize DOI, fallback to normalized title + year
+        doi = entry.get('doi', '')
+        title = cleaned_title
+        year = int(entry.get('year', '0')) if entry.get('year', '').isdigit() else None
+
+        duplicate_found = False
+        
+        if doi:
+            cursor.execute("SELECT id FROM papers WHERE doi = ?", (doi,))
+            if cursor.fetchone():
+                # print(f"Skipping duplicate entry with DOI '{doi}'")
+                duplicate_found = True
+        else:
+            # Fallback: check for same normalized title and year
+            if title and year:
+                normalized_title = normalize_title_for_comparison(title)
+                cursor.execute("SELECT id FROM papers WHERE LOWER(title) = ? AND year = ?", (normalized_title, year))
+                if cursor.fetchone():
+                    duplicate_found = True
+            # Also check for exact title match (case-insensitive) as additional safeguard
+            elif title:
+                cursor.execute("SELECT id FROM papers WHERE LOWER(title) = LOWER(?)", (title,))
+                if cursor.fetchone():
+                    duplicate_found = True
+
+        if duplicate_found:
+            duplicate_count += 1
+            continue  # Skip this entry
+
+        # Generate a unique ID if the original ID already exists
+        final_id = original_id
+        counter = 1
+        while True:
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (final_id,))
+            if not cursor.fetchone():
+                break  # Unique ID found
+            # Create a new ID by appending a counter
+            final_id = f"{original_id}_{counter}"
+            counter += 1
+
         data = {
-            'id': entry.get('ID', ''),
+            'id': final_id,
             'type': entry.get('ENTRYTYPE', ''),
             'title': cleaned_title,
             'authors': parse_authors(entry.get('author', '')),
-            'year': int(entry.get('year', '0')) if entry.get('year', '').isdigit() else None,
+            'year': year,
             'month': entry.get('month', ''),
             'journal': entry.get('journal', '') or entry.get('booktitle', ''),
             'volume': entry.get('volume', ''),
@@ -544,29 +608,6 @@ def import_bibtex(bib_file, db_path):
             'verifier_trace': None,  
             'user_trace': None, 
         }
-        # Check for duplicates: prioritize DOI, fallback to title + year
-        doi = data['doi']
-        title = data['title']
-        year = data['year']
-
-        duplicate_found = False
-        
-        if doi:
-            cursor.execute("SELECT id FROM papers WHERE doi = ?", (doi,))
-            if cursor.fetchone():
-                # print(f"Skipping duplicate entry with DOI '{doi}'")
-                duplicate_found = True
-        else:
-            # Fallback: check for same title and year
-            if title and year:
-                cursor.execute("SELECT id FROM papers WHERE title = ? AND year = ?", (title, year))
-                if cursor.fetchone():
-                    # print(f"Skipping duplicate entry with title '{title}' and year '{year}'")
-                    duplicate_found = True
-
-        if duplicate_found:
-            duplicate_count += 1
-            continue  # Skip this entry
 
         # Insert into database
         try:
@@ -583,10 +624,9 @@ def import_bibtex(bib_file, db_path):
                 :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :estimated_score, :verified_by, :reasoning_trace, :verifier_trace, :user_trace
             )
             ''', data)
-        # except sqlite3.IntegrityError as e:
-        #     print(f"Warning: Skipping duplicate ID '{data['id']}' - {e}")
         except Exception as e:
             print(f"Error inserting entry '{data['id']}': {e}")
+            continue  # Skip this problematic entry
 
         processed_count += 1
         import sys  # Add this import at the top
@@ -609,7 +649,6 @@ def import_bibtex(bib_file, db_path):
     conn.commit()
     print(f"\nImport completed: {processed_count} records imported, {duplicate_count} duplicates skipped")
     conn.close()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

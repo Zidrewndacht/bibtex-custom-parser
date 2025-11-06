@@ -135,14 +135,21 @@ def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
                     key = f"{original_key}{counter}"
                     counter += 1
                 
-                # Determine entry type
-                pub_title = row.get("Publication Title", "")
-                if "conference" in pub_title or "proceeding" in pub_title:
+                # Determine entry type using the Document Identifier field
+                doc_identifier = row.get("Document Identifier", "").strip().lower()
+                if "conference" in doc_identifier:
                     entry_type = "inproceedings"
-                elif "journal" in pub_title or "trans" in pub_title:
+                elif "journal" in doc_identifier:
                     entry_type = "article"
                 else:
-                    entry_type = "article"
+                    # Fallback: try to determine from Publication Title if Document Identifier is not available
+                    pub_title = row.get("Publication Title", "").lower()
+                    if "conference" in pub_title or "inproceeding" in pub_title or "proceeding" in pub_title:
+                        entry_type = "inproceedings"
+                    elif "journal" in pub_title or "trans" in pub_title:
+                        entry_type = "article"
+                    else:
+                        entry_type = "article"
                 
                 # Start building the BibTeX entry
                 bibtex_entry = f"@{entry_type}{{{key},\n"
@@ -156,6 +163,7 @@ def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
                     bibtex_entry += f"  author = {{{clean_authors(authors)}}},\n"
                 
                 # Add journal/booktitle
+                pub_title = row.get("Publication Title", "")
                 if pub_title:
                     if entry_type == "inproceedings":
                         bibtex_entry += f"  booktitle = {{{escape_bibtex_field(pub_title)}}},\n"
@@ -244,9 +252,6 @@ def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
                 if citation_count and citation_count != "0":
                     bibtex_entry += f"  note = {{Citations: {citation_count}}},\n"
                 
-                # Add custom fields based on your database schema
-                # These would typically come from your database but we can add placeholders
-                # For demonstration, I'll add some custom fields that could be useful
                 if row.get("Document Identifier"):
                     doc_id = row.get("Document Identifier", "").strip()
                     if doc_id:
@@ -267,19 +272,6 @@ def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
                 if mesh_terms:
                     bibtex_entry += f"  mesh = {{{escape_bibtex_field(mesh_terms)}}},\n"
                 
-                # Add custom classification fields (would come from your database)
-                # These are placeholders - you'd populate these from your database
-                # bibtex_entry += f"  research_area = {{{}}},\n"
-                # bibtex_entry += f"  is_offtopic = {{{}}},\n"
-                # bibtex_entry += f"  relevance = {{{}}},\n"
-                # bibtex_entry += f"  is_survey = {{{}}},\n"
-                # bibtex_entry += f"  is_through_hole = {{{}}},\n"
-                # bibtex_entry += f"  is_smt = {{{}}},\n"
-                # bibtex_entry += f"  is_x_ray = {{{}}},\n"
-                # bibtex_entry += f"  features = {{{}}},\n"
-                # bibtex_entry += f"  technique = {{{}}},\n"
-                
-                # Close the entry
                 bibtex_entry += "}\n\n"
                 bibtex_entries.append(bibtex_entry)
                 
