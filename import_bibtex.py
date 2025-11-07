@@ -575,6 +575,11 @@ def import_bibtex(bib_file, db_path):
             final_id = f"{original_id}_{counter}"
             counter += 1
 
+        # Normalize entry type: always use 'inproceedings' for conferences
+        entry_type = entry.get('ENTRYTYPE', '').lower()
+        if entry_type == 'conference':
+            entry_type = 'inproceedings'
+            
         data = {
             'id': final_id,
             'type': entry.get('ENTRYTYPE', ''),
