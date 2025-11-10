@@ -1176,8 +1176,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     restoreBtn.addEventListener('click', function() {
-        //console.log("Restore button clicked");
-        
         // Create file input for backup selection
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -1240,13 +1238,27 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.removeChild(fileInput);
     });
     
-    // --- Ctrl+S Save Functionality ---
-    document.addEventListener('keydown', function(event) {
+    function handleEnterKey(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            applyServerSideFilters();
+        }
+    }
+    if (yearFromInput) {
+        yearFromInput.addEventListener('keydown', handleEnterKey);
+    }
+    if (yearToInput) {
+        yearToInput.addEventListener('keydown', handleEnterKey);
+    }
+    if (minPageCountInput) {
+        minPageCountInput.addEventListener('keydown', handleEnterKey);
+    }
+
+    document.addEventListener('keydown', function(event) {      // --- Ctrl+S Save Functionality ---
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault(); // Prevent the browser's default save action
 
-            // Get the currently focused element
-            const focusedElement = document.activeElement;
+            const focusedElement = document.activeElement;  // Get the currently focused element
 
             // Check if the focused element is within a form inside an expanded detail row
             // The form should have the data-paper-id attribute
@@ -1255,20 +1267,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (formContainingFocus) {
                 const paperId = formContainingFocus.getAttribute('data-paper-id');
                 if (paperId) {
-                    // console.log("Ctrl+S pressed, saving changes for focused form (paper ID):", paperId);
-                    // Call the existing saveChanges function for the identified paper ID
                     saveChanges(paperId);
                 } else {
-                    // This case should ideally not happen if the selector is correct
                     console.warn("Ctrl+S pressed, focused element is in an expanded detail row form, but data-paper-id is missing.");
                 }
             } else {
-                // Focus is not within an expanded detail row form.
-                // Optionally, provide feedback or do nothing.
                 console.log("Ctrl+S pressed, but focus is not inside an expanded detail row form.");
             }
         }
     });
-    // --- End Ctrl+S Save Functionality ---
 
 });

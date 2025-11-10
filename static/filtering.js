@@ -1118,3 +1118,106 @@ document.addEventListener('DOMContentLoaded', function () {
     updateSurveyCheckboxUI();
 }); 
 
+
+
+function generateLatexTableFromVisibleRows() {
+    // Get the table body and visible rows
+    const tbody = document.querySelector('#papersTable tbody');
+    const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+
+    if (visibleRows.length === 0) {
+        console.warn("No visible rows found");
+        return "";
+    }
+
+    let latexTable = "\\begin{landscape}\n\\begin{longtable}{|l|p{4cm}|p{2.5cm}|c|c|p{2.5cm}|}\n";
+    latexTable += "\\hline\n";
+    latexTable += "\\textbf{Type} & \\textbf{Title} & \\textbf{Authors} & \\textbf{Year} & \\textbf{Pages} & \\textbf{Journal/Conference} \\\\\n";
+    latexTable += "\\hline\n";
+
+    // Process each visible row
+    for (let i = 0; i < visibleRows.length; i++) {
+        const row = visibleRows[i];
+        
+        // Skip detail rows, only process main rows
+        if (row.classList.contains('detail-row')) {
+            continue;
+        }
+
+        // Get the paper data from the row cells using the indices from filtering.js
+        const typeCell = row.cells[5]; // typeCellIndex = 5
+        const titleCell = row.cells[1]; // titleCellIndex = 1
+        const yearCell = row.cells[2];  // yearCellIndex = 2
+        const pageCountCell = row.cells[3]; // pageCountCellIndex = 3
+        const journalCell = row.cells[4]; // journalCellIndex = 4
+
+        // Extract text content from the cells
+        const type = typeCell ? typeCell.textContent.trim() : '';
+        const title = titleCell ? titleCell.textContent.trim() : '';
+        const year = yearCell ? yearCell.textContent.trim() : '';
+        const pageCount = pageCountCell ? pageCountCell.textContent.trim() : '';
+        const journal = journalCell ? journalCell.textContent.trim() : '';
+
+        // Extract authors from the hidden data cell
+        const authorsCell = row.querySelector('td[data-field="authors"]');
+        const authors = authorsCell ? authorsCell.textContent.trim() : '';
+
+        // Map emoji to text
+        let typeText = type;
+        if (type === '📚') {
+            typeText = 'Conference';
+        } else if (type === '📄') {
+            typeText = 'Journal';
+        }
+
+        // Escape special LaTeX characters in content (except for existing LaTeX commands)
+        const escapedType = escapeLatexSpecialChars(typeText);
+        const escapedTitle = escapeLatexSpecialChars(title);
+        const escapedAuthors = escapeLatexSpecialChars(authors);
+        const escapedJournal = escapeLatexSpecialChars(journal);
+
+        // Add row to LaTeX table
+        latexTable += `${escapedType} & ${escapedTitle} & ${escapedAuthors} & ${year} & ${pageCount} & ${escapedJournal} \\\\\n`;
+        latexTable += "\\hline\n";
+    }
+
+    latexTable += "\\end{longtable}\n\\end{landscape}";
+
+    return latexTable;
+}
+
+// Function to escape LaTeX special characters while preserving LaTeX commands
+function escapeLatexSpecialChars(text) {
+    if (!text) return '';
+    
+    // First, temporarily protect LaTeX commands (starting with backslash)
+    const commands = [];
+    let protectedText = text.replace(/(\\[a-zA-Z]+)(\{[^}]*\})?/g, function(match) {
+        const placeholder = `__LATEX_CMD_${commands.length}__`;
+        commands.push(match);
+        return placeholder;
+    });
+    
+    // Escape special characters in the remaining text
+    protectedText = protectedText
+        .replace(/\\/g, '\\textbackslash ')
+        .replace(/\$/g, '\\$')
+        .replace(/%/g, '\\%')
+        .replace(/&/g, '\\&')
+        .replace(/#/g, '\\#')
+        .replace(/\^/g, '\\textasciicircum ')
+        .replace(/_/g, '\\_')
+        .replace(/{/g, '\\{')
+        .replace(/}/g, '\\}');
+    
+    // Restore the LaTeX commands
+    for (let i = 0; i < commands.length; i++) {
+        protectedText = protectedText.replace(`__LATEX_CMD_${i}__`, commands[i]);
+    }
+    
+    return protectedText;
+}
+
+// Usage: Call this function to get the LaTeX table
+// const latexTable = generateLatexTableFromVisibleRows();
+// console.log(latexTable);
