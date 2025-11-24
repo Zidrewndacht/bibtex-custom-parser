@@ -3,10 +3,11 @@
 
 # Only relevant changes are set here.
 # Exllamav3 is alpha software. This might have better speeds than llama.cpp, or be more viable to run than vLLM in some environments, 
-# but may have (performance, stability, etc.) issues and some functionality isn't available.
+# but may have (performance, stability, etc.) issues and some functionality (like separate reasoning_content, which ResearcParça has a workaround for) isn't available.
 
 network:
   # ...
+  port: 8086
   api_servers: ["OAI"]
 
 model:

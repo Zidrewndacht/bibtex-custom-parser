@@ -4,7 +4,9 @@
     <div class="detail-content detail-abstract">
         <div class="id-section">
             <strong>ID:</strong> {{ paper.id }} 
-            <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this)">Copy</button>
+            <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')"><em>\cite</em></button>
+            <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')"><em>\citeN</em></button>
+            <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')">Copy</button>
         </div>
         <!-- <strong>Type:</strong> {{ paper.type }}</p> -->
         <p><strong>Abstract:</strong> {{ paper.abstract }}</p>

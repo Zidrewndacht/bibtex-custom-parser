@@ -229,6 +229,19 @@ OK      Create new Lite branch for a generic, stripped down, non-domain-specific
 
 OK      Further remove "Ultra Graphics", e.g., eyecandy that gives too much performance concerns with too little visual changes. Namely removed backdrop-filters, translucent modals and 3D transforms globally since newer Intel Arc Xe iGPU also disliked those.
 
+        Change to a single continuous log per paper instead of separate (last inference only) classifier and verifier traces.
+
+        Log all user changes, have a count of fields that were user-changed to a value different than the last inference.
+                Use new columns for user overrides in the DB, such that user changes don't really replace the original inferred data, cache it by always setting both by model, only overrides by user, always use overrides to render the page
+        
+        Change the server-side API for changes: every change from user or model has to be logged. 
+                Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
+                User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
+
+        Add a separate button in main row for logs/traces: 2 columns:
+                Changelog: matches table layout from off-topic to commented row, most recent on top, make unchanged fields transparent;
+                LLM Traces: from PDF to type row, alternate background between traces.
+
         Refactor browse_db.py (too large)?
 OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~1900 lines though;
                 Moving SQLite logic to a separate file for DB operations may cause 
@@ -259,7 +272,7 @@ OK              Getting rid of server-side stats and search already reduced it a
                 separate JS for logic that access the domain-specific HTML parts from generic JS
                 See docs.md for info on some domain-specific scattered code.
                 
-                Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other researchers.
+OK              Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other research.
 
         Add multiuser capability (naming users, user-selectable DB) -- good for offline "sneakernet" collaboration;
                 Possibly auth for online server hosting? -- low priority

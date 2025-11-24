@@ -227,7 +227,9 @@ td.highlight-status {
     box-shadow: inset 0 0 0 .5px #0006
 }
 
-#apply-serverside-filters:hover,#html-export .action-btn:hover,.bibtex-copy-btn:hover,.id-copy-btn:hover,.toggle-btn:hover {
+#apply-serverside-filters:hover,#html-export .action-btn:hover,.bibtex-copy-btn:hover,
+.id-copy-btn:hover, .id-citen-btn:hover, .id-cite-btn:hover,
+.toggle-btn:hover {
     filter: saturate(200%) contrast(110%)
 }
 
@@ -321,7 +323,9 @@ input[type=search]::-webkit-input-placeholder {
     box-shadow: 0 3px 5px rgba(0,0,0,.15)
 }
 
-.action-btn:active,.bibtex-copy-btn:active,.id-copy-btn:active {
+.action-btn:active,.bibtex-copy-btn:active,
+.id-copy-btn:active, .id-citen-btn:active, .id-cite-btn:active
+{
     transform: translateY(1px);
     filter: contrast(1.2) brightness(.8);
     transition: all .1s ease
@@ -1157,7 +1161,7 @@ li {
 
 .id-section {
     display: grid;
-    grid-template-columns: min-content 1fr min-content;
+    grid-template-columns: min-content 1fr min-content min-content min-content;
     border: 1px solid var( --detail-border-color);
     border-radius: 6px;
     padding: 6px;
@@ -1189,7 +1193,7 @@ li {
     font-size: 7pt;
 }
 
-.bibtex-copy-btn,.id-copy-btn {
+.bibtex-copy-btn,.id-copy-btn, .id-citen-btn, .id-cite-btn {
     background-color: var(--light-colored-btn-color);
     color: var(--light-colored-btn-text);
     border-radius: 4px;

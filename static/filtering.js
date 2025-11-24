@@ -1003,39 +1003,41 @@ function restoreDetailState() {
 
 
 
-
 /**
- * Copies the provided paper ID to the clipboard.
+ * Copies the provided paper ID to the clipboard in the specified format.
  * Provides user feedback by changing the button text to 'Copied!' temporarily.
  * @param {string} paperId - The ID of the paper to copy.
  * @param {HTMLElement} buttonElement - The button that was clicked.
+ * @param {string} format - The format to use ('raw', 'cite', or 'citen').
  */
-function copyPaperId(paperId, buttonElement) {
-    if (paperId) {
-        // Store original text
-        const originalText = buttonElement.textContent;
-
-        // Change button text immediately to provide feedback
-        buttonElement.textContent = 'Copied!';
-
-        navigator.clipboard.writeText(paperId)
-            .then(() => {
-                //console.log('Paper ID copied to clipboard:', paperId);
-                // The text is already 'Copied!', now reset it after a delay
-                setTimeout(() => {
-                    buttonElement.textContent = originalText;
-                }, 2000); // Reset text after 2 seconds
-            })
-            .catch(err => {
-                console.error('Failed to copy ID: ', err);
-                alert('Failed to copy ID to clipboard.');
-                // Reset text if copy failed
-                buttonElement.textContent = originalText;
-            });
-    } else {
+function copyPaperId(paperId, buttonElement, format = 'raw') {
+    if (!paperId) {
         console.warn('Paper ID is empty or undefined.');
         alert('Paper ID is empty and cannot be copied.');
+        return;
     }
+
+    const originalText = buttonElement.textContent;
+    buttonElement.textContent = 'Copied!';
+    
+    let textToCopy = paperId;
+    if (format === 'cite') {
+        textToCopy = `\\cite{${paperId}}`;
+    } else if (format === 'citen') {
+        textToCopy = `\\citen{${paperId}}`;
+    }
+    
+    navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+            setTimeout(() => {
+                buttonElement.textContent = originalText;
+            }, 2000);
+        })
+        .catch(err => {
+            console.error(`Failed to copy ${format === 'raw' ? 'ID' : 'citation'}: `, err);
+            alert(`Failed to copy ${format === 'raw' ? 'ID' : 'citation'} to clipboard.`);
+            buttonElement.textContent = originalText;
+        });
 }
 
 /**
