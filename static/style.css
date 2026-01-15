@@ -228,7 +228,7 @@ td.highlight-status {
 }
 
 #apply-serverside-filters:hover,#html-export .action-btn:hover,.bibtex-copy-btn:hover,
-.id-copy-btn:hover, .id-citen-btn:hover, .id-cite-btn:hover,
+.id-copy-btn:hover, .id-citen-btn:hover, .id-cite-btn:hover, .tabularx-btn:hover, #longtable-btn:hover,
 .toggle-btn:hover {
     filter: saturate(200%) contrast(110%)
 }
@@ -1193,7 +1193,7 @@ li {
     font-size: 7pt;
 }
 
-.bibtex-copy-btn,.id-copy-btn, .id-citen-btn, .id-cite-btn {
+.bibtex-copy-btn,.id-copy-btn, .id-citen-btn, .id-cite-btn, .tabularx-btn, #longtable-btn {
     background-color: var(--light-colored-btn-color);
     color: var(--light-colored-btn-text);
     border-radius: 4px;
@@ -1202,9 +1202,14 @@ li {
     box-shadow: 0 1px 2px rgba(64,64,64,.1);
     text-shadow: var(--light-shadow);
     border: 1px solid #0002;
-    padding: 6px;
+    padding: 6.5px;
     width: 66px;
-    font-size: 9pt
+    font-size: 9pt;
+}
+.tabularx-btn, #longtable-btn {
+    padding: 4px;
+    width: 66px;
+    font-size: 9pt;
 }
 
 .about-emoji-table{

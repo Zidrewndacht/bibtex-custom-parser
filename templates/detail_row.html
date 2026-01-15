@@ -4,9 +4,9 @@
     <div class="detail-content detail-abstract">
         <div class="id-section">
             <strong>ID:</strong> {{ paper.id }} 
-            <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')"><em>\cite</em></button>
-            <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')"><em>\citeN</em></button>
-            <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')">Copy</button>
+            <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')" title="Click to copy this ID to the clipboard as a LaTeX citation in the \cite{} format"><em>\cite</em></button>
+            <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')" title="Click to copy this ID to the clipboard as a LaTeX citation in the \citen{} format"><em>\citeN</em></button>
+            <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')" title="Click to copy this ID to the clipboard as plain text">Copy</button>
         </div>
         <!-- <strong>Type:</strong> {{ paper.type }}</p> -->
         <p><strong>Abstract:</strong> {{ paper.abstract }}</p>

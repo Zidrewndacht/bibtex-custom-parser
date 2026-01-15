@@ -1017,8 +1017,8 @@ function copyPaperId(paperId, buttonElement, format = 'raw') {
         return;
     }
 
-    const originalText = buttonElement.textContent;
-    buttonElement.textContent = 'Copied!';
+    const originalText = buttonElement.innerHTML;
+    buttonElement.innerHTML = 'Copied!';
     
     let textToCopy = paperId;
     if (format === 'cite') {
@@ -1030,13 +1030,13 @@ function copyPaperId(paperId, buttonElement, format = 'raw') {
     navigator.clipboard.writeText(textToCopy)
         .then(() => {
             setTimeout(() => {
-                buttonElement.textContent = originalText;
+                buttonElement.innerHTML = originalText;
             }, 2000);
         })
         .catch(err => {
             console.error(`Failed to copy ${format === 'raw' ? 'ID' : 'citation'}: `, err);
             alert(`Failed to copy ${format === 'raw' ? 'ID' : 'citation'} to clipboard.`);
-            buttonElement.textContent = originalText;
+            buttonElement.innerHTML = originalText;
         });
 }
 
@@ -1073,6 +1073,150 @@ function copyBibtex(bibtexString, buttonElement) {
         alert('BibTeX content is empty and cannot be copied.');
     }
 }
+
+
+/**
+ * Generates a LaTeX longtable based on the currently visible (filtered) rows in the papers table.
+ * Uses alternating row shading to separate rows instead of lines.
+ * Sets smaller margins and font size to maximize data density.
+ * Copies the generated LaTeX code to the clipboard and provides user feedback on the button.
+ */
+function copyLatexLongtable() {
+    const buttonElement = document.getElementById('longtable-btn');
+    if (!buttonElement) {
+        console.error("Button #longtable-btn not found.");
+        alert('Error: Could not find the LaTeX copy button.');
+        return;
+    }
+
+    const originalText = buttonElement.innerHTML; // Use innerHTML to preserve formatting like <em>
+
+    try {
+        buttonElement.innerHTML = '<em>Copying...</em>';
+
+        const rows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+
+        if (rows.length === 0) {
+            alert('No visible rows found to generate LaTeX table.');
+            buttonElement.innerHTML = originalText;
+            return;
+        }
+
+        let latexContent = `
+% Ensure packages are loaded in your preamble:
+% \\usepackage{longtable}
+% \\usepackage{xcolor}
+% \\usepackage{pdflscape} % For landscape pages
+% \\usepackage[margin=1.5cm]{geometry} % Set smaller margins for the table area
+
+\\begin{landscape} % Start landscape environment
+
+% ----------------------------------------------------------
+\\chapter{Lista completa de artigos julgados como relevantes através do ResearchParça}
+% ----------------------------------------------------------
+
+\\definecolor{tableshade}{HTML}{EEEEEE} 
+\\scriptsize % Use smaller font to fit more data
+\\begin{longtable}{p{2cm}p{8cm}p{5cm}c c p{6cm}} 
+\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
+\\hline % Line only under the header row
+\\endfirsthead
+
+\\multicolumn{6}{c}{{\\bfseries \\tablename\\ \\thetable{} -- continuação dá página anterior}} \\\\
+\\rowcolor{tableshade}
+\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
+\\hline % Line only under the header row on subsequent pages
+\\endhead
+
+\\hline % Line before the footer
+\\multicolumn{6}{|r|}{{Continua na próxima página}} \\\\
+\\hline % Line after the footer text
+\\endfoot
+
+\\hline % Line before the last footer
+\\endlastfoot
+
+`; // End of preamble lines
+
+        // Loop through rows and add data with alternating shading
+        rows.forEach((row, index) => { // Add index to determine shading
+            // Extract data using cached data if available, otherwise query DOM
+            let cachedData = rowCache.get(row);
+
+            // --- Retrieve Original Data ---
+            // Type: Get the title attribute from the specific type emoji cell (6th status cell)
+            const typeCell = row.cells[typeCellIndex]; // Use the hardcoded index for type cell (5th index -> 6th cell)
+            const typeTitle = typeCell ? typeCell.getAttribute('title') || typeCell.textContent.trim() : '';
+
+            // Title: Get directly from the title cell (1st index -> 2nd cell), preserving original case
+            const titleCell = row.cells[titleCellIndex];
+            const titleText = titleCell ? titleCell.textContent.trim() : ''; // Don't use lowercased cached version
+
+            // Authors: Get from the hidden data cell
+            const authorsCell = row.querySelector('td.hidden-data-cell[data-field="authors"]');
+            const authorsText = authorsCell ? authorsCell.textContent.trim() : '';
+
+            // Year: Get directly from the year cell (2nd index -> 3rd cell)
+            const yearCell = row.cells[yearCellIndex];
+            const yearText = yearCell ? yearCell.textContent.trim() : '';
+
+            // Page Count: Get directly from the page count cell (3rd index -> 4th cell)
+            const pageCountCell = row.cells[pageCountCellIndex];
+            const pageCountText = pageCountCell ? pageCountCell.textContent.trim() : '';
+
+            // Venue: Get directly from the journal/conference cell (4th index -> 5th cell)
+            const venueCell = row.cells[journalCellIndex];
+            const venueText = venueCell ? venueCell.textContent.trim() : '';
+
+
+            // --- Sanitize data for LaTeX (basic escaping, handling newlines) ---
+            const sanitizeForLatex = (str) => {
+                if (typeof str !== 'string') str = String(str);
+                // Basic replacements for common LaTeX special characters
+                // Be careful with ampersands in particular for table alignment
+                return str
+            };
+
+            const type = sanitizeForLatex(typeTitle);
+            const title = sanitizeForLatex(titleText);
+            const authors = sanitizeForLatex(authorsText);
+            const year = sanitizeForLatex(yearText);
+            const pages = sanitizeForLatex(pageCountText);
+            const venue = sanitizeForLatex(venueText);
+
+            // Determine if the row should be shaded based on its index
+            const rowColor = (index % 2 === 0) ? '' : '\\rowcolor{tableshade} '; // Shade odd-numbered rows (0-indexed: 1st data row is 0, 2nd is 1, etc.)
+
+            // Add the row content to the LaTeX string with potential shading
+            // No \\hline after each data row
+            latexContent += `${rowColor}${type} & ${title} & ${authors} & ${year} & ${pages} & ${venue} \\\\\n`; // Removed \\hline
+        });
+
+        // Add the final hline before \end{longtable} if you want a bottom border
+        latexContent += `\\hline % Optional: Add a final line under the last data row if desired\n`;
+        latexContent += `\\end{longtable}\n\n\\end{landscape} % End landscape environment\n`;
+
+        navigator.clipboard.writeText(latexContent)
+            .then(() => {
+                //console.log('LaTeX table copied to clipboard.');
+                buttonElement.innerHTML = '<em>Copied!</em>';
+                setTimeout(() => {
+                    buttonElement.innerHTML = originalText;
+                }, 2000); // Reset text after 2 seconds
+            })
+            .catch(err => {
+                console.error('Failed to copy LaTeX table: ', err);
+                alert('Failed to copy LaTeX table to clipboard. Please check the console for details.');
+                buttonElement.innerHTML = originalText;
+            });
+
+    } catch (err) {
+        console.error("Error generating LaTeX table: ", err);
+        alert('An error occurred while generating the LaTeX table. Please check the console.');
+        buttonElement.innerHTML = originalText;
+    }
+}
+
 
 // Existing DOMContentLoaded listener and other code follows...
 document.addEventListener('DOMContentLoaded', function () {
@@ -1112,6 +1256,9 @@ document.addEventListener('DOMContentLoaded', function () {
         searchInput.dispatchEvent(new Event('input'));
     });
 
+    document.getElementById('longtable-btn')?.addEventListener('click', copyLatexLongtable); // Use optional chaining
+
+
     headers.forEach(header => {
         header.addEventListener('click', sortTable);
     });
@@ -1120,106 +1267,3 @@ document.addEventListener('DOMContentLoaded', function () {
     updateSurveyCheckboxUI();
 }); 
 
-
-
-function generateLatexTableFromVisibleRows() {
-    // Get the table body and visible rows
-    const tbody = document.querySelector('#papersTable tbody');
-    const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
-
-    if (visibleRows.length === 0) {
-        console.warn("No visible rows found");
-        return "";
-    }
-
-    let latexTable = "\\begin{landscape}\n\\begin{longtable}{|l|p{4cm}|p{2.5cm}|c|c|p{2.5cm}|}\n";
-    latexTable += "\\hline\n";
-    latexTable += "\\textbf{Type} & \\textbf{Title} & \\textbf{Authors} & \\textbf{Year} & \\textbf{Pages} & \\textbf{Journal/Conference} \\\\\n";
-    latexTable += "\\hline\n";
-
-    // Process each visible row
-    for (let i = 0; i < visibleRows.length; i++) {
-        const row = visibleRows[i];
-        
-        // Skip detail rows, only process main rows
-        if (row.classList.contains('detail-row')) {
-            continue;
-        }
-
-        // Get the paper data from the row cells using the indices from filtering.js
-        const typeCell = row.cells[5]; // typeCellIndex = 5
-        const titleCell = row.cells[1]; // titleCellIndex = 1
-        const yearCell = row.cells[2];  // yearCellIndex = 2
-        const pageCountCell = row.cells[3]; // pageCountCellIndex = 3
-        const journalCell = row.cells[4]; // journalCellIndex = 4
-
-        // Extract text content from the cells
-        const type = typeCell ? typeCell.textContent.trim() : '';
-        const title = titleCell ? titleCell.textContent.trim() : '';
-        const year = yearCell ? yearCell.textContent.trim() : '';
-        const pageCount = pageCountCell ? pageCountCell.textContent.trim() : '';
-        const journal = journalCell ? journalCell.textContent.trim() : '';
-
-        // Extract authors from the hidden data cell
-        const authorsCell = row.querySelector('td[data-field="authors"]');
-        const authors = authorsCell ? authorsCell.textContent.trim() : '';
-
-        // Map emoji to text
-        let typeText = type;
-        if (type === '📚') {
-            typeText = 'Conference';
-        } else if (type === '📄') {
-            typeText = 'Journal';
-        }
-
-        // Escape special LaTeX characters in content (except for existing LaTeX commands)
-        const escapedType = escapeLatexSpecialChars(typeText);
-        const escapedTitle = escapeLatexSpecialChars(title);
-        const escapedAuthors = escapeLatexSpecialChars(authors);
-        const escapedJournal = escapeLatexSpecialChars(journal);
-
-        // Add row to LaTeX table
-        latexTable += `${escapedType} & ${escapedTitle} & ${escapedAuthors} & ${year} & ${pageCount} & ${escapedJournal} \\\\\n`;
-        latexTable += "\\hline\n";
-    }
-
-    latexTable += "\\end{longtable}\n\\end{landscape}";
-
-    return latexTable;
-}
-
-// Function to escape LaTeX special characters while preserving LaTeX commands
-function escapeLatexSpecialChars(text) {
-    if (!text) return '';
-    
-    // First, temporarily protect LaTeX commands (starting with backslash)
-    const commands = [];
-    let protectedText = text.replace(/(\\[a-zA-Z]+)(\{[^}]*\})?/g, function(match) {
-        const placeholder = `__LATEX_CMD_${commands.length}__`;
-        commands.push(match);
-        return placeholder;
-    });
-    
-    // Escape special characters in the remaining text
-    protectedText = protectedText
-        .replace(/\\/g, '\\textbackslash ')
-        .replace(/\$/g, '\\$')
-        .replace(/%/g, '\\%')
-        .replace(/&/g, '\\&')
-        .replace(/#/g, '\\#')
-        .replace(/\^/g, '\\textasciicircum ')
-        .replace(/_/g, '\\_')
-        .replace(/{/g, '\\{')
-        .replace(/}/g, '\\}');
-    
-    // Restore the LaTeX commands
-    for (let i = 0; i < commands.length; i++) {
-        protectedText = protectedText.replace(`__LATEX_CMD_${i}__`, commands[i]);
-    }
-    
-    return protectedText;
-}
-
-// Usage: Call this function to get the LaTeX table
-// const latexTable = generateLatexTableFromVisibleRows();
-// console.log(latexTable);
