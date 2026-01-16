@@ -280,15 +280,9 @@ const ALL_FEATURE_FIELDS = [
 // Pre-compiled regex for search terms (if using regex search)
 function compileSearchRegex(searchTerm) {
     if (!searchTerm) return null;
-    try {
-        // Split search term by spaces for AND matching
-        const terms = searchTerm.split(/\s+/).filter(t => t.length > 0);
-        searchTerms = terms.map(t => t.toLowerCase());
-        return new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    } catch (e) {
-        console.warn("Invalid search regex:", e);
-        return null;
-    }
+    const terms = searchTerm.split(/\s+/).filter(t => t.length > 0);
+    searchTerms = terms.map(t => t.toLowerCase());
+    return new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 }
 
 // Update getClientFilterState to include sort parameters
@@ -1091,18 +1085,15 @@ function copyLatexLongtable() {
 
     const originalText = buttonElement.innerHTML; // Use innerHTML to preserve formatting like <em>
 
-    try {
-        buttonElement.innerHTML = '<em>Copying...</em>';
+    const rows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
 
-        const rows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+    if (rows.length === 0) {
+        alert('No visible rows found to generate LaTeX table.');
+        buttonElement.innerHTML = originalText;
+        return;
+    }
 
-        if (rows.length === 0) {
-            alert('No visible rows found to generate LaTeX table.');
-            buttonElement.innerHTML = originalText;
-            return;
-        }
-
-        let latexContent = `
+    let latexContent = `
 % Ensure packages are loaded in your preamble:
 % \\usepackage{longtable}
 % \\usepackage{xcolor}
@@ -1138,83 +1129,77 @@ function copyLatexLongtable() {
 
 `; // End of preamble lines
 
-        // Loop through rows and add data with alternating shading
-        rows.forEach((row, index) => { // Add index to determine shading
-            // Extract data using cached data if available, otherwise query DOM
-            let cachedData = rowCache.get(row);
+    // Loop through rows and add data with alternating shading
+    rows.forEach((row, index) => { // Add index to determine shading
+        // Extract data using cached data if available, otherwise query DOM
+        let cachedData = rowCache.get(row);
 
-            // --- Retrieve Original Data ---
-            // Type: Get the title attribute from the specific type emoji cell (6th status cell)
-            const typeCell = row.cells[typeCellIndex]; // Use the hardcoded index for type cell (5th index -> 6th cell)
-            const typeTitle = typeCell ? typeCell.getAttribute('title') || typeCell.textContent.trim() : '';
+        // --- Retrieve Original Data ---
+        // Type: Get the title attribute from the specific type emoji cell (6th status cell)
+        const typeCell = row.cells[typeCellIndex]; // Use the hardcoded index for type cell (5th index -> 6th cell)
+        const typeTitle = typeCell ? typeCell.getAttribute('title') || typeCell.textContent.trim() : '';
 
-            // Title: Get directly from the title cell (1st index -> 2nd cell), preserving original case
-            const titleCell = row.cells[titleCellIndex];
-            const titleText = titleCell ? titleCell.textContent.trim() : ''; // Don't use lowercased cached version
+        // Title: Get directly from the title cell (1st index -> 2nd cell), preserving original case
+        const titleCell = row.cells[titleCellIndex];
+        const titleText = titleCell ? titleCell.textContent.trim() : ''; // Don't use lowercased cached version
 
-            // Authors: Get from the hidden data cell
-            const authorsCell = row.querySelector('td.hidden-data-cell[data-field="authors"]');
-            const authorsText = authorsCell ? authorsCell.textContent.trim() : '';
+        // Authors: Get from the hidden data cell
+        const authorsCell = row.querySelector('td.hidden-data-cell[data-field="authors"]');
+        const authorsText = authorsCell ? authorsCell.textContent.trim() : '';
 
-            // Year: Get directly from the year cell (2nd index -> 3rd cell)
-            const yearCell = row.cells[yearCellIndex];
-            const yearText = yearCell ? yearCell.textContent.trim() : '';
+        // Year: Get directly from the year cell (2nd index -> 3rd cell)
+        const yearCell = row.cells[yearCellIndex];
+        const yearText = yearCell ? yearCell.textContent.trim() : '';
 
-            // Page Count: Get directly from the page count cell (3rd index -> 4th cell)
-            const pageCountCell = row.cells[pageCountCellIndex];
-            const pageCountText = pageCountCell ? pageCountCell.textContent.trim() : '';
+        // Page Count: Get directly from the page count cell (3rd index -> 4th cell)
+        const pageCountCell = row.cells[pageCountCellIndex];
+        const pageCountText = pageCountCell ? pageCountCell.textContent.trim() : '';
 
-            // Venue: Get directly from the journal/conference cell (4th index -> 5th cell)
-            const venueCell = row.cells[journalCellIndex];
-            const venueText = venueCell ? venueCell.textContent.trim() : '';
+        // Venue: Get directly from the journal/conference cell (4th index -> 5th cell)
+        const venueCell = row.cells[journalCellIndex];
+        const venueText = venueCell ? venueCell.textContent.trim() : '';
 
 
-            // --- Sanitize data for LaTeX (basic escaping, handling newlines) ---
-            const sanitizeForLatex = (str) => {
-                if (typeof str !== 'string') str = String(str);
-                // Basic replacements for common LaTeX special characters
-                // Be careful with ampersands in particular for table alignment
-                return str
-            };
+        // --- Sanitize data for LaTeX (basic escaping, handling newlines) ---
+        const sanitizeForLatex = (str) => {
+            if (typeof str !== 'string') str = String(str);
+            // Basic replacements for common LaTeX special characters
+            // Be careful with ampersands in particular for table alignment
+            return str
+        };
 
-            const type = sanitizeForLatex(typeTitle);
-            const title = sanitizeForLatex(titleText);
-            const authors = sanitizeForLatex(authorsText);
-            const year = sanitizeForLatex(yearText);
-            const pages = sanitizeForLatex(pageCountText);
-            const venue = sanitizeForLatex(venueText);
+        const type = sanitizeForLatex(typeTitle);
+        const title = sanitizeForLatex(titleText);
+        const authors = sanitizeForLatex(authorsText);
+        const year = sanitizeForLatex(yearText);
+        const pages = sanitizeForLatex(pageCountText);
+        const venue = sanitizeForLatex(venueText);
 
-            // Determine if the row should be shaded based on its index
-            const rowColor = (index % 2 === 0) ? '' : '\\rowcolor{tableshade} '; // Shade odd-numbered rows (0-indexed: 1st data row is 0, 2nd is 1, etc.)
+        // Determine if the row should be shaded based on its index
+        const rowColor = (index % 2 === 0) ? '' : '\\rowcolor{tableshade} '; // Shade odd-numbered rows (0-indexed: 1st data row is 0, 2nd is 1, etc.)
 
-            // Add the row content to the LaTeX string with potential shading
-            // No \\hline after each data row
-            latexContent += `${rowColor}${type} & ${title} & ${authors} & ${year} & ${pages} & ${venue} \\\\\n`; // Removed \\hline
-        });
+        // Add the row content to the LaTeX string with potential shading
+        // No \\hline after each data row
+        latexContent += `${rowColor}${type} & ${title} & ${authors} & ${year} & ${pages} & ${venue} \\\\\n`; // Removed \\hline
+    });
 
-        // Add the final hline before \end{longtable} if you want a bottom border
-        latexContent += `\\hline % Optional: Add a final line under the last data row if desired\n`;
-        latexContent += `\\end{longtable}\n\n\\end{landscape} % End landscape environment\n`;
+    // Add the final hline before \end{longtable} if you want a bottom border
+    latexContent += `\\hline % Optional: Add a final line under the last data row if desired\n`;
+    latexContent += `\\end{longtable}\n\n\\end{landscape} % End landscape environment\n`;
 
-        navigator.clipboard.writeText(latexContent)
-            .then(() => {
-                //console.log('LaTeX table copied to clipboard.');
-                buttonElement.innerHTML = '<em>Copied!</em>';
-                setTimeout(() => {
-                    buttonElement.innerHTML = originalText;
-                }, 2000); // Reset text after 2 seconds
-            })
-            .catch(err => {
-                console.error('Failed to copy LaTeX table: ', err);
-                alert('Failed to copy LaTeX table to clipboard. Please check the console for details.');
+    navigator.clipboard.writeText(latexContent)
+        .then(() => {
+            //console.log('LaTeX table copied to clipboard.');
+            buttonElement.innerHTML = 'Copied!';
+            setTimeout(() => {
                 buttonElement.innerHTML = originalText;
-            });
-
-    } catch (err) {
-        console.error("Error generating LaTeX table: ", err);
-        alert('An error occurred while generating the LaTeX table. Please check the console.');
-        buttonElement.innerHTML = originalText;
-    }
+            }, 2000); // Reset text after 2 seconds
+        })
+        .catch(err => {
+            console.error('Failed to copy LaTeX table: ', err);
+            alert('Failed to copy LaTeX table to clipboard. Please check the console for details.');
+            buttonElement.innerHTML = originalText;
+        });
 }
 
 
