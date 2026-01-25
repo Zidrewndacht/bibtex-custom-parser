@@ -55,8 +55,8 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
 
 0.  **Running the Application**:
     - Ensure Python 3.x is installed.
-    - Download this repository and run !browse_db.bat. A Virtual Environment with the according requirements will be automatically created if it doesn't yet exist. After startup, the application will be available at `http://127.0.0.1:5000`, and a browser window should open to this address automatically.
-    - Albeit untested, this should run fine in Linux or Mac, you just have to manually create and run the venv in that case.
+    - Download this repository and run `!browse_db.bat` on Windows or `browse.sh` on Linux (tested on Crostini). A Virtual Environment with the according requirements will be automatically created if it doesn't yet exist. After startup, the application will be available at `http://127.0.0.1:5000`, and a browser window should open to this address automatically.
+    - Albeit untested, this should run fine in Mac, by adjusting the startup script accordingly
     - Look at the help page in the Web application itself for more instructions about the Web interface itself (Note: those instructions are currently outdated, some functionality has been changed or added).
 
 2.  **Database Setup**:
