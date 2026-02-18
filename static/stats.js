@@ -2709,6 +2709,17 @@ document.addEventListener('DOMContentLoaded', function () {
     spanClose.addEventListener('click', closeModal);
     smallClose.addEventListener('click', closeSmallModal);
 
+
+    
+
+    // --- Add F1 Shortcut ---
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'F1') {
+            event.preventDefault();
+            displayAbout();
+        }
+    });
+
     // --- Add F4 shortcut ---
     document.addEventListener('keydown', function (event) {
         // Check if the pressed key is 'Escape' and if the modal is currently active
