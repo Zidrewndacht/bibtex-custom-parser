@@ -71,6 +71,7 @@
             <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- user comments state -->
+            <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- History -->        
             <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->               
             <!-- hidden fields -->
             <col style="display:none"> 
@@ -101,7 +102,7 @@
                             <input type="number" id="year-to" value="{{ year_to_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
                         </div>
                         <div>
-                            <button class="action-btn" id="about-btn" title="About / Help" ><span>?</span></button>
+                            <button class="action-btn" id="about-btn" title="(F1) About / Help" ><span>?</span></button>
                             <button class="action-btn" id="stats-btn">View <strong>Statistics</strong></button>
                         </div>
                     </div>
@@ -120,7 +121,7 @@
                     </div>
                 </th>
                 
-                <th class="ontop-header" colspan="7" rowspan="2" >
+                <th class="ontop-header" colspan="8" rowspan="2" >
                     <div class="search-container">
                         <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
                         <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">&times;</button>
@@ -227,6 +228,7 @@
                 <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
                 <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
                 <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
+                <th class="rotate-header"><div>History</div></th> <!-- must be 50px due to 'collapse' button text -->
                 <th class="rotate-header"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
 
                 <!-- Hidden metadata fields -->

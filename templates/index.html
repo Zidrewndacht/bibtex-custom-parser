@@ -67,6 +67,7 @@
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- user comments state -->
             <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->
+            <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->
             <!-- hidden metadata fields -->
             <col style="display:none"> 
             <col style="display:none"> 
@@ -76,7 +77,7 @@
         </colgroup>
         <thead>
             <tr>
-                <th id="main-header-wrapper" colspan=42>
+                <th id="main-header-wrapper" colspan=43>
                     <div class="main-header">
                         <div class="header-controls">
                             <button class="action-btn" id="import-btn" style="display:none">Import / Restore</button> <!-- currently unused, kept if a menu is desired later here instead-->
@@ -128,7 +129,7 @@
                         </div>
                     </div><!--NLP--->
                 </th>
-                <th class="ontop-header" colspan="7" rowspan="2" >
+                <th class="ontop-header" colspan="8" rowspan="2" >
                     <!-- <input type="search" id="search-input" placeholder="Type to search all fields..." value="{{ search_query_value }}"> -->
                     <div class="search-container">
                         <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
@@ -238,6 +239,7 @@
                 <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
                 <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
                 <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
+                <th class="rotate-header"><div>History</div></th> <!-- must be 50px due to 'collapse' button text -->
                 <th class="rotate-header"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
                 <!-- Hidden metadata fields -->
                 <th style="display:none" colspan="5"></th>

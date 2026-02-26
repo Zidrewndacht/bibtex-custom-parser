@@ -82,9 +82,9 @@
                 <input type="text" class="editable" name="features_other" value="{{ paper.features.other or '' }}">
             </label>
             <label>Page count:
-                <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
-            </label>
-            <label>Relevance:
+                    <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
+                </label>
+                <label>Relevance:
                 <input type="text" class="editable" name="relevance" value="{{ paper.relevance or '' }}" placeholder="0 - 10">
             </label>
             <label>User comments:
@@ -101,14 +101,14 @@
             
         </form>
     </div>
-
+<!-- 
     <div class="detail-content detail-trace detail-evaluator-trace">
         <strong>Evaluator Reasoning Trace:</strong>
-        <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div> <!-- Load trace directly -->
+        <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div>
     </div>
     <div class="detail-content detail-trace detail-verifier-trace">
         <strong>Verifier Reasoning Trace:</strong>
-        <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div> <!-- Load trace directly -->
-    </div>
+        <div class="trace-content">{{ paper.verifier_trace or 'No trace available.' }}</div> 
+    </div> -->
 </div>
 {% endblock %}

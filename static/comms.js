@@ -287,37 +287,141 @@ function saveChanges(paperId) {
         }
     });
 }
+/**
+ * Toggles the visibility of the history row for a given paper.
+ * @param {HTMLElement} element - The button element clicked to trigger the toggle.
+ */
+function toggleHistory(element) {
+    const row = element.closest('tr'); // Main paper row
+    // The history row is the second sibling after the main row (detail row is the first)
+    const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
+                       row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                       row.nextElementSibling.nextElementSibling : null;
 
+    // The detail row is the first sibling after the main row
+    const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ?
+                      row.nextElementSibling : null;
+
+    if (!historyRow) {
+        console.error("History row not found for paper:", row.getAttribute('data-paper-id'));
+        return;
+    }
+
+    const isHistoryExpanded = historyRow.classList.contains('expanded');
+    const paperId = row.getAttribute('data-paper-id');
+
+    if (isHistoryExpanded) {
+        // Hiding the history row
+        historyRow.classList.remove('expanded');
+        element.innerHTML = '<span>Show</span>';
+        openHistoryIds.delete(paperId); // Remove from set
+        updateUrlWithDetailState(); // Update URL
+    } else {
+        // Showing the history row
+        // First, check if the detail row is open for the same paper, close it if necessary
+        if (detailRow && detailRow.classList.contains('expanded')) {
+            detailRow.classList.remove('expanded');
+            // Find the corresponding detail toggle button in the main row and update its text
+            const detailToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleDetails"]');
+            if (detailToggleBtn) {
+                detailToggleBtn.innerHTML = '<span>Show</span>';
+            }
+            openDetailIds.delete(paperId); // Remove detail ID from set
+        }
+
+        // Now proceed to show the history row
+        openHistoryIds.add(paperId); // Add ID to set
+        updateUrlWithDetailState(); // Update URL immediately
+
+        const contentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
+        if (!contentPlaceholder) {
+             console.error("Content placeholder not found in history row for paper:", paperId);
+             return;
+        }
+
+        fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.html) {
+                    contentPlaceholder.innerHTML = data.html;
+                    requestAnimationFrame(() => {
+                        historyRow.offsetHeight; // Trigger reflow
+                        historyRow.classList.add('expanded');
+                    });
+                    element.innerHTML = '<span>Hide</span>';
+                } else {
+                    console.error(`Error loading history row for paper ${paperId}:`, data.message);
+                    contentPlaceholder.innerHTML = `<p>Error loading history: ${data.message || 'Unknown error'}</p>`;
+                }
+            })
+            .catch(error => {
+                console.error(`Error fetching history row for paper ${paperId}:`, error);
+                contentPlaceholder.innerHTML = `<p>Error loading history: ${error.message}</p>`;
+            });
+    }
+}
+/**
+ * Toggles the visibility of the detail row for a given paper.
+ * @param {HTMLElement} element - The button element clicked to trigger the toggle.
+ */
 function toggleDetails(element) {
-    const row = element.closest('tr');
-    const detailRow = row.nextElementSibling;
-    const isExpanded = detailRow && detailRow.classList.contains('expanded');
+    const row = element.closest('tr'); // Main paper row
+    // The detail row is the first sibling after the main row
+    const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ?
+                      row.nextElementSibling : null;
+
+    // The history row is the second sibling after the main row (detail row is the first)
+    const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
+                       row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                       row.nextElementSibling.nextElementSibling : null;
+
+
+    if (!detailRow) {
+        console.error("Detail row not found for paper:", row.getAttribute('data-paper-id'));
+        return;
+    }
+
+    const isExpanded = detailRow.classList.contains('expanded');
     const paperId = row.getAttribute('data-paper-id');
 
     if (isExpanded) {
         // Hiding the detail row
         detailRow.classList.remove('expanded');
         element.innerHTML = '<span>Show</span>';
-        // Remove ID from set and update URL
-        openDetailIds.delete(paperId);
-        updateUrlWithDetailState();
-        //console.log(`Closed detail for ${paperId}, set now:`, [...openDetailIds]); // Debug log
+        openDetailIds.delete(paperId); // Remove from set
+        updateUrlWithDetailState(); // Update URL
     } else {
         // Showing the detail row
-        // Add ID to set immediately, update URL after potential fetch
-        openDetailIds.add(paperId);
-        updateUrlWithDetailState(); // Update URL immediately after showing
-        //console.log(`Opened detail for ${paperId}, set now:`, [...openDetailIds]); // Debug log
+        // First, check if the history row is open for the same paper, close it if necessary
+        if (historyRow && historyRow.classList.contains('expanded')) {
+            historyRow.classList.remove('expanded');
+            // Find the corresponding history toggle button in the main row and update its text
+            // The history button is in the main row itself
+            const historyToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleHistory"]');
+            if (historyToggleBtn) {
+                 historyToggleBtn.innerHTML = '<span>Show</span>';
+            }
+            openHistoryIds.delete(paperId); // Remove history ID from set
+        }
+
+        // Now proceed to show the detail row
+        openDetailIds.add(paperId); // Add ID to set
+        updateUrlWithDetailState(); // Update URL immediately
+
         const contentPlaceholder = detailRow.querySelector('.detail-content-placeholder');
+        if (!contentPlaceholder) {
+             console.error("Content placeholder not found in detail row for paper:", paperId);
+             return;
+        }
 
         fetch(`/get_detail_row?paper_id=${encodeURIComponent(paperId)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success' && data.html) {
-                    // 1. Insert the content
                     contentPlaceholder.innerHTML = data.html;
 
-                    const detailContainer = contentPlaceholder;
+                    // --- Event Delegation for Clickable Items (Authors/Keywords) ---
+                    const detailContainer = contentPlaceholder; // Use the placeholder as the container
                     if (detailContainer) {
                         detailContainer.addEventListener('click', function(event) {
                             if (event.target.classList.contains('clickable-item')) {
@@ -332,11 +436,12 @@ function toggleDetails(element) {
                     } else {
                         console.warn("Detail container for click delegation not found for paper", paperId);
                     }
+                    // --- End Event Delegation Setup ---
+
                     requestAnimationFrame(() => {
-                        detailRow.offsetHeight;
+                        detailRow.offsetHeight; // Trigger reflow
                         detailRow.classList.add('expanded');
                     });
-
                     element.innerHTML = '<span>Hide</span>';
                 } else {
                     console.error(`Error loading detail row for paper ${paperId}:`, data.message);
@@ -350,12 +455,10 @@ function toggleDetails(element) {
                 if (contentPlaceholder) {
                     contentPlaceholder.innerHTML = `<p>Error loading details: ${error.message}</p>`;
                 }
-                 // If fetch fails, maybe remove the ID again? Or keep it as the user intended to open it?
-                 // For now, let's keep it as the user intended to open it.
-                 // openDetailIds.delete(paperId); // Maybe not?
             });
     }
 }
+
 
 function applyServerSideFilters() {     //moved from filtering as it has server-based
     document.documentElement.classList.add('busyCursor');

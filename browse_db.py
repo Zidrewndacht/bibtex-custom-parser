@@ -38,6 +38,13 @@ app = Flask(__name__)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 DATABASE = None # Will be set from command line argument
 
+
+# Add this function in browse_db.py, near the top after imports
+@app.context_processor
+def inject_globals():
+    import globals # Import globals module
+    return dict(globals=globals)
+
 def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None):
     """Fetches papers based on filters and renders the papers_table.html template. 
        Used for initial render from / and XHR updates."""
@@ -455,7 +462,7 @@ def fetch_updated_paper_data(paper_id):
     finally:
         conn.close()
 
-# Helpers:
+# Make sure this is the definition in your browse_db.py (or globals.py if imported from there)
 def format_changed_timestamp(changed_str):
     """Format the ISO timestamp string to dd/mm/yy hh:mm:ss"""
     if not changed_str:
@@ -466,6 +473,7 @@ def format_changed_timestamp(changed_str):
     except ValueError:
         # If parsing fails, return the original string or a placeholder
         return changed_str
+
 
 # Helpers used for HTML and XLSX exports: 
 def get_default_filter_values(hide_offtopic_param, year_from_param, year_to_param, min_page_count_param):
@@ -950,6 +958,69 @@ def run_verification_subprocess(mode, paper_id, db_file):
     except Exception as e:
         print(f"Error starting verification subprocess: {e}")
 
+def prepare_history_log_data(paper_dict):
+    """
+    Prepares llm_log data for history row rendering.
+    Parses output JSON strings and pairs verifier entries with classifier/consensus entries.
+    Returns list of log entries ready for template rendering.
+    ALL entries show in log, only classifier/consensus/user create table rows.
+    """
+    raw_log = paper_dict.get('llm_log', '[]')
+    try:
+        log_entries = json.loads(raw_log) if raw_log else []
+    except (json.JSONDecodeError, TypeError):
+        log_entries = []
+    
+    # Sort by timestamp descending (newest first)
+    log_entries.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+    
+    # Parse output JSON strings and pair verifiers with classifiers
+    processed_entries = []
+    pending_classifiers = []  # List of indices waiting for verifier
+    
+    for entry in log_entries:
+        # Parse the output JSON string into a dict
+        try:
+            entry['output'] = json.loads(entry.get('output', '{}')) if entry.get('output') else {}
+        except (json.JSONDecodeError, TypeError):
+            entry['output'] = {}
+        
+        entry_type = entry.get('type', '')
+        
+        if entry_type in ['classifier', 'consensus']:
+            # Store classifier/consensus entry, expecting a verifier to follow
+            entry['verification_data'] = None
+            pending_classifiers.append(len(processed_entries))
+            processed_entries.append(entry)
+            
+        elif entry_type == 'verifier':
+            # Find the most recent classifier without verification
+            matched_idx = None
+            for clf_idx in pending_classifiers:
+                if processed_entries[clf_idx].get('verification_data') is None:
+                    matched_idx = clf_idx
+                    break
+            
+            if matched_idx is not None:
+                # Attach verification data to the classifier entry
+                verifier_output = entry.get('output', {})
+                processed_entries[matched_idx]['verification_data'] = {
+                    'verified': verifier_output.get('verified'),
+                    'estimated_score': verifier_output.get('estimated_score'),
+                    'verifier_trace': entry.get('trace', ''),
+                    'verifier_model': entry.get('model', ''),
+                    'verifier_timestamp': entry.get('timestamp', '')
+                }
+            
+            # STILL add verifier as a log entry (just not as a table row)
+            entry['verification_data'] = None
+            processed_entries.append(entry)
+            
+        elif entry_type == 'user':
+            entry['verification_data'] = None
+            processed_entries.append(entry)
+    
+    return processed_entries
 
 # --- Jinja2-like filters ---
 def render_status(value):
@@ -1609,6 +1680,44 @@ def get_detail_row():
     except Exception as e:
         print(f"Error fetching detail row for paper {paper_id}: {e}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
+
+
+app.jinja_env.filters['format_changed_timestamp'] = format_changed_timestamp
+
+
+# Update the get_history_row endpoint in browse_db.py
+@app.route('/get_history_row', methods=['GET'])
+def get_history_row():
+    """Endpoint to fetch and render the history row content for a specific paper."""
+    paper_id = request.args.get('paper_id')
+    if not paper_id:
+        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+    try:
+        conn = get_db_connection()
+        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        conn.close()
+        if paper:
+            paper_dict = dict(paper)
+            try:
+                paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['features'] = {}
+            try:
+                paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['technique'] = {}
+            
+            # Prepare log data for template - parse output JSON strings
+            paper_dict['llm_log_entries'] = prepare_history_log_data(paper_dict)
+            
+            # Render the history row template
+            history_html = render_template('history_row.html', paper=paper_dict)
+            return jsonify({'status': 'success', 'html': history_html})
+        else:
+            return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+    except Exception as e:
+        print(f"Error fetching history row for paper {paper_id}: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 500
 
 @app.route('/load_table', methods=['GET'])
 def load_table():

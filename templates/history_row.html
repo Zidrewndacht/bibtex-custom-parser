@@ -1,0 +1,143 @@
+<!-- templates/history_row.html -->
+{% block history_row_content %}
+<div class="history-flex-container">
+    <!-- Log Visualization Section - Shows ALL entries including verifiers -->
+    <div class="trace-content">
+        {% if paper.llm_log_entries %}
+            {% for entry in paper.llm_log_entries %}
+            <div class="log-entry log-type-{{ entry.type }}{% if entry.type == 'consensus' %} log-type-consensus{% endif %}">
+                <div class="log-header">
+                    <span class="log-timestamp">{{ entry.timestamp|format_changed_timestamp }}</span>
+                    <span class="log-type">{{ entry.type | capitalize }}</span>
+                    <span class="log-model">Model: {{ entry.model }}</span>
+                    <span class="log-validity">
+                        {% if entry.valid %}
+                        <span class="valid-indicator valid">✓ Valid</span>
+                        {% else %}
+                        <span class="valid-indicator invalid">✗ Invalid</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% if entry.trace %}
+                <div class="log-trace">
+                    <pre>{{ entry.trace }}</pre>
+                </div>
+                {% endif %}
+                {% if entry.verification_data %}
+                <div class="log-verification-summary">
+                    <strong>Verification:</strong> 
+                    {% if entry.verification_data.verified == 1 %}✓ Verified{% elif entry.verification_data.verified == 0 %}✗ Not Verified{% else %}❔ Unknown{% endif %}
+                    {% if entry.verification_data.estimated_score is not none %} | Score: {{ entry.verification_data.estimated_score }}{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <p>No trace available.</p>
+        {% endif %}
+    </div>
+
+    <table style="table-layout: fixed;border-collapse: collapse;min-width: 0px;max-width: 0px;border-radius: 6px;">
+        <colgroup>
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Off-topic -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Relevance -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Survey -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- THT -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- SMT -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- X-Ray -->
+
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Tracks -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Holes -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- pcb other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Insufficient -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Excess -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Void -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder Crack -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Solder other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Missing Comp -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Wrong Comp -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Orientation -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- compoonet other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Cosmetic -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
+
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Classic CV -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- ML -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Classifier -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- CNN Detector -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- R-CNN Detector -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Transformers -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Other -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Hybrid -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Datasets  -->
+            
+            <col style="width: 56px; min-width: 56px; max-width: 56px;"> <!-- Timestamp -->
+            <col style="width: 40px; min-width: 40px; max-width: 40px;"> <!-- Changed By -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified -->
+            <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
+        </colgroup>
+        <tbody>
+            {% for entry in paper.llm_log_entries %}
+            {% if entry.type in ['classifier', 'consensus', 'user'] %}
+            <tr>
+                {% set data = entry.output %}
+                
+                <!-- Classification Fields (columns 7-12) -->
+                <td class="status-cell">{{ data.is_offtopic | render_status }}</td>
+                <td class="secondary-text-cell number-cell">{{ data.relevance if data.relevance is not none else '' }}</td>
+                <td class="status-cell">{{ data.is_survey | render_status }}</td>
+                <td class="status-cell">{{ data.is_through_hole | render_status }}</td>
+                <td class="status-cell">{{ data.is_smt | render_status }}</td>
+                <td class="status-cell">{{ data.is_x_ray | render_status }}</td>
+                
+                <!-- Features (columns 13-26) -->
+                {% set features = data.features if data.features else {} %}
+                <td class="status-cell highlight-status">{{ features.tracks | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.holes | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.bare_pcb_other | render_status }}</td>
+                <td class="status-cell">{{ features.solder_insufficient | render_status }}</td>
+                <td class="status-cell">{{ features.solder_excess | render_status }}</td>
+                <td class="status-cell">{{ features.solder_void | render_status }}</td>
+                <td class="status-cell">{{ features.solder_crack | render_status }}</td>
+                <td class="status-cell">{{ features.solder_other | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.missing_component | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.wrong_component | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.orientation | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.component_other | render_status }}</td>
+                <td class="status-cell highlight-status">{{ features.cosmetic | render_status }}</td>
+                <td class="status-cell highlight-status">{{ '✔️' if features.other and (features.other|string).strip() else '❌' }}</td>
+                
+                <!-- Techniques (columns 27-35) -->
+                {% set technique = data.technique if data.technique else {} %}
+                <td class="status-cell">{{ technique.classic_cv_based | render_status }}</td>
+                <td class="status-cell">{{ technique.ml_traditional | render_status }}</td>
+                <td class="status-cell">{{ technique.dl_cnn_classifier | render_status }}</td>
+                <td class="status-cell">{{ technique.dl_cnn_detector | render_status }}</td>
+                <td class="status-cell">{{ technique.dl_rcnn_detector | render_status }}</td>
+                <td class="status-cell">{{ technique.dl_transformer | render_status }}</td>
+                <td class="status-cell">{{ technique.dl_other | render_status }}</td>
+                <td class="status-cell">{{ technique.hybrid | render_status }}</td>
+                <td class="status-cell highlight-status">{{ technique.available_dataset | render_status }}</td>
+                
+                <!-- Metadata (columns 36-40) -->
+                <td class="secondary-text-cell changed-cell highlight-status">{{ entry.timestamp|format_changed_timestamp }}</td>
+                <td class="status-cell changed-by-cell highlight-status">{{ entry.model|render_changed_by }}</td>
+                
+                <!-- Verification Fields -->
+                {% if entry.verification_data %}
+                <td class="status-cell">{{ entry.verification_data.verified|render_status }}</td>
+                <td class="secondary-text-cell number-cell">{{ entry.verification_data.estimated_score if entry.verification_data.estimated_score is not none else '' }}</td>
+                <td class="status-cell">{{ entry.verification_data.verifier_model|render_verified_by }}</td>
+                {% else %}
+                <td class="status-cell">❔</td>
+                <td class="secondary-text-cell number-cell"></td>
+                <td class="status-cell">❔</td>
+                {% endif %}
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

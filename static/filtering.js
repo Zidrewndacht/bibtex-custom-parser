@@ -672,47 +672,43 @@ const NON_EDITABLE_STATUS_FIELDS = new Set([
     // e.g., 'some_other_field_name'
 ]);
 
-function performSort(sortBy, direction, visibleRows = null) {
+// ... (Keep all other functions and variables the same until performSort)
+
+function performSort(sortBy, direction, visibleMainRows = null) { // Changed parameter name for clarity
     if (!sortBy) return;
-    // Use provided visible rows or get them from DOM
-    const rowsToSort = visibleRows || tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
-    if (rowsToSort.length === 0) return;
+
+    // Use provided visible main rows or get them from DOM
+    // This function now expects an array of MAIN rows only.
+    const mainRowsToSort = visibleMainRows || Array.from(tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)'));
+
+    if (mainRowsToSort.length === 0) return;
 
     // Calculate the header index based on the sort column
     const sortHeader = document.querySelector(`th[data-sort="${sortBy}"]`);
     if (!sortHeader) return;
     const headerIndex = Array.prototype.indexOf.call(sortHeader.parentNode.children, sortHeader);
-    const sortData = new Array(rowsToSort.length);
 
     // Pre-calculate sort type to avoid repeated checks inside the loop
-    // Assuming the header text or data-sort attribute for the date column is 'changed' based on the cell class 'changed-cell'
-    const isDateSort = sortBy === 'changed'; // Adjust 'changed' if your data-sort attribute is different
+    const isDateSort = sortBy === 'changed';
     const isNumericSort = ['year', 'estimated_score', 'page_count', 'relevance'].includes(sortBy);
     const isPDFSort = sortBy === 'pdf-link';
-    const isVerifiedBySort = sortBy === 'verified_by'; // Add this check
-    // Update the isEditableStatusSort condition to EXCLUDE 'verified_by'
+    const isVerifiedBySort = sortBy === 'verified_by';
     const isEditableStatusSort = !isNumericSort && !isPDFSort && !isVerifiedBySort && !NON_EDITABLE_STATUS_FIELDS.has(sortBy) && !['title', 'journal', 'changed_by', 'changed'].includes(sortBy);
 
-    for (let i = 0; i < rowsToSort.length; i++) {
-        const mainRow = rowsToSort[i];
-        const paperId = mainRow.getAttribute('data-paper-id');
+    // Prepare an array of objects containing sort value and the group of rows (main, detail, history)
+    const sortData = mainRowsToSort.map(mainRow => {
         let cellValue;
 
         if (isDateSort) {
             const cell = mainRow.cells[headerIndex];
             const cellText = cell ? cell.textContent.trim() : '';
-            // Parse the date string DD/MM/YY HH:MM:SS
-            // Note: This assumes the date is always in this format. Adjust regex if format can vary.
             const dateMatch = cellText.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
             if (dateMatch) {
                 const [, day, month, year, hour, minute, second] = dateMatch;
-                // Create a Date object, assuming 20xx for the year (e.g., '25' -> 2025)
-                // Date constructor uses 0-indexed months (0-11), so subtract 1 from month
                 cellValue = new Date(2000 + parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
             } else {
-                // If the date string doesn't match the expected format, treat as invalid date (sorts last)
                 console.warn(`Invalid date format for sorting: ${cellText}`);
-                cellValue = new Date(NaN); // Invalid Date object
+                cellValue = new Date(NaN);
             }
         } else if (isNumericSort) {
             const cell = mainRow.cells[headerIndex];
@@ -720,71 +716,83 @@ function performSort(sortBy, direction, visibleRows = null) {
         } else if (isPDFSort) {
             const cell = mainRow.cells[headerIndex];
             cellValue = SYMBOL_PDF_WEIGHTS[cell?.textContent.trim()] ?? 0;
-        } else if (isVerifiedBySort) { // Handle 'verified_by' specifically
+        } else if (isVerifiedBySort) {
             const cell = mainRow.querySelector(`.editable-verify[data-field="${sortBy}"]`);
-            // Extract the symbol text from the inner span
             const symbolText = cell?.querySelector('span')?.textContent?.trim() || '';
-            cellValue = VERIFIED_BY_SORT_WEIGHTS[symbolText] ?? 0; // Use the new map
-        } else if (isEditableStatusSort) { // This now correctly excludes 'verified_by'
+            cellValue = VERIFIED_BY_SORT_WEIGHTS[symbolText] ?? 0;
+        } else if (isEditableStatusSort) {
             const cell = mainRow.querySelector(`.editable-status[data-field="${sortBy}"]`);
             cellValue = SYMBOL_SORT_WEIGHTS[cell?.textContent.trim()] ?? 0;
-        } else { // Handles NON_EDITABLE_STATUS_FIELDS and 'type'
+        } else {
             const cell = mainRow.cells[headerIndex];
             const cellText = cell ? cell.textContent.trim() : '';
             if (sortBy === 'type') {
                 cellValue = cellText;
             } else if (NON_EDITABLE_STATUS_FIELDS.has(sortBy)) {
-                // Use SYMBOL_SORT_WEIGHTS for these fields if they contain the symbols
                 cellValue = SYMBOL_SORT_WEIGHTS[cellText] ?? 0;
             } else {
                 cellValue = cellText;
             }
         }
-        const detailRow = mainRow.nextElementSibling;
-        sortData[i] = { value: cellValue, mainRow, detailRow, paperId };
-    }
-    // Sort the data array
+
+        // Identify associated detail and history rows
+        const detailRow = mainRow.nextElementSibling && mainRow.nextElementSibling.classList.contains('detail-row') ? mainRow.nextElementSibling : null;
+        const historyRow = detailRow && detailRow.nextElementSibling && detailRow.nextElementSibling.classList.contains('history-row') ? detailRow.nextElementSibling : null;
+
+        // Collect the group of rows belonging to this main row
+        const rowGroup = [mainRow];
+        if (detailRow) rowGroup.push(detailRow);
+        if (historyRow) rowGroup.push(historyRow);
+
+        const paperId = mainRow.getAttribute('data-paper-id');
+
+        return { value: cellValue, rowGroup, paperId };
+    });
+
+    // Sort the data array based on the calculated sort value
     sortData.sort((a, b) => {
         let comparison = 0;
         const aValue = a.value;
         const bValue = b.value;
 
         if (aValue instanceof Date && bValue instanceof Date) {
-            // Compare dates
-            if (isNaN(aValue)) { // Check if aValue is an invalid date
-                 if (isNaN(bValue)) { // Both invalid, keep original order
-                     comparison = 0;
-                 } else { // aValue invalid, bValue valid -> aValue comes last
-                     comparison = 1;
-                 }
-            } else if (isNaN(bValue)) { // aValue valid, bValue invalid -> bValue comes last
-                 comparison = -1;
-            } else { // Both valid dates
-                comparison = aValue - bValue; // Subtraction works for valid dates
+            if (isNaN(aValue)) {
+                if (isNaN(bValue)) {
+                    comparison = 0;
+                } else {
+                    comparison = 1;
+                }
+            } else if (isNaN(bValue)) {
+                comparison = -1;
+            } else {
+                comparison = aValue - bValue;
             }
         } else if (typeof aValue === 'string' && typeof bValue === 'string') {
             comparison = aValue.localeCompare(bValue, undefined, { sensitivity: 'base' });
         } else {
-            // Handle comparisons between different types if necessary, defaulting to value comparison
             if (aValue > bValue) comparison = 1;
             else if (aValue < bValue) comparison = -1;
         }
+
+        // Secondary sort by paperId for stability
         if (comparison === 0) {
-            // Secondary sort by paperId to ensure stability
             if (a.paperId > b.paperId) comparison = 1;
             else if (a.paperId < b.paperId) comparison = -1;
         }
+
         return direction === 'DESC' ? -comparison : comparison;
     });
-    // Batch update the DOM
+
+    // Batch update the DOM by appending the sorted groups
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < sortData.length; i++) {
-        fragment.appendChild(sortData[i].mainRow);
-        if (sortData[i].detailRow) {
-            fragment.appendChild(sortData[i].detailRow);
+        const group = sortData[i].rowGroup;
+        for (let j = 0; j < group.length; j++) {
+            fragment.appendChild(group[j]); // Append main, then detail, then history if they exist
         }
     }
-    tbody.appendChild(fragment); // Single DOM append operation
+    tbody.appendChild(fragment); // Single DOM append operation for the entire sorted structure
+
     // Update the sort indicator
     document.querySelectorAll('th .sort-indicator').forEach(ind => ind.textContent = '');
     const indicator = sortHeader.querySelector('.sort-indicator');
@@ -792,8 +800,6 @@ function performSort(sortBy, direction, visibleRows = null) {
         indicator.textContent = direction === 'ASC' ? '▲' : '▼';
     }
 }
-
-
 
 function sortTable() {
     //console.log("sortTable called for column:", this.getAttribute('data-sort'));
@@ -876,7 +882,15 @@ function initializeClientFilters() {
         openDetailIds = new Set();
     }
 
-    
+    const openHistoryParam = urlParams.get('open_history');
+    if (openHistoryParam) {
+        const initialOpenHistoryIds = openHistoryParam.split(',').map(id => id.trim()).filter(id => id !== '');
+        openHistoryIds = new Set(initialOpenHistoryIds.slice(0, MAX_STORED_OPEN_DETAILS)); // Reuse MAX_STORED_OPEN_DETAILS or define a specific one for history if needed
+        //console.log("Initialized openHistoryIds from URL:", [...openHistoryIds]); // Debug log
+    } else {
+        openHistoryIds = new Set();
+    }
+
     // Handle survey filter state
     const surveyFilterValue = urlParams.get('survey_filter');
     if (surveyFilterValue) {
@@ -914,86 +928,149 @@ function initializeClientFilters() {
 }
 
 let openDetailIds = new Set();
+let openHistoryIds = new Set();
+const openRowTypes = new Map(); // Tracks 'details' or 'history' for each paperId
+
 let detailStateUpdateTimeout = null;
 function updateUrlWithDetailState() {
     clearTimeout(detailStateUpdateTimeout);
     detailStateUpdateTimeout = setTimeout(() => {
         const url = new URL(window.location);
-        // Convert set to sorted array to ensure consistent order (optional but good practice)
-        const sortedIds = [...openDetailIds].sort((a, b) => a - b).slice(0, MAX_STORED_OPEN_DETAILS);
-        if (sortedIds.length > 0) {
-             url.searchParams.set('open_details', sortedIds.join(','));
+
+        // --- Handle open detail IDs ---
+        const sortedDetailIds = [...openDetailIds].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).slice(0, MAX_STORED_OPEN_DETAILS); // Sort numerically if IDs are numbers, otherwise use string sort
+        if (sortedDetailIds.length > 0) {
+            url.searchParams.set('open_details', sortedDetailIds.join(','));
         } else {
-             // Remove the parameter if no details are open
-             url.searchParams.delete('open_details');
+            url.searchParams.delete('open_details');
         }
+
+        // --- Handle open history IDs ---
+        const sortedHistoryIds = [...openHistoryIds].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).slice(0, MAX_STORED_OPEN_DETAILS); // Sort numerically if IDs are numbers, otherwise use string sort
+        if (sortedHistoryIds.length > 0) {
+            url.searchParams.set('open_history', sortedHistoryIds.join(','));
+        } else {
+            url.searchParams.delete('open_history');
+        }
+
         // Use replaceState to avoid adding history entries
         window.history.replaceState({}, '', url);
-         //console.log("URL updated with open detail IDs:", sortedIds); // Debug log
+        //console.log("URL updated with open detail IDs:", sortedDetailIds, "and history IDs:", sortedHistoryIds); // Debug log
     }, 100); // Debounce delay
 }
 
 function restoreDetailState() {
-    //console.log("Starting restoreDetailState. Intended open IDs:", [...openDetailIds]); // Debug log
+    //console.log("Starting restoreDetailState. Intended open detail IDs:", [...openDetailIds], "Intended open history IDs:", [...openHistoryIds]); // Debug log
 
-    // --- Phase 1: Open detail rows that are intended to be open and whose main row is visible ---
-    const idsToOpen = [...openDetailIds]; // Get a copy of the current set of intended open IDs
-    idsToOpen.forEach(paperId => {
-        // Find the main row in the CURRENTLY visible DOM
+    // --- PHASE 1: Restore Detail Rows ---
+    const idsToOpenDetails = [...openDetailIds];
+    idsToOpenDetails.forEach(paperId => {
         const mainRow = document.querySelector(`tr[data-paper-id="${paperId}"]:not(.filter-hidden)`);
         if (mainRow) {
-            // Main row exists and is visible after filtering
-            const toggleButton = mainRow.querySelector('.toggle-btn');
+            const toggleButton = mainRow.querySelector('.toggle-btn[onclick*="toggleDetails"]'); // Target the specific detail toggle button
             if (toggleButton) {
-                // Check if the detail row is already expanded
-                const detailRow = mainRow.nextElementSibling;
+                const detailRow = mainRow.nextElementSibling; // detail-row is the immediate next sibling
                 const isCurrentlyExpanded = detailRow && detailRow.classList.contains('expanded');
-                
-                // Only call toggleDetails if it's not already expanded
                 if (!isCurrentlyExpanded) {
-                    //console.log(`Restoring (opening) detail row for paper ID ${paperId}`); // Debug log
-                    // Call the toggleDetails function (from comms.js or ghpages.js)
-                    // This handles the logic for showing/hiding and fetching content if needed
+                    //console.log(`Restoring (opening) detail row for paper ID ${paperId}`);
                     toggleDetails(toggleButton);
-                    // The toggleDetails function should manage the openDetailIds Set and URL correctly.
                 } else {
-                    //console.log(`Detail row for paper ID ${paperId} is already expanded as intended.`); // Debug log
+                    //console.log(`Detail row for paper ID ${paperId} is already expanded.`);
                 }
             } else {
-                console.warn(`Toggle button not found for paper ID ${paperId} during restore.`); // Debug log
+                console.warn(`Detail toggle button not found for paper ID ${paperId} during restore.`);
             }
         } else {
-            // Main row doesn't exist or is hidden by current filters.
-            // The ID remains in the set for potential future restoration.
-            // This handles the case where a filter hides a paper that was previously open.
-            //console.log(`Main row for paper ID ${paperId} not found or hidden, keeping ID for later.`); // Debug log
+            // Paper might be filtered out. ID remains in set for potential future restoration.
+            //console.log(`Main row for detail paper ID ${paperId} not found or hidden, keeping ID.`);
         }
     });
 
-    // --- REFINED Phase 2 in restoreDetailState ---
-    // Iterate through ALL *currently visible and expanded* detail rows
-    const allExpandedVisibleDetailRows = document.querySelectorAll('tr.detail-row.expanded:not(.filter-hidden)');
-    allExpandedVisibleDetailRows.forEach(detailRow => {
-        const mainRow = detailRow.previousElementSibling;
-        if (mainRow && mainRow.matches('tr[data-paper-id]')) { // Ensure it's a main row
-            const paperId = mainRow.getAttribute('data-paper-id');
-            // Check if the main row's ID is NOT in the intended open set
-            if (!openDetailIds.has(paperId)) {
-                // The detail row is expanded, but its ID is not in the intended open set.
-                // We need to close it. Find its toggle button and call toggleDetails.
-                const toggleButton = mainRow.querySelector('.toggle-btn');
-                if (toggleButton) {
-                    //console.log(`Closing unintended detail row for paper ID ${paperId}`); // Debug log
-                    // Call toggleDetails to close it. This should correctly update the set and URL.
-                    toggleDetails(toggleButton);
+    // --- PHASE 2: Restore History Rows ---
+    const idsToOpenHistory = [...openHistoryIds];
+    idsToOpenHistory.forEach(paperId => {
+        const mainRow = document.querySelector(`tr[data-paper-id="${paperId}"]:not(.filter-hidden)`);
+        if (mainRow) {
+            const toggleButton = mainRow.querySelector('.toggle-btn[onclick*="toggleHistory"]'); // Target the specific history toggle button
+            if (toggleButton) {
+                // Remember: history-row is the *second* next sibling after the main row
+                const historyRow = mainRow.nextElementSibling && mainRow.nextElementSibling.nextElementSibling &&
+                                   mainRow.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                                   mainRow.nextElementSibling.nextElementSibling : null;
+
+                const isCurrentlyExpanded = historyRow && historyRow.classList.contains('expanded');
+                if (!isCurrentlyExpanded) {
+                    //console.log(`Restoring (opening) history row for paper ID ${paperId}`);
+                    toggleHistory(toggleButton);
                 } else {
-                    console.warn(`Toggle button not found for paper ID ${paperId} when trying to close unintended detail row.`); // Debug log
+                    //console.log(`History row for paper ID ${paperId} is already expanded.`);
                 }
+            } else {
+                console.warn(`History toggle button not found for paper ID ${paperId} during restore.`);
             }
+        } else {
+            // Paper might be filtered out. ID remains in set for potential future restoration.
+            //console.log(`Main row for history paper ID ${paperId} not found or hidden, keeping ID.`);
         }
     });
-    //console.log("Finished restoreDetailState. Final open IDs:", [...openDetailIds]); // Debug log
+
+    // --- PHASE 3: Clean up rows that should be closed (e.g., due to filtering) ---
+    // This phase ensures that if a row is expanded but its ID is not in the respective set,
+    // it gets closed. This handles cases where a filter is applied after rows were opened.
+
+    // Close detail rows that should not be open
+    const allExpandedVisibleDetailRows = document.querySelectorAll('tr.detail-row.expanded:not(.filter-hidden)');
+    allExpandedVisibleDetailRows.forEach(detailRow => {
+        const mainRow = detailRow.previousElementSibling; // Should be the main paper row
+        if (mainRow && mainRow.hasAttribute('data-paper-id')) {
+            const paperId = mainRow.getAttribute('data-paper-id');
+            if (!openDetailIds.has(paperId)) {
+                // This detail row is open but shouldn't be according to the set.
+                // Find its toggle button in the main row and call toggleDetails to close it.
+                const toggleButton = mainRow.querySelector('.toggle-btn[onclick*="toggleDetails"]');
+                if (toggleButton) {
+                     //console.log(`Closing unintended detail row for paper ID ${paperId}`);
+                     toggleDetails(toggleButton); // This should correctly update the set and URL
+                } else {
+                     console.warn(`Toggle button not found for paper ID ${paperId} when trying to close unintended detail row.`);
+                }
+            }
+        } else {
+             console.warn("Could not find main row for an expanded detail row during cleanup.");
+        }
+    });
+
+    // Close history rows that should not be open
+    const allExpandedVisibleHistoryRows = document.querySelectorAll('tr.history-row.expanded:not(.filter-hidden)');
+    allExpandedVisibleHistoryRows.forEach(historyRow => {
+        // Remember: history-row's previous sibling is detail-row, so main row is previousElementSibling of *that*
+        const detailRow = historyRow.previousElementSibling; // Should be the detail row
+        if (detailRow && detailRow.classList.contains('detail-row')) {
+            const mainRow = detailRow.previousElementSibling; // Should be the main paper row
+            if (mainRow && mainRow.hasAttribute('data-paper-id')) {
+                const paperId = mainRow.getAttribute('data-paper-id');
+                if (!openHistoryIds.has(paperId)) {
+                    // This history row is open but shouldn't be according to the set.
+                    // Find its toggle button in the main row and call toggleHistory to close it.
+                    const toggleButton = mainRow.querySelector('.toggle-btn[onclick*="toggleHistory"]');
+                    if (toggleButton) {
+                         //console.log(`Closing unintended history row for paper ID ${paperId}`);
+                         toggleHistory(toggleButton); // This should correctly update the set and URL
+                    } else {
+                         console.warn(`Toggle button not found for paper ID ${paperId} when trying to close unintended history row.`);
+                    }
+                }
+            } else {
+                 console.warn("Could not find main row for an expanded history row during cleanup.");
+            }
+        } else {
+             console.warn("Previous sibling of an expanded history row is not a detail-row during cleanup.");
+        }
+    });
+
+    //console.log("Finished restoreDetailState. Final open detail IDs:", [...openDetailIds], "Final open history IDs:", [...openHistoryIds]); // Debug log
 }
+
 
 
 

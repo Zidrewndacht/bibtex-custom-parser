@@ -1,7 +1,7 @@
 {% block papers_table_static_export %}
 <tbody style="position: relative;">
 <tr>
-    <td style="padding:0;" colspan="42">
+    <td style="padding:0;" colspan="43">
         <div class="loading-overlay">
             <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parça</span></div>
             <div class="loading-spinner"></div>
@@ -85,6 +85,7 @@
         <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
         <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>                 
         <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td> 
+        <td class="toggle-btn" onclick="toggleHistory(this)"><span>Show</span></td>
         <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span></td>
         
         <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
@@ -94,7 +95,7 @@
         <td class="hidden-data-cell" data-field="features_other" style="display: none;">{{ paper.features.other or '' }}</td>
     </tr>
     <tr class="detail-row">
-        <td colspan="42">
+        <td colspan="43">
             <div class="detail-flex-container">
                 <div class="detail-content detail-abstract">
                     <div class="id-section">
@@ -194,6 +195,13 @@
                         </div>
                     </form>
                 </div>
+            </div>
+        </td>
+        <td style="display:none" colspan="5"></td>
+    </tr>
+        <tr class="history-row">
+        <td colspan="43">
+            <div class="detail-flex-container">
                 <div class="detail-content detail-trace detail-evaluator-trace">
                     <strong>Evaluator Reasoning Trace:</strong>
                     <div class="trace-content">{{ paper.reasoning_trace or 'No trace available.' }}</div>
