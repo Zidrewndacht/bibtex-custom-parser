@@ -164,257 +164,316 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
     
     return paper_list
 
+
 def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """Update the custom classification fields for a paper and audit fields.
-       Handles partial updates based on keys present in `data`."""
-
+    Handles partial updates based on keys present in `data`.
+    ALSO handles llm_log entry creation/consolidation and user_override_count."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
-
+    
+    # --- Fetch current state for logging and count calculation ---
+    cursor.execute("""
+        SELECT llm_log, user_override_count,
+               last_llm_features, last_llm_technique, last_llm_is_survey, last_llm_is_offtopic,
+               last_llm_is_through_hole, last_llm_is_smt, last_llm_is_x_ray, last_llm_relevance,
+               last_llm_verified, last_llm_estimated_score,
+               features, technique, is_survey, is_offtopic, is_through_hole, is_smt, is_x_ray,
+               relevance, verified, estimated_score, user_trace
+        FROM papers WHERE id = ?
+    """, (paper_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return {'status': 'error', 'message': 'Paper not found'}
+    
+    (current_llm_log_str, current_user_override_count,
+     last_llm_features_str, last_llm_technique_str, last_llm_is_survey, last_llm_is_offtopic,
+     last_llm_is_through_hole, last_llm_is_smt, last_llm_is_x_ray, last_llm_relevance,
+     last_llm_verified, last_llm_estimated_score,
+     current_features_str, current_technique_str, current_is_survey, current_is_offtopic,
+     current_is_through_hole, current_is_smt, current_is_x_ray, current_relevance,
+     current_verified, current_estimated_score, current_user_trace) = row
+    
+    # Parse existing log
+    try:
+        existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
+    except json.JSONDecodeError:
+        existing_log = []
+    
+    # Parse last LLM data for count calculation
+    try:
+        last_llm_features = json.loads(last_llm_features_str) if last_llm_features_str else {}
+        last_llm_technique = json.loads(last_llm_technique_str) if last_llm_technique_str else {}
+    except json.JSONDecodeError:
+        last_llm_features = {}
+        last_llm_technique = {}
+    
+    # Parse current features/technique for building full state
+    try:
+        current_features = json.loads(current_features_str) if current_features_str else {}
+    except:
+        current_features = {}
+    try:
+        current_technique = json.loads(current_technique_str) if current_technique_str else {}
+    except:
+        current_technique = {}
+    
+    # --- Calculate Override Count Delta ---
+    newly_overridden = 0
+    newly_matching = 0
+    
+    for field_key, new_value in data.items():
+        if field_key == 'id':
+            continue
+        if field_key.startswith('features_'):
+            feature_subkey = field_key.split('features_', 1)[1]
+            llm_value = last_llm_features.get(feature_subkey)
+            if new_value != llm_value:
+                newly_overridden += 1
+            else:
+                newly_matching += 1
+        elif field_key.startswith('technique_'):
+            tech_subkey = field_key.split('technique_', 1)[1]
+            llm_value = last_llm_technique.get(tech_subkey)
+            if new_value != llm_value:
+                newly_overridden += 1
+            else:
+                newly_matching += 1
+        elif field_key in ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']:
+            llm_value = locals()[f'last_llm_{field_key}']
+            if isinstance(new_value, str):
+                new_db_value = 1 if new_value.lower() in ('true', '1', 'on') else (0 if new_value.lower() in ('false', '0') else None)
+            else:
+                new_db_value = 1 if new_value is True else (0 if new_value is False else None)
+            if new_db_value != llm_value:
+                newly_overridden += 1
+            else:
+                newly_matching += 1
+        elif field_key in ['relevance', 'verified', 'estimated_score']:
+            llm_value = locals()[f'last_llm_{field_key}']
+            if new_value != llm_value:
+                newly_overridden += 1
+            else:
+                newly_matching += 1
+    
+    count_delta = newly_overridden - newly_matching
+    
+    # --- Prepare Database Updates ---
     update_fields = []
     update_values = []
-
-    # Handle Main Boolean Fields (Partial Update)
+    
+    # Handle features_ updates (partial update)
+    feature_updates = {}
+    for key in list(data.keys()):
+        if key.startswith('features_'):
+            feature_key = key.split('features_', 1)[1]
+            value = data[key]
+            if isinstance(value, str):
+                if value == 'true':
+                    feature_updates[feature_key] = True
+                elif value == 'false':
+                    feature_updates[feature_key] = False
+                else:
+                    feature_updates[feature_key] = None
+            else:
+                feature_updates[feature_key] = value
+            data.pop(key)
+    
+    if feature_updates:
+        current_features.update(feature_updates)
+        update_fields.append("features = ?")
+        update_values.append(json.dumps(current_features))
+    
+    # Handle technique_ updates (partial update)
+    technique_updates = {}
+    for key in list(data.keys()):
+        if key.startswith('technique_'):
+            tech_key = key.split('technique_', 1)[1]
+            value = data[key]
+            if isinstance(value, str):
+                if value == 'true':
+                    technique_updates[tech_key] = True
+                elif value == 'false':
+                    technique_updates[tech_key] = False
+                else:
+                    technique_updates[tech_key] = None
+            else:
+                technique_updates[tech_key] = value
+            data.pop(key)
+    
+    if technique_updates:
+        current_technique.update(technique_updates)
+        update_fields.append("technique = ?")
+        update_values.append(json.dumps(current_technique))
+    
+    # Handle remaining direct field updates from data
     main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
     for field in main_bool_fields:
         if field in data:
             value = data[field]
             if isinstance(value, str):
-                if value.lower() in ('true', '1', 'on'):
-                    update_fields.append(f"{field} = ?")
-                    update_values.append(1)
-                elif value.lower() in ('false', '0'):
-                    update_fields.append(f"{field} = ?")
-                    update_values.append(0)
-                else: # 'unknown', '', None, etc.
-                    update_fields.append(f"{field} = ?")
-                    update_values.append(None)
-            elif value is True:
-                update_fields.append(f"{field} = ?")
-                update_values.append(1)
-            elif value is False:
-                update_fields.append(f"{field} = ?")
-                update_values.append(0)
-            else: # value is None or numeric
-                update_fields.append(f"{field} = ?")
-                update_values.append(int(bool(value)) if value is not None else None)
-
-    # Handle Research Area (Partial Update)
+                db_val = 1 if value.lower() in ('true', '1', 'on') else (0 if value.lower() in ('false', '0') else None)
+            else:
+                db_val = 1 if value is True else (0 if value is False else None)
+            update_fields.append(f"{field} = ?")
+            update_values.append(db_val)
+            if field == 'is_survey':
+                current_is_survey = db_val
+            elif field == 'is_offtopic':
+                current_is_offtopic = db_val
+            elif field == 'is_through_hole':
+                current_is_through_hole = db_val
+            elif field == 'is_smt':
+                current_is_smt = db_val
+            elif field == 'is_x_ray':
+                current_is_x_ray = db_val
+            data.pop(field)
+    
     if 'research_area' in data:
         update_fields.append("research_area = ?")
         update_values.append(data['research_area'])
-
-
-    page_count_value_for_pages_update = None # Variable to hold the value for potential 'pages' update
+        data.pop('research_area')
+    
     if 'page_count' in data:
         page_count_value = data['page_count']
         if page_count_value is not None:
             try:
                 page_count_value = int(page_count_value)
-                # Store the integer value for potential 'pages' update
-                page_count_value_for_pages_update = page_count_value 
             except (ValueError, TypeError):
                 page_count_value = None
-                page_count_value_for_pages_update = None # Reset if invalid
-        else:
-            page_count_value_for_pages_update = None # Reset if None
-        
         update_fields.append("page_count = ?")
         update_values.append(page_count_value)
-
-        cursor.execute("SELECT pages FROM papers WHERE id = ?", (paper_id,))
-        row = cursor.fetchone()
-        if row:
-            current_pages_value = row['pages']
-            # Check if 'pages' is effectively empty/blank/null
-            # This checks for None, empty string, or string with only whitespace
-            if current_pages_value is None or (isinstance(current_pages_value, str) and current_pages_value.strip() == ""):
-                # If 'pages' is blank and we have a valid page_count to set
-                if page_count_value_for_pages_update is not None:
-                    # Add the update for the 'pages' column
-                    update_fields.append("pages = ?")
-                    # Convert the integer page count back to string for the 'pages' TEXT column
-                    update_values.append(str(page_count_value_for_pages_update)) 
-        # --- END NEW LOGIC ---
-
-    # Handle Verified By (Partial Update)
-    if 'verified_by' in data:
-        verified_by_value = data['verified_by']
-        # Ensure value is either 'user' or None. Others (like model names) are treated as None.
-        # This enforces that the UI can only set 'user' or clear it.
-        if verified_by_value != 'user':
-            verified_by_value = None
-        update_fields.append("verified_by = ?")
-        update_values.append(verified_by_value)
-        
-
-    # Handle Features (Partial Update)
-    # Fetch current features JSON from DB to merge changes
-    cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    if row:
-        try:
-            current_features = json.loads(row['features']) if row['features'] else {}
-        except (json.JSONDecodeError, TypeError):
-            current_features = {}
-    else:
-        current_features = {}
-
-    # Check for feature fields in the incoming data
-    feature_updates = {}
-    for key in list(data.keys()): # Iterate over a copy to safely modify data
-        if key.startswith('features_'):
-            feature_key = key.split('features_')[1]
-            value = data.pop(key) # Remove from main data dict
-            if feature_key == 'other':
-                feature_updates[feature_key] = value # Text field
-            else:
-                # Handle radio button group for 3-state (true/false/unknown)
-                if isinstance(value, str):
-                    if value == 'true':
-                        feature_updates[feature_key] = True
-                    elif value == 'false':
-                        feature_updates[feature_key] = False
-                    else: # 'unknown' or anything else
-                        feature_updates[feature_key] = None
-                elif isinstance(value, bool):
-                    feature_updates[feature_key] = value
-                else: # None or numeric
-                    feature_updates[feature_key] = bool(value) if value is not None else None
-
-    if feature_updates:
-        current_features.update(feature_updates)
-        update_fields.append("features = ?")
-        update_values.append(json.dumps(current_features))
-
-    # Handle Techniques (Partial Update)
-    # Fetch current technique JSON from DB to merge changes
-    cursor.execute("SELECT technique FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    if row:
-        try:
-            current_technique = json.loads(row['technique']) if row['technique'] else {}
-        except (json.JSONDecodeError, TypeError):
-            current_technique = {}
-    else:
-        current_technique = {}
-
-    # Check for technique fields in the (potentially modified) data
-    technique_updates = {}
-    for key in list(data.keys()):
-        if key.startswith('technique_'):
-            technique_key = key.split('technique_')[1]
-            value = data.pop(key) # Remove from main data dict
-            if technique_key == 'model':
-                technique_updates[technique_key] = value # Text field
-            elif technique_key == 'available_dataset':
-                 # Handle radio button group for 3-state (true/false/unknown)
-                if isinstance(value, str):
-                    if value == 'true':
-                        technique_updates[technique_key] = True
-                    elif value == 'false':
-                        technique_updates[technique_key] = False
-                    else: # 'unknown' or anything else
-                        technique_updates[technique_key] = None
-                elif isinstance(value, bool):
-                    technique_updates[technique_key] = value
-                else: # None or numeric
-                    technique_updates[technique_key] = bool(value) if value is not None else None
-            else: # classic_computer_vision_based, machine_learning_based, hybrid
-                 # Handle radio button group for 3-state (true/false/unknown)
-                if isinstance(value, str):
-                    if value == 'true':
-                        technique_updates[technique_key] = True
-                    elif value == 'false':
-                        technique_updates[technique_key] = False
-                    else: # 'unknown' or anything else
-                        technique_updates[technique_key] = None
-                elif isinstance(value, bool):
-                    technique_updates[technique_key] = value
-                else: # None or numeric
-                    technique_updates[technique_key] = bool(value) if value is not None else None
-
-    # Merge updates into current technique
-    if technique_updates:
-        current_technique.update(technique_updates)
-        update_fields.append("technique = ?")
-        update_values.append(json.dumps(current_technique))
-
-    # Always update audit fields for any change
+        data.pop('page_count')
+    
+    if 'relevance' in data:
+        update_fields.append("relevance = ?")
+        update_values.append(data['relevance'])
+        current_relevance = data['relevance']
+        data.pop('relevance')
+    
+    if 'user_trace' in data:
+        update_fields.append("user_trace = ?")
+        update_values.append(data['user_trace'])
+        current_user_trace = data['user_trace']
+        data.pop('user_trace')
+    
+    if 'verified' in data:
+        val = data['verified']
+        db_val = 1 if val is True else (0 if val is False else None)
+        update_fields.append("verified = ?")
+        update_values.append(db_val)
+        current_verified = db_val
+        data.pop('verified')
+    
+    if 'estimated_score' in data:
+        val = data['estimated_score']
+        db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) else None
+        update_fields.append("estimated_score = ?")
+        update_values.append(db_val)
+        current_estimated_score = db_val
+        data.pop('estimated_score')
+    
+    # Audit fields
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
     update_fields.append("changed_by = ?")
     update_values.append(changed_by)
-
-    # Any remaining keys in 'data' are assumed to be direct column names
-    for key, value in data.items(): # Iterate over the potentially modified data dict
-        # Skip keys already handled or special keys
-        if key in ['id', 'changed', 'changed_by', 'verified_by'] or key in main_bool_fields or key.startswith(('features_', 'technique_')):
-            continue
-        # Treat remaining keys as direct column updates
-        update_fields.append(f"{key} = ?")
-        update_values.append(value)
-
+    
+    # Update override count
+    update_fields.append("user_override_count = COALESCE(user_override_count, 0) + ?")
+    update_values.append(count_delta)
+    
+    # --- Prepare User Log Entry (FULL STATE SNAPSHOT) ---
+    def db_to_bool(val):
+        if val == 1:
+            return True
+        elif val == 0:
+            return False
+        else:
+            return None
+    
+    # Build FULL state snapshot (matching classifier output structure)
+    user_log_output = {
+        "is_offtopic": db_to_bool(current_is_offtopic),
+        "relevance": current_relevance,
+        "is_survey": db_to_bool(current_is_survey),
+        "is_through_hole": db_to_bool(current_is_through_hole),
+        "is_smt": db_to_bool(current_is_smt),
+        "is_x_ray": db_to_bool(current_is_x_ray),
+        "features": current_features if current_features else {},
+        "technique": current_technique if current_technique else {},
+        "verified": db_to_bool(current_verified),
+        "estimated_score": current_estimated_score
+    }
+    
+    # KEY FIX: Store output as JSON STRING (like classifier entries), not as dict
+    user_log_entry = {
+        "timestamp": changed_timestamp,
+        "type": "user",
+        "model": "user",
+        "trace": current_user_trace or "",
+        "output": json.dumps(user_log_output),  # <-- Store as JSON STRING
+        "valid": True
+    }
+    
+    # --- Consolidate or Append User Log Entry ---
+    if existing_log and existing_log[-1].get('type') == 'user':
+        last_user_entry = existing_log[-1]
+        # Replace entire output with current full state (as JSON string)
+        last_user_entry['output'] = json.dumps(user_log_output)
+        last_user_entry['trace'] = current_user_trace or ""
+        last_user_entry['timestamp'] = changed_timestamp
+    else:
+        existing_log.append(user_log_entry)
+    
+    # --- Update Database ---
+    update_fields.append("llm_log = ?")
+    update_values.append(json.dumps(existing_log))
+    
     if update_fields:
-        update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
         update_values.append(paper_id)
-        # --- Debug prints ---
-        # print(f"DEBUG: Updating paper {paper_id}")
-        # print(f"DEBUG: SQL Query: {update_query}")
-        # print(f"DEBUG: Values: {update_values}")
-        # --- End Debug prints ---
+        update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
         cursor.execute(update_query, update_values)
         conn.commit()
         rows_affected = cursor.rowcount
     else:
-        rows_affected = 0 # No fields to update
+        rows_affected = 0
+    
     conn.close()
-
+    
     if rows_affected > 0:
-        conn = get_db_connection()
-        updated_paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        conn.close()
-        
+        updated_paper = globals.get_paper_by_id(DATABASE, paper_id)
         if updated_paper:
-            updated_dict = dict(updated_paper)
-            try:
-                updated_dict['features'] = json.loads(updated_dict['features'])
-            except (json.JSONDecodeError, TypeError):
-                updated_dict['features'] = {}
-            try:
-                updated_dict['technique'] = json.loads(updated_dict['technique'])
-            except (json.JSONDecodeError, TypeError):
-                updated_dict['technique'] = {}
+            updated_paper['changed_formatted'] = format_changed_timestamp(updated_paper.get('changed'))
             
-            updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
-            
-
             return_data = {
                 'status': 'success',
-                'changed': updated_dict.get('changed'),
-                'changed_formatted': updated_dict['changed_formatted'],
-                'changed_by': updated_dict.get('changed_by'),
-                # Include updated fields for frontend refresh
-                'research_area': updated_dict.get('research_area'),
-                'page_count': updated_dict.get('page_count'),
-                'is_survey': updated_dict.get('is_survey'),
-                'is_offtopic': updated_dict.get('is_offtopic'),
-                'is_through_hole': updated_dict.get('is_through_hole'),
-                'is_smt': updated_dict.get('is_smt'),
-                'is_x_ray': updated_dict.get('is_x_ray'),
-                'relevance': updated_dict.get('relevance'),
-                'features': updated_dict['features'], # Parsed dict
-                'technique': updated_dict['technique'], # Parsed dict
-                'user_trace': updated_dict.get('user_trace')
+                'changed': updated_paper.get('changed'),
+                'changed_formatted': updated_paper.get('changed_formatted'), 
+                'changed_by': updated_paper.get('changed_by'),
+                'research_area': updated_paper.get('research_area'),
+                'page_count': updated_paper.get('page_count'),
+                'is_survey': updated_paper.get('is_survey'),
+                'is_offtopic': updated_paper.get('is_offtopic'),
+                'is_through_hole': updated_paper.get('is_through_hole'),
+                'is_smt': updated_paper.get('is_smt'),
+                'is_x_ray': updated_paper.get('is_x_ray'),
+                'relevance': updated_paper.get('relevance'),
+                'features': updated_paper.get('features', {}),
+                'technique': updated_paper.get('technique', {}),
+                'user_trace': updated_paper.get('user_trace'),
+                'user_override_count': updated_paper.get('user_override_count'),
+                'verified': updated_paper.get('verified'),
+                'estimated_score': updated_paper.get('estimated_score')
             }
             return return_data
         else:
             return {'status': 'error', 'message': 'Paper not found after update.'}
     else:
-        return {'status': 'error', 'message': 'No rows updated. Paper ID might not exist or no changes were made.'}
-
+        return {'status': 'error', 'message': 'No rows updated.'}
+        
 def fetch_updated_paper_data(paper_id):
     """Fetches the full paper data after classification/verification for client-side update."""
     conn = get_db_connection()
@@ -432,14 +491,13 @@ def fetch_updated_paper_data(paper_id):
                 updated_dict['technique'] = {}
             updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
             
-            # Prepare data for frontend refresh (matching update_paper_custom_fields structure)
+            # Prepare data for frontend refresh
             return_data = {
                 'status': 'success',
                 'changed': updated_dict.get('changed'),
                 'changed_formatted': updated_dict['changed_formatted'],
                 'changed_by': updated_dict.get('changed_by'),
                 'verified_by': updated_dict.get('verified_by'),
-                # Include updated fields for frontend refresh
                 'research_area': updated_dict.get('research_area'),
                 'page_count': updated_dict.get('page_count'),
                 'is_survey': updated_dict.get('is_survey'),
@@ -450,11 +508,11 @@ def fetch_updated_paper_data(paper_id):
                 'relevance': updated_dict.get('relevance'),
                 'verified': updated_dict.get('verified'),
                 'estimated_score': updated_dict.get('estimated_score'),
-                'features': updated_dict['features'], # Parsed dict
-                'technique': updated_dict['technique'], # Parsed dict
-                'reasoning_trace': updated_dict.get('reasoning_trace'), # Include traces
-                'verifier_trace': updated_dict.get('verifier_trace'),
-                'user_trace': updated_dict.get('user_trace')
+                'features': updated_dict['features'],
+                'technique': updated_dict['technique'],
+                'user_trace': updated_dict.get('user_trace'),
+                'user_override_count': updated_dict.get('user_override_count')
+                # REMOVED: 'reasoning_trace' and 'verifier_trace' - no longer used
             }
             return return_data
         else:
@@ -575,13 +633,17 @@ def embed_fonts_in_css(static_dir):
 # Core Export Generation Functions
 def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to_value, min_page_count_value, is_lite_export=False):
     """Generates the full HTML content string for the static export."""
-    # Strip fat text for lite export:
-    if is_lite_export: # Blank Abstract, AI traces;
+        
+    if is_lite_export:
         for paper in papers:
-            paper['abstract'] = '' 
-            paper['reasoning_trace'] = ''
-            paper['verifier_trace'] = ''
+            paper['abstract'] = ''
+            paper['llm_log_entries'] = ''
+    else:
+        # Prepare history log data for the FILTERED papers only (already passed in)
+        for paper in papers:
+            paper['llm_log_entries'] = prepare_history_log_data(paper)
 
+    
     style_css_content = ""
     chart_js_content = ""
     chart_js_datalabels_content = ""
@@ -958,12 +1020,19 @@ def run_verification_subprocess(mode, paper_id, db_file):
     except Exception as e:
         print(f"Error starting verification subprocess: {e}")
 
+
+
 def prepare_history_log_data(paper_dict):
     """
     Prepares llm_log data for history row rendering.
-    Parses output JSON strings and pairs verifier entries with classifier/consensus entries.
-    Returns list of log entries ready for template rendering.
-    ALL entries show in log, only classifier/consensus/user create table rows.
+    Log entries come from DB in ascending order (oldest first).
+    Process:
+    1. Parse all entries (keep DB order - ascending/oldest first)
+    2. Mark changed cells by comparing each entry with the older one before it
+       -> EXCLUDE invalid entries from this diff calculation
+    3. Reverse to descending (newest first) for UI
+    4. Cache verifiers and attach to classifiers during reverse pass
+    ALL entries show in log trace, only valid classifier/consensus/user create table rows.
     """
     raw_log = paper_dict.get('llm_log', '[]')
     try:
@@ -971,52 +1040,96 @@ def prepare_history_log_data(paper_dict):
     except (json.JSONDecodeError, TypeError):
         log_entries = []
     
-    # Sort by timestamp descending (newest first)
-    log_entries.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-    
-    # Parse output JSON strings and pair verifiers with classifiers
-    processed_entries = []
-    pending_classifiers = []  # List of indices waiting for verifier
-    
+    # Parse output JSON strings for all entries
     for entry in log_entries:
-        # Parse the output JSON string into a dict
         try:
             entry['output'] = json.loads(entry.get('output', '{}')) if entry.get('output') else {}
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as e:
+            # print(f"DEBUG: Failed to parse output for entry {entry.get('timestamp')}: {e}")
             entry['output'] = {}
         
+        entry['valid'] = bool(entry.get('valid', False))
+        
+        # DEBUG: Print user entry outputs
+        # if entry.get('type') == 'user':
+        #     print(f"DEBUG: User entry {entry.get('timestamp')} output: {entry.get('output')}")
+        #     print(f"DEBUG: User entry is_offtopic type: {type(entry.get('output', {}).get('is_offtopic'))}")
+    
+    # PASS 1: Ascending order (oldest first) - Mark changed cells
+    # Compare each entry with the older one before it in the list
+    # FILTER: Only include valid entries for diff calculation
+    table_entries = [e for e in log_entries if e.get('type') in ['classifier', 'consensus', 'user'] and e.get('valid', False)]
+    
+    for i in range(len(table_entries)):
+        current = table_entries[i]
+        older = table_entries[i - 1] if i > 0 else None
+        current['changed_fields'] = set()
+        
+        if older:
+            older_output = older.get('output', {})
+            current_output = current.get('output', {})
+            
+            # Compare main classification fields
+            main_fields = ['is_offtopic', 'relevance', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
+            for field in main_fields:
+                if current_output.get(field) != older_output.get(field):
+                    current['changed_fields'].add(field)
+            
+            # Compare features
+            current_features = current_output.get('features', {})
+            older_features = older_output.get('features', {})
+            all_feature_keys = set(current_features.keys()) | set(older_features.keys())
+            for feat_key in all_feature_keys:
+                if current_features.get(feat_key) != older_features.get(feat_key):
+                    current['changed_fields'].add(f'features_{feat_key}')
+            
+            # Compare techniques
+            current_technique = current_output.get('technique', {})
+            older_technique = older_output.get('technique', {})
+            all_technique_keys = set(current_technique.keys()) | set(older_technique.keys())
+            for tech_key in all_technique_keys:
+                if current_technique.get(tech_key) != older_technique.get(tech_key):
+                    current['changed_fields'].add(f'technique_{tech_key}')
+    
+    # Create a mapping from entry timestamp to changed_fields for lookup later
+    changed_fields_map = {}
+    for entry in table_entries:
+        # Use timestamp as key since it's unique per entry
+        changed_fields_map[entry['timestamp']] = entry.get('changed_fields', set())
+    
+    # PASS 2: Reverse to descending (newest first) for UI, attach verifiers
+    log_entries.reverse()
+    processed_entries = []
+    cached_verifier = None
+    
+    for entry in log_entries:
         entry_type = entry.get('type', '')
         
-        if entry_type in ['classifier', 'consensus']:
-            # Store classifier/consensus entry, expecting a verifier to follow
-            entry['verification_data'] = None
-            pending_classifiers.append(len(processed_entries))
-            processed_entries.append(entry)
-            
-        elif entry_type == 'verifier':
-            # Find the most recent classifier without verification
-            matched_idx = None
-            for clf_idx in pending_classifiers:
-                if processed_entries[clf_idx].get('verification_data') is None:
-                    matched_idx = clf_idx
-                    break
-            
-            if matched_idx is not None:
-                # Attach verification data to the classifier entry
-                verifier_output = entry.get('output', {})
-                processed_entries[matched_idx]['verification_data'] = {
-                    'verified': verifier_output.get('verified'),
-                    'estimated_score': verifier_output.get('estimated_score'),
-                    'verifier_trace': entry.get('trace', ''),
-                    'verifier_model': entry.get('model', ''),
-                    'verifier_timestamp': entry.get('timestamp', '')
-                }
-            
-            # STILL add verifier as a log entry (just not as a table row)
+        # Attach changed_fields from the map
+        entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
+        
+        if entry_type == 'verifier':
+            # Cache this verifier for the next classifier
+            verifier_output = entry.get('output', {})
+            cached_verifier = {
+                'verified': verifier_output.get('verified'),
+                'estimated_score': verifier_output.get('estimated_score'),
+                'verifier_trace': entry.get('trace', ''),
+                'verifier_model': entry.get('model', ''),
+                'verifier_timestamp': entry.get('timestamp', '')
+            }
             entry['verification_data'] = None
             processed_entries.append(entry)
-            
+        elif entry_type in ['classifier', 'consensus']:
+            # Attach cached verifier to this classifier
+            entry['verification_data'] = cached_verifier
+            cached_verifier = None
+            processed_entries.append(entry)
         elif entry_type == 'user':
+            entry['verification_data'] = None
+            processed_entries.append(entry)
+        else:
+            # Include other types (like invalid entries of any type) in the log trace
             entry['verification_data'] = None
             processed_entries.append(entry)
     
@@ -1707,7 +1820,7 @@ def get_history_row():
             except (json.JSONDecodeError, TypeError):
                 paper_dict['technique'] = {}
             
-            # Prepare log data for template - parse output JSON strings
+            # Prepare log data for template - parse output JSON and pair verifiers
             paper_dict['llm_log_entries'] = prepare_history_log_data(paper_dict)
             
             # Render the history row template
@@ -1718,7 +1831,7 @@ def get_history_row():
     except Exception as e:
         print(f"Error fetching history row for paper {paper_id}: {e}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 500
-
+    
 @app.route('/load_table', methods=['GET'])
 def load_table():
     """Endpoint to fetch and render the table content based on current filters."""

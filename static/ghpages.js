@@ -37,20 +37,22 @@ function toggleDetails(element) {
                  detailContentContainer._clickableItemListener = null;
             }
         }
-        element.innerHTML = '<span>Show</span>';
+        // Show button: down arrow, no pressed state
+        element.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+        element.classList.remove('toggle-pressed');
         // Remove ID from set and update URL (handled by filtering.js)
         openDetailIds.delete(paperId);
         updateUrlWithDetailState(); // Update URL immediately after hiding
-        //console.log(`Closed detail for ${paperId}, set now:`, [...openDetailIds]); // Debug log
     } else {
         // Showing the detail row
         // FIRST: Check if the history row for the same paper is open, close it if necessary
         if (historyRow && historyRow.classList.contains('expanded')) {
             historyRow.classList.remove('expanded');
-            // Find the corresponding history toggle button in the main row and update its text
+            // Find the corresponding history toggle button in the main row and update it
             const historyToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleHistory"]');
             if (historyToggleBtn) {
-                 historyToggleBtn.innerHTML = '<span>Show</span>';
+                 historyToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+                 historyToggleBtn.classList.remove('toggle-pressed'); // FIX: Remove from historyToggleBtn, not element
             }
             openHistoryIds.delete(paperId); // Remove history ID from set
         }
@@ -79,11 +81,12 @@ function toggleDetails(element) {
                  console.warn("Detail content container not found for paper", paperId);
             }
         }
-        element.innerHTML = '<span>Hide</span>';
+        // Hide button: up arrow, pressed state
+        element.innerHTML = '<span>Hide</span><br><span class="arrow">▲</span>';
+        element.classList.add('toggle-pressed');
         // Add ID to set and update URL (handled by filtering.js)
         openDetailIds.add(paperId);
         updateUrlWithDetailState(); // Update URL immediately after showing
-        //console.log(`Opened detail for ${paperId}, set now:`, [...openDetailIds]); // Debug log
     }
 }
 
@@ -110,22 +113,23 @@ function toggleHistory(element) {
         if (historyRow) {
             historyRow.classList.remove('expanded');
             // No specific event listener removal needed for history row if it's just static content
-            // If it had dynamic content, you would remove its listener here similarly.
         }
-        element.innerHTML = '<span>Show</span>';
+        // Show button: down arrow, no pressed state
+        element.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+        element.classList.remove('toggle-pressed');
         // Remove ID from set and update URL (handled by filtering.js)
         openHistoryIds.delete(paperId);
         updateUrlWithDetailState(); // Update URL immediately after hiding
-        //console.log(`Closed history for ${paperId}, set now:`, [...openHistoryIds]); // Debug log
     } else {
         // Showing the history row
         // FIRST: Check if the detail row for the same paper is open, close it if necessary
         if (detailRow && detailRow.classList.contains('expanded')) {
             detailRow.classList.remove('expanded');
-            // Find the corresponding detail toggle button in the main row and update its text
+            // Find the corresponding detail toggle button in the main row and update it
             const detailToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleDetails"]');
             if (detailToggleBtn) {
-                detailToggleBtn.innerHTML = '<span>Show</span>';
+                detailToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+                detailToggleBtn.classList.remove('toggle-pressed'); // FIX: Remove from detailToggleBtn, not element
             }
             openDetailIds.delete(paperId); // Remove detail ID from set
         }
@@ -136,11 +140,12 @@ function toggleHistory(element) {
             // Assuming history row content is static HTML loaded initially,
             // no fetch or dynamic listener setup needed here.
         }
-        element.innerHTML = '<span>Hide</span>';
+        // Hide button: up arrow, pressed state
+        element.innerHTML = '<span>Hide</span><br><span class="arrow">▲</span>';
+        element.classList.add('toggle-pressed');
         // Add ID to set and update URL (handled by filtering.js)
         openHistoryIds.add(paperId);
         updateUrlWithDetailState(); // Update URL immediately after showing
-        //console.log(`Opened history for ${paperId}, set now:`, [...openHistoryIds]); // Debug log
     }
 }
 
@@ -148,7 +153,7 @@ function toggleHistory(element) {
 document.addEventListener('DOMContentLoaded', function () {
     //These listeners are specific to GH Export:
     
-    //server-side search disabled for now as FTS is broken. Using full-client-side search everyhwere instead:
+    //server-side search disabled for now as FTS is broken. Using full-client-side search everywhere instead:
     // searchInput.addEventListener('input', applyLocalFilters); //now defined in filtering.js
     hideOfftopicCheckbox.addEventListener('change', applyLocalFilters);
     minPageCountInput.addEventListener('input', applyLocalFilters);
@@ -159,10 +164,3 @@ document.addEventListener('DOMContentLoaded', function () {
     yearToInput.addEventListener('input', applyLocalFilters);
     yearToInput.addEventListener('change', applyLocalFilters);
 });
-
-// Ensure global variables openDetailIds and openHistoryIds are defined elsewhere
-// or initialize them here if needed, e.g.:
-// let openDetailIds = new Set();
-// let openHistoryIds = new Set();
-// (However, since filtering.js handles URL state and initializes them,
-// these variables should ideally be available globally after filtering.js loads).

@@ -80,150 +80,248 @@ def build_reclassification_prompt(paper_data, template_content):
         print(f"Error formatting reclassification prompt: Missing key {e} in paper data or template expects it.")
         raise
 
-def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None):
-    """Updates paper classification fields in the database based on LLM output."""
+# automate_classification.py - Replace update_paper_from_llm function
+
+def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None, success_flag=False, json_result_str="", model_name_used="Unknown"):
+    """Updates paper classification fields and the continuous log in the database."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+    
+    # --- Fetch current state for logging ---
+    cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
+    row = cursor.fetchone()
+    if not row:
+        print(f"Error: Paper {paper_id} not found for LLM update.")
+        conn.close()
+        return False
+    
+    current_llm_log_str = row[0]
+    try:
+        existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
+    except json.JSONDecodeError:
+        existing_log = []
+    
+    # --- Prepare LLM Log Entry (ALWAYS created, even on failure) ---
+    llm_log_entry = {
+        "timestamp": changed_timestamp,
+        "type": "classifier",
+        "model": model_name_used,
+        "trace": reasoning_trace or "",
+        "output": json_result_str,
+        "valid": success_flag
+    }
+    
+    # --- Append Log Entry ---
+    existing_log.append(llm_log_entry)
+    
+    # --- Prepare Database Updates ---
     update_fields = []
     update_values = []
     
-    # Update reasoning_trace if provided
-    if reasoning_trace is not None:
-        update_fields.append("reasoning_trace = ?")
-        update_values.append(reasoning_trace)
-    
-    # Main Boolean Fields
-    main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
-    for field in main_bool_fields:
-        if field in llm_data:
-            value = llm_data[field]
-            update_fields.append(f"{field} = ?")
-            update_values.append(1 if value is True else 0 if value is False else None)
-    
-    # Research Area and Relevance
-    if 'research_area' in llm_data:
-        update_fields.append("research_area = ?")
-        update_values.append(llm_data['research_area'])
-    if 'relevance' in llm_data:
-        update_fields.append("relevance = ?")
-        update_values.append(llm_data['relevance'])
-    
-    # Features
-    cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    current_features = json.loads(row[0]) if row and row[0] else {}
-    if 'features' in llm_data and isinstance(llm_data['features'], dict):
-        current_features.update(llm_data['features'])
-        update_fields.append("features = ?")
-        update_values.append(json.dumps(current_features))
-    
-    # Techniques
-    cursor.execute("SELECT technique FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    current_technique = json.loads(row[0]) if row and row[0] else {}
-    if 'technique' in llm_data and isinstance(llm_data['technique'], dict):
-        current_technique.update(llm_data['technique'])
-        update_fields.append("technique = ?")
-        update_values.append(json.dumps(current_technique))
-    
-    # Reset verification fields when classification is updated
-    # This ensures verified status is cleared after re-classification
-    update_fields.append("verified = ?")
-    update_values.append(None)
-    update_fields.append("estimated_score = ?")
-    update_values.append(None)
-    update_fields.append("verified_by = ?")
-    update_values.append("")
-    update_fields.append("verifier_trace = ?")
-    update_values.append("")
-    
-    # Audit fields
-    update_fields.append("changed = ?")
-    update_values.append(changed_timestamp)
-    update_fields.append("changed_by = ?")
-    update_values.append(changed_by)
-    
-    if update_fields:
-        update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-        update_values.append(paper_id)
-        cursor.execute(update_query, update_values)
-        conn.commit()
-        rows_affected = cursor.rowcount
+    if success_flag and llm_data:
+        # Main Boolean Fields
+        main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
+        for field in main_bool_fields:
+            if field in llm_data:
+                value = llm_data[field]
+                update_fields.append(f"{field} = ?")
+                update_values.append(1 if value is True else 0 if value is False else None)
+        
+        # Research Area and Relevance
+        if 'research_area' in llm_data:
+            update_fields.append("research_area = ?")
+            update_values.append(llm_data['research_area'])
+        if 'relevance' in llm_data:
+            update_fields.append("relevance = ?")
+            update_values.append(llm_data['relevance'])
+        
+        # Features (Merge with existing)
+        if 'features' in llm_data and isinstance(llm_data['features'], dict):
+            cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
+            row = cursor.fetchone()
+            current_features = json.loads(row[0]) if row and row[0] else {}
+            current_features.update(llm_data['features'])
+            update_fields.append("features = ?")
+            update_values.append(json.dumps(current_features))
+        
+        # Technique (Merge with existing)
+        if 'technique' in llm_data and isinstance(llm_data['technique'], dict):
+            cursor.execute("SELECT technique FROM papers WHERE id = ?", (paper_id,))
+            row = cursor.fetchone()
+            current_technique = json.loads(row[0]) if row and row[0] else {}
+            current_technique.update(llm_data['technique'])
+            update_fields.append("technique = ?")
+            update_values.append(json.dumps(current_technique))
+        
+        # Reset verification fields on new classification
+        update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
+        update_values.extend([None, None, ""])
+        
+        # Audit fields
+        update_fields.extend(["changed = ?", "changed_by = ?"])
+        update_values.extend([changed_timestamp, changed_by])
+        
+        # Reset user override count (LLM overwrites user state)
+        update_fields.append("user_override_count = ?")
+        update_values.append(0)
+        
+        # Update last_llm_* cache fields (mirror main field updates)
+        for field in main_bool_fields:
+            if field in llm_data:
+                value = llm_data[field]
+                update_fields.append(f"last_llm_{field} = ?")
+                update_values.append(1 if value is True else 0 if value is False else None)
+        
+        if 'features' in llm_data and isinstance(llm_data['features'], dict):
+            update_fields.append("last_llm_features = ?")
+            update_values.append(json.dumps(current_features))
+        if 'technique' in llm_data and isinstance(llm_data['technique'], dict):
+            update_fields.append("last_llm_technique = ?")
+            update_values.append(json.dumps(current_technique))
+        if 'relevance' in llm_data:
+            update_fields.append("last_llm_relevance = ?")
+            update_values.append(llm_data['relevance'])
     else:
-        rows_affected = 0
+        # On failure, still update audit fields
+        update_fields.extend(["changed = ?", "changed_by = ?"])
+        update_values.extend([changed_timestamp, changed_by])
+    
+    # --- Update Database ---
+    update_values.extend([json.dumps(existing_log), paper_id])
+    update_query = f"UPDATE papers SET {', '.join(update_fields)}, llm_log = ? WHERE id = ?"
+    cursor.execute(update_query, update_values)
+    conn.commit()
+    rows_affected = cursor.rowcount
     conn.close()
+    
     return rows_affected > 0
 
 def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias, reclassification_mode=False):
     """Worker function executed by each thread."""
     while True:
         try:
-            # Use timeout to periodically check for shutdown
             paper_id = paper_id_queue.get(timeout=1)
         except queue.Empty:
-            # Check if we should shutdown periodically
             if globals.is_shutdown_flag_set():
                 return
             continue
-        # Poison pill - time to die
+
         if paper_id is None:
             return
-        # Check for shutdown before processing
+
         if globals.is_shutdown_flag_set():
             return
+
         print(f"[Thread-{threading.get_ident()}] Processing paper ID: {paper_id}")
+
         try:
             paper_data = globals.get_paper_by_id(db_path, paper_id)
             if not paper_data:
-                print(f"[Thread-{threading.get_ident()}] Error: Paper {paper_id} not found in DB.")
+                error_msg = f"Paper {paper_id} not found in DB."
+                print(f"[Thread-{threading.get_ident()}] Error: {error_msg}")
+                # Log the error
+                update_paper_from_llm(
+                    db_path,
+                    paper_id,
+                    {},
+                    changed_by="Error",
+                    reasoning_trace=error_msg,
+                    success_flag=False,
+                    json_result_str="",
+                    model_name_used=model_alias
+                )
                 continue
-            
+
             if reclassification_mode:
                 prompt_text = build_reclassification_prompt(paper_data, prompt_template_content)
             else:
                 prompt_text = build_prompt(paper_data, prompt_template_content)
-                
+
             if globals.is_shutdown_flag_set():
                 return
+
+            # --- LLM Call ---
             json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
-                prompt_text, 
-                server_url_base=globals.LLM_SERVER_URL, 
+                prompt_text,
+                server_url_base=globals.LLM_SERVER_URL,
                 model_name=model_alias,
                 is_verification=False
             )
+
             if globals.is_shutdown_flag_set():
                 return
+
+            # --- Process Result (Success OR Failure) ---
             if json_result_str:
                 try:
                     llm_classification = json.loads(json_result_str)
-                    # Prepend model info to reasoning_trace
                     if reasoning_trace:
-                        reasoning_trace = f"As classified by {model_name_used}\n\n{reasoning_trace}"
+                        reasoning_trace = f"As classified by {model_name_used}\n{reasoning_trace}"
                     else:
                         reasoning_trace = f"As classified by {model_name_used}"
+
                     success = update_paper_from_llm(
-                        db_path, 
-                        paper_id, 
-                        llm_classification, 
+                        db_path,
+                        paper_id,
+                        llm_classification,
                         changed_by=model_name_used,
-                        reasoning_trace=reasoning_trace
+                        reasoning_trace=reasoning_trace,
+                        success_flag=True,
+                        json_result_str=json_result_str,
+                        model_name_used=model_name_used
                     )
+
                     if success:
                         print(f"[Thread-{threading.get_ident()}] Updated paper {paper_id} (Model: {model_name_used})")
                     else:
                         print(f"[Thread-{threading.get_ident()}] Failed to update paper {paper_id} (DB error)")
+
                 except json.JSONDecodeError as e:
-                    print(f"[Thread-{threading.get_ident()}] Error parsing LLM output for {paper_id}: {e}")
-                    print(f"LLM Output: {json_result_str}")
-                except Exception as e:
-                    print(f"[Thread-{threading.get_ident()}] Error updating DB for {paper_id}: {e}")
+                    error_msg = f"Error parsing LLM output: {str(e)}\n\nLLM Output:\n{json_result_str}"
+                    print(f"[Thread-{threading.get_ident()}] {error_msg}")
+                    # Log the parsing error
+                    update_paper_from_llm(
+                        db_path,
+                        paper_id,
+                        {},
+                        changed_by=model_name_used,
+                        reasoning_trace=error_msg,
+                        success_flag=False,
+                        json_result_str=json_result_str,
+                        model_name_used=model_name_used
+                    )
             else:
-                if not globals.is_shutdown_flag_set():
-                    print(f"[Thread-{threading.get_ident()}] No LLM response for {paper_id}")
+                # --- LLM Call Failed (No Response) ---
+                error_msg = "No LLM response received. Check server connection."
+                print(f"[Thread-{threading.get_ident()}] {error_msg}")
+                # Log the failure
+                update_paper_from_llm(
+                    db_path,
+                    paper_id,
+                    {},
+                    changed_by=model_name_used,
+                    reasoning_trace=error_msg,
+                    success_flag=False,
+                    json_result_str="",
+                    model_name_used=model_name_used
+                )
+
         except Exception as e:
+            error_msg = f"Exception during processing: {type(e).__name__}: {str(e)}"
             if not globals.is_shutdown_flag_set():
-                print(f"[Thread-{threading.get_ident()}] Error processing {paper_id}: {e}")
+                print(f"[Thread-{threading.get_ident()}] {error_msg}")
+            # Log the exception as a failure
+            update_paper_from_llm(
+                db_path,
+                paper_id,
+                {},
+                changed_by="Error",
+                reasoning_trace=error_msg,
+                success_flag=False,
+                json_result_str="",
+                model_name_used=model_alias
+            )
         finally:
             if globals.is_shutdown_flag_set():
                 return

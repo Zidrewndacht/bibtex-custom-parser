@@ -11,6 +11,7 @@ const journalCellIndex = 4;
 const typeCellIndex = 5;
 const relevanceCellIndex = 7;
 const estScoreCellIndex = 38;
+const userOverrideCountCellIndex = 39; // Adjust based on final column position
 
 const searchInput = document.getElementById('search-input');
 const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
@@ -63,11 +64,10 @@ const duplicateCountElement = document.getElementById('duplicate-papers-count');
 
 // Add the WeakMap for caching row data
 const rowCache = new WeakMap();
-
 /**
  * Applies alternating row shading to visible main rows.
- * Ensures detail rows follow their main row's shading.
- * Each "paper group" (main row + detail row) gets a single alternating color.
+ * Ensures detail rows AND history rows follow their main row's shading.
+ * Each "paper group" (main row + detail row + history row) gets a single alternating color.
  * Should be pure client-side to be reused for HTML export
  */
 function applyAlternatingShading() {
@@ -79,15 +79,22 @@ function applyAlternatingShading() {
         main.classList.toggle('alt-shade-1', shade === 'alt-shade-1');
         main.classList.toggle('alt-shade-2', shade === 'alt-shade-2');
 
+        // Apply same shading to detail row if it exists
         const detail = main.nextElementSibling;
-        if (detail) {
+        if (detail && detail.classList.contains('detail-row')) {
             detail.classList.toggle('alt-shade-1', shade === 'alt-shade-1');
             detail.classList.toggle('alt-shade-2', shade === 'alt-shade-2');
+        }
+        
+        // Apply same shading to history row if it exists (second sibling after main)
+        const history = detail && detail.nextElementSibling;
+        if (history && history.classList.contains('history-row')) {
+            history.classList.toggle('alt-shade-1', shade === 'alt-shade-1');
+            history.classList.toggle('alt-shade-2', shade === 'alt-shade-2');
         }
         idx++;
     }
 }
-
 /**
  * Optimized duplicate shading using cached data and batch operations
  */
@@ -659,7 +666,8 @@ const SORT_COLUMN_INDICES = {
     'page_count': pageCountCellIndex,
     'estimated_score': estScoreCellIndex,
     'relevance': relevanceCellIndex,
-    'pdf-link': pdfCellIndex
+    'pdf-link': pdfCellIndex,
+    'user_override_count': userOverrideCountCellIndex,
 };
 
 // Define fields that do NOT use the .editable-status selector for sorting
@@ -690,7 +698,7 @@ function performSort(sortBy, direction, visibleMainRows = null) { // Changed par
 
     // Pre-calculate sort type to avoid repeated checks inside the loop
     const isDateSort = sortBy === 'changed';
-    const isNumericSort = ['year', 'estimated_score', 'page_count', 'relevance'].includes(sortBy);
+    const isNumericSort = ['year', 'estimated_score', 'page_count', 'relevance', 'user_override_count'].includes(sortBy);    
     const isPDFSort = sortBy === 'pdf-link';
     const isVerifiedBySort = sortBy === 'verified_by';
     const isEditableStatusSort = !isNumericSort && !isPDFSort && !isVerifiedBySort && !NON_EDITABLE_STATUS_FIELDS.has(sortBy) && !['title', 'journal', 'changed_by', 'changed'].includes(sortBy);

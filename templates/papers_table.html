@@ -2,7 +2,7 @@
 {% block papers_table_content %}
 <tbody style="position: relative;">
 <tr>
-    <td style="padding:0;" colspan="43">
+    <td style="padding:0;" colspan="44">
         <div class="loading-overlay">
             <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parça</span></div>
             <div class="loading-spinner"></div>
@@ -76,10 +76,11 @@
         <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>           
         <td class="status-cell editable-status" data-field="verified">{{ paper.verified | render_status }}</td>
         <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
-        <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>                 
+        <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>  
+        <td class="secondary-text-cell number-cell" data-field="user_override_count">{{ paper.user_override_count or '0' }}</td>               
         <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td> 
-        <td class="toggle-btn" onclick="toggleHistory(this)"><span>Show</span></td>
-        <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span></td>
+        <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+        <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
 
         <!-- Hidden data cells for faster stats retrieval -->
         <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
@@ -92,14 +93,14 @@
     </tr>
 <!-- Detail Row Placeholder -->
 <tr class="detail-row">
-    <td colspan="43"  class="detail-content-placeholder">
+    <td colspan="44"  class="detail-content-placeholder">
     </td>
     <td style="display:none" colspan="5"></td>
 </tr>
 
 <!-- History Row Placeholder -->
 <tr class="history-row">
-    <td colspan="43"  class="detail-content-placeholder">
+    <td colspan="44"  class="detail-content-placeholder">
     </td>
     <td style="display:none" colspan="5"></td>
 </tr>

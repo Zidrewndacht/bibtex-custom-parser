@@ -35,6 +35,7 @@
     --th-border-color: #0000003b;
     --link-color: rgb(0, 45, 115);
     --detail-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
+    --history-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
     --min-width: 1660px;
     --max-width: 2340px;
     --detail-border-color: #dfdfdf
@@ -194,7 +195,7 @@ th[data-sort]:hover, tr:nth-child(4) th[data-sort]:not(.inferred-header):hover {
     cursor: pointer
 }
 
-td.highlight-status {
+td.highlight-status:not(.cell-changed) {
     background: var(--highlighted-col-background)
 }
 
@@ -216,17 +217,44 @@ td.highlight-status {
 }
 
 .toggle-btn {
-    cursor: pointer;
-    text-decoration: none;
-    color: #000b;
-    background: var(--detail-button-background);
-    font-size: 9.5pt;
-    font-weight: 400;
-    transition: filter .3s ease-in-out;
-    text-align: center;
-    box-shadow: inset 0 0 0 .5px #0006
+cursor: pointer;
+text-decoration: none;
+color: #000b;
+background: var(--detail-button-background);
+font-size: 9.5pt;
+font-weight: 400;
+transition: filter .3s ease-in-out;
+text-align: center;
+box-shadow: inset 0 0 0 .5px #0006;
+/* Add padding for better arrow display */
+padding: 4px 8px;
+min-width: 44px;
 }
 
+.arrow{
+    opacity: 0.33;
+}
+/* New: Pressed state for hide buttons */
+.toggle-btn.toggle-pressed {
+background: linear-gradient(180deg, hsl(210, 24%, 82%) 0%, hsl(210, 32%, 88%) 60%);
+box-shadow: inset 0 0 0 .5px #0006, inset 0 2px 4px rgba(0,0,0,.2);
+}
+
+#apply-serverside-filters:hover,#html-export .action-btn:hover,.bibtex-copy-btn:hover,
+.id-copy-btn:hover, .id-citen-btn:hover, .id-cite-btn:hover, .tabularx-btn:hover, #longtable-btn:hover,
+.toggle-btn:hover {
+filter: saturate(200%) contrast(110%)
+}
+
+/* Ensure pressed state overrides hover */
+.toggle-btn.toggle-pressed:hover {
+background: linear-gradient(180deg, hsl(210, 24%, 82%) 0%, hsl(210, 32%, 88%) 60%);
+/* box-shadow: inset 0 2px 4px rgba(0,0,0,.2); */
+/* transform: translateY(1px); */
+}
+.history-btn {
+    background: var(--history-button-background);
+}
 #apply-serverside-filters:hover,#html-export .action-btn:hover,.bibtex-copy-btn:hover,
 .id-copy-btn:hover, .id-citen-btn:hover, .id-cite-btn:hover, .tabularx-btn:hover, #longtable-btn:hover,
 .toggle-btn:hover {
@@ -409,12 +437,11 @@ form label {
     overflow: hidden;
     transition: max-height .4s ease-in-out,opacity .6s ease-in-out;
     display: grid;
-    grid-template-columns: 1fr 1080px;
-    grid-template-rows: auto;
+    grid-template-columns: 1fr 1107px;
+    grid-template-rows: min-content 1fr min-content;
     gap: 0;
     box-sizing: border-box;
     width: 100%;
-    /*! padding: 0 0 0 10px; */
     margin: 0;
     opacity: 0;
 }
@@ -425,7 +452,6 @@ form label {
     opacity: 1;
     /* transition: max-height 0s; */
     border-bottom: 1px solid #e0e0e0;
-    /*! height: 600px; */
 }
 
 .detail-content {
@@ -638,7 +664,7 @@ tr.filter-hidden {
 .trace-content {
     word-wrap: break-word;
     word-break: break-word;
-    /*! padding: 8px 0 0; */
+    grid-row: 1/4;
     overflow-x: hidden;
     font-size: 10.5pt;
     overflow-y: auto;
@@ -1304,11 +1330,8 @@ li {
 
 /* Individual log entry container */
 .log-entry {
-  /*! border: 1px solid #ddd; */
-  /*! border-radius: 4px; */
-  /*! margin-bottom: 8px; */
-  padding: 8px;
-  background-color: #fff;
+  border: 1px solid #eee;
+  padding: 10px;
 }
 
 /* Header section of a log entry */
@@ -1338,10 +1361,6 @@ li {
 
 .log-model {
   color: #666;
-}
-
-.log-validity {
-  /* Style for the validity indicator */
 }
 
 .valid-indicator.valid {
@@ -1376,19 +1395,6 @@ li {
   overflow-y: auto; /* Scroll vertically if needed */
 }
 
-/* Type-specific background colors for log entries */
-.log-entry.log-type-classifier {
-  background-color: #f2f2ff; /* Light blue */
-}
-
-.log-entry.log-type-verifier {
-  background-color: #fef8ff; /* Light orange */
-}
-
-.log-entry.log-type-user {
-  background-color: #fafafa; /* Light grey */
-}
-
 .log-entry.log-type-consensus_round_start,
 .log-entry.log-type-consensus_round_end {
   background-color: #e6ffe6; /* Light green for consensus */
@@ -1397,7 +1403,14 @@ li {
 /* Add more type-specific colors as needed */
 
 
-
+.history-table{
+  table-layout: fixed;
+  border-collapse: collapse;
+  min-width: 0px;
+  max-width: 0px;
+  border: 1px solid var( --detail-border-color);
+  background-color: #a0c8aa0f;
+}
 
 
 
@@ -1405,7 +1418,7 @@ li {
 
 /* Log entry type-specific background colors only */
 .log-entry.log-type-classifier {
-    background-color: #f2f2ff;
+    background-color: #f6f8ff;
 }
 
 .log-entry.log-type-verifier {
@@ -1428,13 +1441,6 @@ li {
     font-size: 9.5pt;
 }
 
-/* History table - fixed row height matching main table */
-.history-row table {
-    table-layout: fixed;
-    border-collapse: collapse;
-    width: 1080px; /* Match the grid column width */
-}
-
 .history-row table td {
     /*! padding: 9px 6px; */ /* Match main table td padding */
     height: 58px;
@@ -1444,11 +1450,34 @@ li {
     box-shadow: 0 1px 2px rgba(64,64,64,.1);
 }
 
-/* Ensure table doesn't stretch to fill grid cell height */
-.history-flex-container > table {
-    align-self: start;
+.history-row table td:not(.cell-changed) {
+    opacity: 0.4;
+}
+.cell-changed {
+    background: rgba(207, 227, 227, 0.75);
 }
 
+.history-info{
+    grid-row: 2/3;
+    grid-column: 2/3;
+    margin: 8px;
+    color: var(--light-colored-btn-text);
+    border: 1px solid var( --detail-border-color);
+    border-radius: 6px;
+    padding: 6px;
+    background-color: #aaaaaa0b;
+    align-items: center;
+    display: grid;
+    justify-content: center;
+}
+
+.history-row .row-actions{
+    grid-row: 3/4;
+    grid-column: 2/3;
+    align-self:end;
+    justify-self: end;
+    padding: 0px 6px 8px 0px;
+}
 
 /* Media query for high device pixel ratio (HiDPI) screens */
 /* This targets the *physical* pixel density of the screen */

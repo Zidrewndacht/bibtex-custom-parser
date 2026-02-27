@@ -241,6 +241,11 @@ function saveChanges(paperId) {
                 if (data.changed_by !== undefined) {
                     row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 }
+                
+                const userOverrideCountCell = row.querySelector('[data-field="user_override_count"]');
+                if (userOverrideCountCell) {
+                    userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
+                }
                 // Update displayed page count if returned
                 const pageCountCell = row.cells[pageCountCellIndex];
                 if (pageCountCell) {
@@ -287,79 +292,79 @@ function saveChanges(paperId) {
         }
     });
 }
+
 /**
  * Toggles the visibility of the history row for a given paper.
  * @param {HTMLElement} element - The button element clicked to trigger the toggle.
  */
 function toggleHistory(element) {
     const row = element.closest('tr'); // Main paper row
-    // The history row is the second sibling after the main row (detail row is the first)
     const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
-                       row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
-                       row.nextElementSibling.nextElementSibling : null;
-
-    // The detail row is the first sibling after the main row
+        row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+        row.nextElementSibling.nextElementSibling : null;
     const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ?
-                      row.nextElementSibling : null;
-
+        row.nextElementSibling : null;
+    
     if (!historyRow) {
         console.error("History row not found for paper:", row.getAttribute('data-paper-id'));
         return;
     }
-
+    
     const isHistoryExpanded = historyRow.classList.contains('expanded');
     const paperId = row.getAttribute('data-paper-id');
-
+    
     if (isHistoryExpanded) {
         // Hiding the history row
         historyRow.classList.remove('expanded');
-        element.innerHTML = '<span>Show</span>';
-        openHistoryIds.delete(paperId); // Remove from set
-        updateUrlWithDetailState(); // Update URL
+        element.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+        element.classList.remove('toggle-pressed');  // Remove pressed state from THIS button
+        openHistoryIds.delete(paperId);
+        updateUrlWithDetailState();
     } else {
         // Showing the history row
         // First, check if the detail row is open for the same paper, close it if necessary
         if (detailRow && detailRow.classList.contains('expanded')) {
             detailRow.classList.remove('expanded');
-            // Find the corresponding detail toggle button in the main row and update its text
             const detailToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleDetails"]');
             if (detailToggleBtn) {
-                detailToggleBtn.innerHTML = '<span>Show</span>';
+                detailToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+                detailToggleBtn.classList.remove('toggle-pressed');  // FIX: Remove from detailToggleBtn, not element
             }
-            openDetailIds.delete(paperId); // Remove detail ID from set
+            openDetailIds.delete(paperId);
         }
-
-        // Now proceed to show the history row
-        openHistoryIds.add(paperId); // Add ID to set
-        updateUrlWithDetailState(); // Update URL immediately
-
+        
+        openHistoryIds.add(paperId);
+        updateUrlWithDetailState();
+        
         const contentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
         if (!contentPlaceholder) {
-             console.error("Content placeholder not found in history row for paper:", paperId);
-             return;
+            console.error("Content placeholder not found in history row for paper:", paperId);
+            return;
         }
-
+        
         fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success' && data.html) {
-                    contentPlaceholder.innerHTML = data.html;
-                    requestAnimationFrame(() => {
-                        historyRow.offsetHeight; // Trigger reflow
-                        historyRow.classList.add('expanded');
-                    });
-                    element.innerHTML = '<span>Hide</span>';
-                } else {
-                    console.error(`Error loading history row for paper ${paperId}:`, data.message);
-                    contentPlaceholder.innerHTML = `<p>Error loading history: ${data.message || 'Unknown error'}</p>`;
-                }
-            })
-            .catch(error => {
-                console.error(`Error fetching history row for paper ${paperId}:`, error);
-                contentPlaceholder.innerHTML = `<p>Error loading history: ${error.message}</p>`;
-            });
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.html) {
+                contentPlaceholder.innerHTML = data.html;
+                requestAnimationFrame(() => {
+                    historyRow.offsetHeight;
+                    historyRow.classList.add('expanded');
+                });
+                element.innerHTML = '<span>Hide</span><br><span class="arrow">▲</span>';
+                element.classList.add('toggle-pressed');
+            } else {
+                console.error(`Error loading history row for paper ${paperId}:`, data.message);
+                contentPlaceholder.innerHTML = `<p>Error loading history: ${data.message || 'Unknown error'}</p>`;
+            }
+        })
+        .catch(error => {
+            console.error(`Error fetching history row for paper ${paperId}:`, error);
+            contentPlaceholder.innerHTML = `<p>Error loading history: ${error.message}</p>`;
+        });
     }
 }
+
 /**
  * Toggles the visibility of the detail row for a given paper.
  * @param {HTMLElement} element - The button element clicked to trigger the toggle.
@@ -387,7 +392,8 @@ function toggleDetails(element) {
     if (isExpanded) {
         // Hiding the detail row
         detailRow.classList.remove('expanded');
-        element.innerHTML = '<span>Show</span>';
+        element.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+        element.classList.remove('toggle-pressed');  // Remove pressed state
         openDetailIds.delete(paperId); // Remove from set
         updateUrlWithDetailState(); // Update URL
     } else {
@@ -399,7 +405,8 @@ function toggleDetails(element) {
             // The history button is in the main row itself
             const historyToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleHistory"]');
             if (historyToggleBtn) {
-                 historyToggleBtn.innerHTML = '<span>Show</span>';
+                historyToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+                element.classList.remove('toggle-pressed');  // Remove pressed state
             }
             openHistoryIds.delete(paperId); // Remove history ID from set
         }
@@ -442,7 +449,8 @@ function toggleDetails(element) {
                         detailRow.offsetHeight; // Trigger reflow
                         detailRow.classList.add('expanded');
                     });
-                    element.innerHTML = '<span>Hide</span>';
+                    element.innerHTML = '<span>Hide</span><br><span class="arrow">▲</span>';
+                    element.classList.add('toggle-pressed');  // Add pressed state
                 } else {
                     console.error(`Error loading detail row for paper ${paperId}:`, data.message);
                     if (contentPlaceholder) {
@@ -986,6 +994,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         updateRowCell(row, '.editable-status[data-field="technique_hybrid"]', data.technique?.hybrid);
                         updateRowCell(row, '.editable-status[data-field="technique_available_dataset"]', data.technique?.available_dataset);
 
+                        const userOverrideCountCell = row.querySelector('[data-field="user_override_count"]');
+                        if (userOverrideCountCell) {
+                            userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
+                        }
                         // Update audit/other fields
                         const changedCell = row.querySelector('.changed-cell');
                         if (changedCell) changedCell.textContent = data.changed_formatted || '';
@@ -995,13 +1007,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
                         if (verifiedCell) {
-                            // Assuming render_status function exists or create one
                             verifiedCell.textContent = renderStatus(data.verified);
                         }
 
                         const verifiedByCell = row.querySelector('.editable-verify[data-field="verified_by"]');
                         if (verifiedByCell) {
-                             // Assuming render_verified_by function exists or create one based on Python logic
                              verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                         }
                         const estimatedScoreCell = row.cells[estScoreCellIndex];  //Updates score dynamically after verification.
@@ -1010,31 +1020,24 @@ document.addEventListener('DOMContentLoaded', function () {
                         const pageCountCell = row.cells[pageCountCellIndex]; 
                         if (pageCountCell) pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
 
-                        // Update detail row traces if expanded
-                        if (detailRow && detailRow.classList.contains('expanded')) {
-                            const evalTraceDiv = detailRow.querySelector('.detail-evaluator-trace .trace-content');
-                            if (evalTraceDiv) {
-                                evalTraceDiv.textContent = data.reasoning_trace || 'No trace available.';
-                                evalTraceDiv.classList.remove('trace-placeholder');
-                            }
-                            const verifyTraceDiv = detailRow.querySelector('.detail-verifier-trace .trace-content');
-                            if (verifyTraceDiv) {
-                                verifyTraceDiv.textContent = data.verifier_trace || 'No trace available.';
-                                verifyTraceDiv.classList.remove('trace-placeholder');
-                            }
-                            // Update form fields if needed (e.g., model name, other defects might have changed)
-                            const form = detailRow.querySelector(`form[data-paper-id="${paperId}"]`);
-                            if(form){
-                                const modelNameInput = form.querySelector('input[name="technique_model"]');
-                                if(modelNameInput) modelNameInput.value = data.technique?.model || '';
-                                const otherDefectsInput = form.querySelector('input[name="features_other"]');
-                                if(otherDefectsInput) otherDefectsInput.value = data.features?.other || '';
-                                const researchAreaInput = form.querySelector('input[name="research_area"]');
-                                if(researchAreaInput) researchAreaInput.value = data.research_area || '';
-                                // const pageCountInput = form.querySelector('input[name="page_count"]');
-                                // if(pageCountInput) pageCountInput.value = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
-                                // const userTraceTextarea = form.querySelector('textarea[name="user_trace"]');
-                                // if(userTraceTextarea) userTraceTextarea.value = data.user_trace || ''; // Update textarea value
+                        // Refresh history row if it's expanded
+                        const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
+                            row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                            row.nextElementSibling.nextElementSibling : null;
+                        
+                        if (historyRow && historyRow.classList.contains('expanded')) {
+                            const historyContentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
+                            if (historyContentPlaceholder) {
+                                fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
+                                    .then(response => response.json())
+                                    .then(historyData => {
+                                        if (historyData.status === 'success' && historyData.html) {
+                                            historyContentPlaceholder.innerHTML = historyData.html;
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error(`Error refreshing history row for paper ${paperId}:`, error);
+                                    });
                             }
                         }
                         updateCounts();

@@ -70,6 +70,7 @@
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified -->
             <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- User Changes -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- user comments state -->
             <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- History -->        
             <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->               
@@ -82,8 +83,8 @@
         </colgroup>
         <thead>
             <tr>
-                <th id="main-header-wrapper" colspan=42 style="display: none;"></th> <!-- this must exist for CSS consistency between export and real page (uses nth-child, etc.) -->
-                
+                <th id="main-header-wrapper" colspan="44" style="display: none;"></th> <!-- this must exist for CSS consistency between export and real page (uses nth-child, etc.) -->
+
                 <!-- Hidden metadata fields -->
                 <th style="display:none" colspan="5"></th>
             </tr>
@@ -121,7 +122,7 @@
                     </div>
                 </th>
                 
-                <th class="ontop-header" colspan="8" rowspan="2" >
+                <th class="ontop-header" colspan="9" rowspan="2" >
                     <div class="search-container">
                         <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
                         <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">&times;</button>
@@ -227,6 +228,9 @@
                 </th>
                 <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
                 <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="user_override_count">
+                    <div><span>User Changes</span></div> <span class="sort-indicator"></span>
+                </th>
                 <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
                 <th class="rotate-header"><div>History</div></th> <!-- must be 50px due to 'collapse' button text -->
                 <th class="rotate-header"><div>Details</div></th> <!-- must be 50px due to 'collapse' button text -->
