@@ -36,7 +36,7 @@
     --link-color: rgb(0, 45, 115);
     --detail-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
     --history-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
-    --min-width: 1660px;
+    --min-width: 1650px;
     --max-width: 2340px;
     --detail-border-color: #dfdfdf
 }
@@ -150,9 +150,6 @@ table {
     max-width: var(--max-width);
     border-radius: 6px
 }
-#html-export table {
-    max-width: var(--max-width); 
-}
 
 td {
     padding: 9px 6px
@@ -196,7 +193,7 @@ th[data-sort]:hover, tr:nth-child(4) th[data-sort]:not(.inferred-header):hover {
 }
 
 td.highlight-status:not(.cell-changed) {
-    background: var(--highlighted-col-background)
+    background: var(--highlighted-col-background);
 }
 
 #metricsTableStatsList :nth-child(even),.alt-shade-1,li:nth-child(even) {
@@ -378,7 +375,7 @@ form label {
     border-radius: 6px;
     padding: 6px;
     margin: 2px;
-    background: #ffffffa0;
+    background: #fff; /*ffffffa0*/
     font-size: 10pt;
     color: var(--light-colored-btn-text);
 }
@@ -406,7 +403,7 @@ form label {
     user-select: none
 }
 
-.editable-status:hover,.editable-verify:hover,.pdf-status:hover {
+.editable-status:hover,.editable-verify:hover,.pdf-status:hover, td.highlight-status:not(.cell-changed):hover {
     background-color: var(--light-colored-btn-color);
     transform: scale(1.1);
     box-shadow: 0 2px 4px rgba(0,0,0,.1)
@@ -457,7 +454,7 @@ form label {
 .detail-content {
     min-width: 0;
     box-sizing: border-box;
-    padding: 4px
+    padding: 4px 4px 0px 4px;
 }
 
 .detail-edit {
@@ -472,12 +469,12 @@ form label {
     margin-bottom: .5em;
     line-height: 1.3em;
     margin-block-start: .5em;
-    margin-block-end: .5em
+    margin-block-end: 0;
 }
 
 .detail-row>td, 
 .history-row>td {
-    padding: 0
+    padding: 0;
 }
 
 .detail-edit input[type=text] {
@@ -668,7 +665,7 @@ tr.filter-hidden {
     overflow-x: hidden;
     font-size: 10.5pt;
     overflow-y: auto;
-    max-height: 800px;
+    max-height: 720px;
 }
 
 .detail-evaluator-trace,.detail-verifier-trace {
@@ -779,10 +776,10 @@ tr.filter-hidden {
 }
 
 .detail-edit {
-    display: grid;
+    /*! display: grid; */
     height: 100%;
-    padding: 8px 8px 0 0;
-    box-sizing: border-box
+    padding: 8px 8px 8px 0;
+    box-sizing: border-box;
 }
 
 .detail-edit form {
@@ -790,7 +787,7 @@ tr.filter-hidden {
     grid-template-columns: 1fr 1fr 1fr 1fr 120px 120px;
     grid-template-rows: auto auto 1fr auto;
     gap: 4px;
-    height: calc(100% - 8px)
+    height: calc(100% - 0px);
 }
 
 .detail-edit form>label:nth-of-type(1) {
@@ -1330,7 +1327,7 @@ li {
 
 /* Individual log entry container */
 .log-entry {
-  border: 1px solid #eee;
+  border: 1px solid #ddd;
   padding: 10px;
 }
 
@@ -1409,7 +1406,8 @@ li {
   min-width: 0px;
   max-width: 0px;
   border: 1px solid var( --detail-border-color);
-  background-color: #a0c8aa0f;
+/*   background-color: #a0c8aa0f; */
+  background-color: #aaaaaa0b;
 }
 
 

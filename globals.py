@@ -182,96 +182,104 @@ def get_paper_by_id(db_path, paper_id):
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+# globals.py
 
 def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", is_verification=False):
     """
-    Sends a prompt to the LLM via the OpenAI-compatible API. 
+    Sends a prompt to the LLM via the OpenAI-compatible API.
     Returns (content_str, model_name_used, reasoning_trace).
     Supports both separate reasoning_content field and <think></think> tags in content.
     """
     if server_url_base is None:
-        server_url_base = LLM_SERVER_URL  # Now this will work
-    
+        server_url_base = LLM_SERVER_URL
     chat_url = f"{server_url_base.rstrip('/')}/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
-    
-    # Add authorization header if API key is provided
     if LLM_API_KEY:
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"
-    
-    payload = { #official recommended parameters from Qwen3 - Temperature=0.6 for Qwwen3-thinking, 1.0 for Qwen3VL-thinking
+    payload = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6, 
-        "top_p": 0.95, 
-        "top_k": 20, 
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
         "min_p": 0,
         "max_tokens": 32768,
         "stream": False
     }
     context = "verification " if is_verification else ""
-    
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800) #30 minutes as the inference engine may have a long queue during batch processing.
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800)
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()
         response_data = response.json()
-        
         model_name_from_response = response_data.get('model', model_name)
         if 'choices' in response_data and response_data['choices']:
-            # Extract reasoning_content safely
             reasoning_content = None
             message = response_data['choices'][0]['message']
             
-            # First, try to get reasoning_content from the structured field (for sane inference engines)
-            reasoning_content_raw = message.get('reasoning_content', '')
+            # NEW: Check for 'reasoning' field first (vLLM recent versions)
+            reasoning_content_raw = message.get('reasoning', '')
+            
+            # LEGACY: Fall back to 'reasoning_content' if 'reasoning' is empty
+            if reasoning_content_raw is None or reasoning_content_raw == '':
+                reasoning_content_raw = message.get('reasoning_content', '')
+            
             if reasoning_content_raw is not None and reasoning_content_raw != '':
                 reasoning_content = reasoning_content_raw.strip()
             else:
                 reasoning_content = ''
-                
+            
             content_raw = message.get('content', '')
             if content_raw is not None:
                 content = content_raw.strip()
             else:
                 content = ''
             
-            # If no separate reasoning_content was found, check for <think></think> tags in content
+            # FALLBACK: If no separate reasoning field was found, check for <think></think> tags in content
             if not reasoning_content and content:
-                # Look for <think>...</think> pattern
                 think_pattern = r'<think>(.*?)</think>'
                 think_matches = re.findall(think_pattern, content, re.DOTALL | re.IGNORECASE)
-                
                 if think_matches:
-                    # Extract the reasoning content from the first <think> tag
                     reasoning_content = think_matches[0].strip()
-                    
-                    # Remove the <think>...</think> section from the main content
                     content = re.sub(think_pattern, '', content, flags=re.DOTALL | re.IGNORECASE).strip()
-                    # Clean up any extra whitespace that might remain
-                    content = re.sub(r'\n\s*\n', '\n\n', content)  # Normalize multiple newlines
+                    content = re.sub(r'\n\s*\n', '\n', content)
                     content = content.strip()
             
             return content, model_name_from_response, reasoning_content
         else:
             print(f"Warning: Unexpected LLM {context}response structure: {response_data}")
             return None, model_name_from_response, None
+    except requests.exceptions.ConnectionError as e:
+        # Specific handling for connection failures
+        error_msg = f"Connection Error: Could not connect to LLM server at {server_url_base}. {str(e)}"
+        print(f"Error sending {context}request to LLM server: {error_msg}")
+        return None, model_name, error_msg
+    except requests.exceptions.Timeout as e:
+        # Specific handling for timeouts
+        error_msg = f"Timeout Error: LLM server did not respond within the timeout period. {str(e)}"
+        print(f"Error sending {context}request to LLM server: {error_msg}")
+        return None, model_name, error_msg
     except requests.exceptions.RequestException as e:
-        if is_shutdown_flag_set():
-            return None, None, None
-        print(f"Error sending {context}request to LLM server: {e}")
+        # General request error handling
+        error_msg = f"Request Error: {str(e)}"
         if hasattr(e, 'response') and e.response:
-            print(f"Response Text: {e.response.text}")
-        return None, None, None
+            error_msg += f"\nResponse Text: {e.response.text}"
+        print(f"Error sending {context}request to LLM server: {error_msg}")
+        return None, model_name, error_msg
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON {context}response: {e}")
+        error_msg = f"JSON Decode Error: {str(e)}"
         if 'response' in locals():
-            print(f"Response Text: {response.text}")
-        return None, None, None
+            error_msg += f"\nResponse Text: {response.text}"
+        print(f"Error decoding JSON {context}response: {error_msg}")
+        return None, model_name, error_msg
     except KeyError as e:
-        print(f"Unexpected {context}response structure, missing key: {e}")
-        print(f"Response Data: {response_data}")
-        return None, None, None
+        error_msg = f"Unexpected {context}response structure, missing key: {e}"
+        print(f"{error_msg}\nResponse Data: {response_data}")
+        return None, model_name, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected Error: {type(e).__name__}: {str(e)}"
+        print(f"Error during {context}LLM request: {error_msg}")
+        return None, model_name, error_msg

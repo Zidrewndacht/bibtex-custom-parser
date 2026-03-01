@@ -220,46 +220,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     except:
         current_technique = {}
     
-    # --- Calculate Override Count Delta ---
-    newly_overridden = 0
-    newly_matching = 0
-    
-    for field_key, new_value in data.items():
-        if field_key == 'id':
-            continue
-        if field_key.startswith('features_'):
-            feature_subkey = field_key.split('features_', 1)[1]
-            llm_value = last_llm_features.get(feature_subkey)
-            if new_value != llm_value:
-                newly_overridden += 1
-            else:
-                newly_matching += 1
-        elif field_key.startswith('technique_'):
-            tech_subkey = field_key.split('technique_', 1)[1]
-            llm_value = last_llm_technique.get(tech_subkey)
-            if new_value != llm_value:
-                newly_overridden += 1
-            else:
-                newly_matching += 1
-        elif field_key in ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']:
-            llm_value = locals()[f'last_llm_{field_key}']
-            if isinstance(new_value, str):
-                new_db_value = 1 if new_value.lower() in ('true', '1', 'on') else (0 if new_value.lower() in ('false', '0') else None)
-            else:
-                new_db_value = 1 if new_value is True else (0 if new_value is False else None)
-            if new_db_value != llm_value:
-                newly_overridden += 1
-            else:
-                newly_matching += 1
-        elif field_key in ['relevance', 'verified', 'estimated_score']:
-            llm_value = locals()[f'last_llm_{field_key}']
-            if new_value != llm_value:
-                newly_overridden += 1
-            else:
-                newly_matching += 1
-    
-    count_delta = newly_overridden - newly_matching
-    
     # --- Prepare Database Updates ---
     update_fields = []
     update_values = []
@@ -366,7 +326,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_values.append(db_val)
         current_verified = db_val
         data.pop('verified')
-    
+
     if 'estimated_score' in data:
         val = data['estimated_score']
         db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) else None
@@ -374,7 +334,71 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_values.append(db_val)
         current_estimated_score = db_val
         data.pop('estimated_score')
-    
+
+    # ============================================
+    # Verification Reset Logic
+    # ============================================
+    # --- Handle Verification Reset on User Edit ---
+    # If paper was verified by LLM (not user), reset verification on user edit
+    # If paper was verified by user, keep verification status
+    if changed_by == "user":
+        cursor.execute("SELECT verified_by FROM papers WHERE id = ?", (paper_id,))
+        current_verified_by = cursor.fetchone()[0]
+        
+        # Reset verification only if it was done by a model (not user)
+        if current_verified_by and current_verified_by != 'user':
+            update_fields.append("verified = ?")
+            update_values.append(None)
+            update_fields.append("estimated_score = ?")
+            update_values.append(None)
+            update_fields.append("verified_by = ?")
+            update_values.append("")
+
+    user_override_count = 0
+
+    BOOLEAN_FEATURE_KEYS = [
+        'tracks', 'holes', 'bare_pcb_other', 'solder_insufficient',
+        'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
+        'orientation', 'wrong_component', 'missing_component',
+        'component_other', 'cosmetic'
+    ]
+
+    BOOLEAN_TECHNIQUE_KEYS = [
+        'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
+        'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
+        'dl_other', 'hybrid', 'available_dataset'
+    ]
+
+    def normalize_bool(val):
+        if val is None or val == '' or val == 'null':
+            return None
+        if val is True or val == 1 or val == '1' or val == 'true':
+            return 1
+        if val is False or val == 0 or val == '0' or val == 'false':
+            return 0
+        return val
+
+    # Check Features (13 boolean fields only)
+    for key in BOOLEAN_FEATURE_KEYS:
+        current_val = normalize_bool(current_features.get(key))
+        llm_val = normalize_bool(last_llm_features.get(key))
+        if current_val != llm_val:
+            user_override_count += 1
+
+    # Check Technique (9 boolean fields only)
+    for key in BOOLEAN_TECHNIQUE_KEYS:
+        current_val = normalize_bool(current_technique.get(key))
+        llm_val = normalize_bool(last_llm_technique.get(key))
+        if current_val != llm_val:
+            user_override_count += 1
+
+    # Check Main Boolean Fields (5 fields)
+    for field in ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']:
+        current_val = normalize_bool(locals()[f'current_{field}'])
+        llm_val = normalize_bool(locals()[f'last_llm_{field}'])
+        if current_val != llm_val:
+            user_override_count += 1
+
     # Audit fields
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
@@ -382,8 +406,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     update_values.append(changed_by)
     
     # Update override count
-    update_fields.append("user_override_count = COALESCE(user_override_count, 0) + ?")
-    update_values.append(count_delta)
+    update_fields.append("user_override_count = ?")
+    update_values.append(user_override_count)
     
     # --- Prepare User Log Entry (FULL STATE SNAPSHOT) ---
     def db_to_bool(val):
@@ -465,7 +489,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 'technique': updated_paper.get('technique', {}),
                 'user_trace': updated_paper.get('user_trace'),
                 'user_override_count': updated_paper.get('user_override_count'),
-                'verified': updated_paper.get('verified'),
+                'verified': updated_paper.get('verified'),           # ← Ensure this exists
+                'verified_by': updated_paper.get('verified_by'),     # ← Ensure this exists
                 'estimated_score': updated_paper.get('estimated_score')
             }
             return return_data

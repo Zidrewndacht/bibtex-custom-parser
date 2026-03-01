@@ -229,24 +229,24 @@ OK      Create new Lite branch for a generic, stripped down, non-domain-specific
 
 OK      Further remove "Ultra Graphics", e.g., eyecandy that gives too much performance concerns with too little visual changes. Namely removed backdrop-filters, translucent modals and 3D transforms globally since newer Intel Arc Xe iGPU also disliked those.
 
-        Change to a single continuous log per paper instead of separate (last inference only) classifier and verifier traces.
+OK      Change to a single continuous log per paper instead of separate (last inference only) classifier and verifier traces.
 
-        Log all user changes, have a count of fields that were user-changed to a value different than the last inference.
-                Use new columns for user overrides in the DB, such that user changes don't really replace the original inferred data, cache it by always setting both by model, only overrides by user, always use overrides to render the page
+OK      Log all user changes, have a count of fields that were user-changed to a value different than the last inference.
+OK?             Use new columns for user overrides in the DB, such that user changes don't really replace the original inferred data, cache it by always setting both by model, only overrides by user, always use overrides to render the page
         
-        Change the server-side API for changes: every change from user or model has to be logged. 
-                Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
-                User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
+OK?     Change the server-side API for changes: every change from user or model has to be logged. 
+OK?             Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
+OK?             User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
 
-        Add a separate button in main row for logs/traces: 2 columns:
-                Changelog: matches table layout from off-topic to commented row, most recent on top, make unchanged fields transparent;
-                LLM Traces: from PDF to type row, alternate background between traces.
+OK      Add a separate button in main row for logs/traces: 2 columns:
+OK              Changelog: matches table layout from off-topic to commented row, most recent on top, make unchanged fields transparent;
+OK              LLM Traces: from PDF to type row, alternate background between traces.
 
         Refactor browse_db.py (too large)?
-OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~1900 lines though;
+OK              Getting rid of server-side stats and search already reduced it a bit, still unwieldy at ~2090 lines though;
                 Moving SQLite logic to a separate file for DB operations may cause 
                         'sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 34640 and this is thread id 16976.'
-                Moving helpers away is fine, but there are few.
+                Moving helpers away is fine, but there aren't many.
 
         Add further 'agentic' functionality:
                 Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 

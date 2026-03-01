@@ -2,22 +2,16 @@
 <tfoot id="counts-footer">
     <tr>
         <td id="count-pdf_present" title=""></td> <!-- Combined PDF/Annotated Count Cell -->
-        <td style="font-weight: 400;" id="visible-count-cell"> <!-- Title -->
+        <td colspan="4"  style="font-weight: 400;" id="visible-count-cell"> <!-- Title -->
             Filtered: <span style="font-weight: bold;" id="visible-papers-count"></span>, 
             Loaded: <span style="font-weight: bold;" id="loaded-papers-count"></span>, 
             Total: <span style="font-weight: bold;" id="total-papers-count">{{ total_paper_count | safe }}</span>, 
             Duplicate: <span style="font-weight: bold;" id="duplicate-papers-count"></span>
         </td>
-        <!-- <td></td> Authors -->
-        <td></td> <!-- Year -->
-        <td></td> <!-- Type -->
         <td>
             <span style="font-size:0.75em;padding-left: 30px;position: absolute; left: 2px;bottom: 3px;">            
                 <button type="button" id="longtable-btn" title="Click to copy the currently filtered table to the clipboard as a LaTeX \longtable"><em>\longtable</em></button>
             </span>
-        </td> <!-- Journal -->
-        <td></td> <!-- Page Count -->
-        <!-- Classification Counts -->
         <td id="count-is_offtopic" class="count-cell" title="Offtopic"></td>
         <td></td> <!-- Relevance -->
         <td id="count-is_survey" class="count-cell" title="Survey"></td>

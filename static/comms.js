@@ -119,10 +119,45 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
                     mainRow.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 }
                 if (data.estimated_score !== undefined) {
-                     const estimatedScoreCell = mainRow.cells[estScoreCellIndex]; 
-                     if (estimatedScoreCell) {
-                         estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
-                     }
+                    const estimatedScoreCell = mainRow.cells[estScoreCellIndex];
+                    if (estimatedScoreCell) {
+                        estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : '';
+                    }
+                }
+                // Update user_override_count cell
+                const userOverrideCountCell = mainRow.querySelector('[data-field="user_override_count"]');
+                if (userOverrideCountCell && data.user_override_count !== undefined) {
+                    userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
+                }
+                // Update verified cell
+                const verifiedCell = mainRow.querySelector('.editable-status[data-field="verified"]');
+                if (verifiedCell && data.verified !== undefined) {
+                    verifiedCell.textContent = renderStatus(data.verified);
+                }
+                // Update verified_by cell
+                const verifiedByCell = mainRow.querySelector('.editable-verify[data-field="verified_by"]');
+                if (verifiedByCell && data.verified_by !== undefined) {
+                    verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                }
+                
+                // Refresh history row if it's expanded
+                const historyRow = mainRow.nextElementSibling && mainRow.nextElementSibling.nextElementSibling &&
+                    mainRow.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                    mainRow.nextElementSibling.nextElementSibling : null;
+                if (historyRow && historyRow.classList.contains('expanded')) {
+                    const historyContentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
+                    if (historyContentPlaceholder) {
+                        fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
+                        .then(response => response.json())
+                        .then(historyData => {
+                            if (historyData.status === 'success' && historyData.html) {
+                                historyContentPlaceholder.innerHTML = historyData.html;
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`Error refreshing history row for paper ${paperId}:`, error);
+                        });
+                    }
                 }
             }
             updateCounts();
@@ -246,6 +281,16 @@ function saveChanges(paperId) {
                 if (userOverrideCountCell) {
                     userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
                 }
+                // Update verified cell
+                const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
+                if (verifiedCell && data.verified !== undefined) {
+                    verifiedCell.textContent = renderStatus(data.verified);
+                }
+                // Update verified_by cell
+                const verifiedByCell = row.querySelector('.editable-verify[data-field="verified_by"]');
+                if (verifiedByCell && data.verified_by !== undefined) {
+                    verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                }
                 // Update displayed page count if returned
                 const pageCountCell = row.cells[pageCountCellIndex];
                 if (pageCountCell) {
@@ -266,15 +311,13 @@ function saveChanges(paperId) {
             if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) {
                  toggleDetails(toggleBtn);
             }
-            if (saveButton) {
-                saveButton.textContent = 'Saved!';
-                setTimeout(() => {
-                    if (saveButton) {
-                        saveButton.textContent = originalText;
-                        saveButton.disabled = false;
-                    }
-                }, 1500);
-            }
+            saveButton.textContent = 'Saved!';
+            setTimeout(() => {
+                if (saveButton) {
+                    saveButton.textContent = originalText;
+                    saveButton.disabled = false;
+                }
+            }, 1500);
             updateCounts();
         } else {
             console.error('Save error:', data.message);
@@ -286,10 +329,8 @@ function saveChanges(paperId) {
     })
     .catch((error) => {
         console.error('Error:', error);
-        if (saveButton) {
-            saveButton.textContent = originalText;
-            saveButton.disabled = false;
-        }
+        saveButton.textContent = originalText;
+        saveButton.disabled = false;
     });
 }
 
@@ -304,11 +345,6 @@ function toggleHistory(element) {
         row.nextElementSibling.nextElementSibling : null;
     const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ?
         row.nextElementSibling : null;
-    
-    if (!historyRow) {
-        console.error("History row not found for paper:", row.getAttribute('data-paper-id'));
-        return;
-    }
     
     const isHistoryExpanded = historyRow.classList.contains('expanded');
     const paperId = row.getAttribute('data-paper-id');
@@ -326,10 +362,9 @@ function toggleHistory(element) {
         if (detailRow && detailRow.classList.contains('expanded')) {
             detailRow.classList.remove('expanded');
             const detailToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleDetails"]');
-            if (detailToggleBtn) {
-                detailToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
-                detailToggleBtn.classList.remove('toggle-pressed');  // FIX: Remove from detailToggleBtn, not element
-            }
+            detailToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+            detailToggleBtn.classList.remove('toggle-pressed');  // FIX: Remove from detailToggleBtn, not element
+
             openDetailIds.delete(paperId);
         }
         
@@ -337,11 +372,6 @@ function toggleHistory(element) {
         updateUrlWithDetailState();
         
         const contentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
-        if (!contentPlaceholder) {
-            console.error("Content placeholder not found in history row for paper:", paperId);
-            return;
-        }
-        
         fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
         .then(response => response.json())
         .then(data => {
@@ -380,12 +410,6 @@ function toggleDetails(element) {
                        row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
                        row.nextElementSibling.nextElementSibling : null;
 
-
-    if (!detailRow) {
-        console.error("Detail row not found for paper:", row.getAttribute('data-paper-id'));
-        return;
-    }
-
     const isExpanded = detailRow.classList.contains('expanded');
     const paperId = row.getAttribute('data-paper-id');
 
@@ -404,10 +428,8 @@ function toggleDetails(element) {
             // Find the corresponding history toggle button in the main row and update its text
             // The history button is in the main row itself
             const historyToggleBtn = row.querySelector('.toggle-btn[onclick*="toggleHistory"]');
-            if (historyToggleBtn) {
-                historyToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
-                element.classList.remove('toggle-pressed');  // Remove pressed state
-            }
+            historyToggleBtn.innerHTML = '<span>Show</span><br><span class="arrow">▼</span>';
+            historyToggleBtn.classList.remove('toggle-pressed');  // Remove pressed state
             openHistoryIds.delete(paperId); // Remove history ID from set
         }
 
@@ -416,11 +438,6 @@ function toggleDetails(element) {
         updateUrlWithDetailState(); // Update URL immediately
 
         const contentPlaceholder = detailRow.querySelector('.detail-content-placeholder');
-        if (!contentPlaceholder) {
-             console.error("Content placeholder not found in detail row for paper:", paperId);
-             return;
-        }
-
         fetch(`/get_detail_row?paper_id=${encodeURIComponent(paperId)}`)
             .then(response => response.json())
             .then(data => {
@@ -429,20 +446,16 @@ function toggleDetails(element) {
 
                     // --- Event Delegation for Clickable Items (Authors/Keywords) ---
                     const detailContainer = contentPlaceholder; // Use the placeholder as the container
-                    if (detailContainer) {
-                        detailContainer.addEventListener('click', function(event) {
-                            if (event.target.classList.contains('clickable-item')) {
-                                event.preventDefault();
-                                const searchTerm = event.target.getAttribute('data-search-term');
-                                if (searchTerm) {
-                                    searchInput.value = searchTerm.trim();
-                                    applyLocalFilters();
-                                }
+                    detailContainer.addEventListener('click', function(event) {
+                        if (event.target.classList.contains('clickable-item')) {
+                            event.preventDefault();
+                            const searchTerm = event.target.getAttribute('data-search-term');
+                            if (searchTerm) {
+                                searchInput.value = searchTerm.trim();
+                                applyLocalFilters();
                             }
-                        });
-                    } else {
-                        console.warn("Detail container for click delegation not found for paper", paperId);
-                    }
+                        }
+                    });
                     // --- End Event Delegation Setup ---
 
                     requestAnimationFrame(() => {
