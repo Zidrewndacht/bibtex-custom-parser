@@ -105,10 +105,8 @@ def update_paper_verification(db_path, paper_id, verification_result, verified_b
         # On failure, just update verifier_trace if available
         pass
     
-    # Add verifier_trace if provided
-    if reasoning_trace is not None:
-        update_fields.append("verifier_trace = ?")
-        update_values.append(reasoning_trace)
+    # Trace is now stored in llm_log entry, not separate column
+    # No need to update verifier_trace column
     
     # --- Update Database ---
     update_values.extend([json.dumps(existing_log), paper_id])

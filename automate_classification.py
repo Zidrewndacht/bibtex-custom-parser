@@ -59,7 +59,24 @@ def build_reclassification_prompt(paper_data, template_content):
         classification_data['technique'] = json.loads(paper_data.get('technique', '{}')) if paper_data.get('technique') else {}
     except json.JSONDecodeError:
         classification_data['technique'] = {}
-    
+    # Extract latest classifier and verifier traces from llm_log
+    latest_classifier_trace = ''
+    latest_verifier_trace = ''
+    try:
+        llm_log = json.loads(paper_data.get('llm_log', '[]')) if paper_data.get('llm_log') else []
+        # Find most recent classifier/consensus entry
+        for entry in reversed(llm_log):
+            if entry.get('type') in ['classifier', 'consensus'] and entry.get('valid'):
+                latest_classifier_trace = entry.get('trace', '')
+                break
+        # Find most recent verifier entry
+        for entry in reversed(llm_log):
+            if entry.get('type') == 'verifier' and entry.get('valid'):
+                latest_verifier_trace = entry.get('trace', '')
+                break
+    except (json.JSONDecodeError, TypeError):
+        pass
+
     format_data = {
         'title': paper_data.get('title', ''),
         'abstract': paper_data.get('abstract', ''),
@@ -69,9 +86,9 @@ def build_reclassification_prompt(paper_data, template_content):
         'type': paper_data.get('type', ''),
         'journal': paper_data.get('journal', ''),
         'previous_classification_json': json.dumps(classification_data, indent=2),
-        'reasoning_trace': paper_data.get('reasoning_trace', ''),
+        'reasoning_trace': latest_classifier_trace,
+        'verifier_trace': latest_verifier_trace,
         'estimated_score': paper_data.get('estimated_score', ''),
-        'verifier_trace': paper_data.get('verifier_trace', ''),
         'user_trace': paper_data.get('user_comments', '') or ''  # Assuming a user_comments field might exist
     }
     try:

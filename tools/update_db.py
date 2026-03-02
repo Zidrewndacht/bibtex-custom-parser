@@ -99,7 +99,8 @@ def migrate_database(db_path):
             paper_timestamp_iso = row['changed']
             if paper_timestamp_iso:
                 try:
-                    paper_timestamp = datetime.fromisoformat(paper_timestamp_iso.replace('Z', '+00:00'))
+                    # Remove 'Z' before parsing to keep datetime naive (matching existing code style)
+                    paper_timestamp = datetime.fromisoformat(paper_timestamp_iso.replace('Z', ''))
                 except ValueError:
                     print(f"Warning: Invalid timestamp format for paper {paper_id}: {paper_timestamp_iso}. Using UTC now.")
                     paper_timestamp = datetime.utcnow()
@@ -160,7 +161,8 @@ def migrate_database(db_path):
             # Add synthetic Classifier Trace Entry (if trace exists)
             if row['reasoning_trace']: # Check the original trace field
                 # Timestamp: 2 minutes before the paper's change timestamp
-                classifier_ts = (paper_timestamp - timedelta(minutes=2)).isoformat(timespec='milliseconds') + 'Z'
+                # Keep format consistent: naive datetime + 'Z' suffix (matching existing code style)
+                classifier_ts = (paper_timestamp - timedelta(minutes=2)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                 # Synthetic output: reconstruct the JSON-like structure from current fields
                 # Note: This is a best-effort reconstruction, assuming the current fields reflect the LLM's output at that time
                 synthetic_output = {
@@ -193,7 +195,8 @@ def migrate_database(db_path):
             # Add synthetic Verifier Trace Entry (if trace exists)
             if row['verifier_trace']: # Check the original trace field
                 # Timestamp: 1 minute before the paper's change timestamp
-                verifier_ts = (paper_timestamp - timedelta(minutes=1)).isoformat(timespec='milliseconds') + 'Z'
+                # Keep format consistent: naive datetime + 'Z' suffix (matching existing code style)
+                verifier_ts = (paper_timestamp - timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                 # Synthetic output: reconstruct the JSON-like structure from verification fields
                 # Note: Verification typically focuses on 'verified', 'estimated_score', maybe reasoning
                 synthetic_verification_output = {
@@ -226,7 +229,8 @@ def migrate_database(db_path):
             # The timestamp will be the paper's change timestamp (or the closest proxy).
             if row['user_trace'] is not None and row['user_trace'].strip() != "":
                  # Use the paper's timestamp as the proxy for when the user trace was last set
-                 user_ts = paper_timestamp.isoformat(timespec='milliseconds') + 'Z'
+                 # Keep format consistent: naive datetime + 'Z' suffix (matching existing code style)
+                 user_ts = paper_timestamp.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                  # For the 'output', log the fields that might have been user-modified.
                  # Since we don't know *which* fields the user actually changed historically,
                  # and we just set last_llm_* to the current main fields, we cannot accurately determine

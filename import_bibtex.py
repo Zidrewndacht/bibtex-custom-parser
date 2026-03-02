@@ -49,8 +49,6 @@ def create_database(db_path):
         verified INTEGER,                  -- 1=true, 0=false, NULL=unknown
         estimated_score INTEGER,
         verified_by TEXT,                  -- Identifier of the verifier (e.g., 'user')
-        reasoning_trace TEXT,              -- New column to store evaluator reasoning traces
-        verifier_trace TEXT,               -- New column to store verifier reasoning traces
         user_trace TEXT,                   -- User comments.
         pdf_filename TEXT DEFAULT NULL,
         pdf_state TEXT DEFAULT 'none',     -- 'none', 'annotated', 'PDF'
@@ -609,8 +607,8 @@ def import_bibtex(bib_file, db_path):
             'verified': None,
             'estimated_score': None,
             'verified_by': None,
-            'reasoning_trace': None,  
-            'verifier_trace': None,  
+            # 'reasoning_trace': None,  
+            # 'verifier_trace': None,  
             'user_trace': None, 
         }
 
@@ -621,12 +619,12 @@ def import_bibtex(bib_file, db_path):
                 id, type, title, authors, year, month, journal, 
                 volume, pages, page_count, doi, issn, abstract, keywords,
                 research_area, is_offtopic, relevance, is_survey, is_through_hole, 
-                is_smt, is_x_ray, features, technique, changed, changed_by, verified, estimated_score, verified_by, reasoning_trace, verifier_trace, user_trace
+                is_smt, is_x_ray, features, technique, changed, changed_by, verified, estimated_score, verified_by, user_trace
             ) VALUES (
                 :id, :type, :title, :authors, :year, :month, :journal, 
                 :volume, :pages, :page_count, :doi, :issn, :abstract, :keywords,
                 :research_area, :is_offtopic, :relevance, :is_survey, :is_through_hole, 
-                :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :estimated_score, :verified_by, :reasoning_trace, :verifier_trace, :user_trace
+                :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified, :estimated_score, :verified_by, :user_trace
             )
             ''', data)
         except Exception as e:

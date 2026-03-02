@@ -192,7 +192,8 @@ th[data-sort]:hover, tr:nth-child(4) th[data-sort]:not(.inferred-header):hover {
     cursor: pointer
 }
 
-td.highlight-status:not(.cell-changed) {
+td.highlight-status:not(.cell-changed),
+td.highlight-history:not(.cell-changed) {
     background: var(--highlighted-col-background);
 }
 

@@ -35,7 +35,9 @@
             </div>
             {% endfor %}
         {% else %}
-        <p>No trace available.</p>
+        <div class="log-entry log-type-user">
+            <p>No trace available.</p>
+        </div>
         {% endif %}
     </div>
 
@@ -96,20 +98,20 @@
                 
                 <!-- Features -->
                 {% set features = data.features if data.features else {} %}
-                <td class="highlight-status status-cell{% if 'features_tracks' in changed %} cell-changed{% endif %}">{{ features.tracks | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_holes' in changed %} cell-changed{% endif %}">{{ features.holes | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_bare_pcb_other' in changed %} cell-changed{% endif %}">{{ features.bare_pcb_other | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_tracks' in changed %} cell-changed{% endif %}">{{ features.tracks | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_holes' in changed %} cell-changed{% endif %}">{{ features.holes | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_bare_pcb_other' in changed %} cell-changed{% endif %}">{{ features.bare_pcb_other | render_status }}</td>
                 <td class="status-cell{% if 'features_solder_insufficient' in changed %} cell-changed{% endif %}">{{ features.solder_insufficient | render_status }}</td>
                 <td class="status-cell{% if 'features_solder_excess' in changed %} cell-changed{% endif %}">{{ features.solder_excess | render_status }}</td>
                 <td class="status-cell{% if 'features_solder_void' in changed %} cell-changed{% endif %}">{{ features.solder_void | render_status }}</td>
                 <td class="status-cell{% if 'features_solder_crack' in changed %} cell-changed{% endif %}">{{ features.solder_crack | render_status }}</td>
                 <td class="status-cell{% if 'features_solder_other' in changed %} cell-changed{% endif %}">{{ features.solder_other | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_missing_component' in changed %} cell-changed{% endif %}">{{ features.missing_component | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_wrong_component' in changed %} cell-changed{% endif %}">{{ features.wrong_component | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_orientation' in changed %} cell-changed{% endif %}">{{ features.orientation | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_component_other' in changed %} cell-changed{% endif %}">{{ features.component_other | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_cosmetic' in changed %} cell-changed{% endif %}">{{ features.cosmetic | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'features_other' in changed %} cell-changed{% endif %}">{{ '✔️' if features.other and (features.other|string).strip() else '❌' }}</td>
+                <td class="highlight-history status-cell{% if 'features_missing_component' in changed %} cell-changed{% endif %}">{{ features.missing_component | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_wrong_component' in changed %} cell-changed{% endif %}">{{ features.wrong_component | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_orientation' in changed %} cell-changed{% endif %}">{{ features.orientation | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_component_other' in changed %} cell-changed{% endif %}">{{ features.component_other | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_cosmetic' in changed %} cell-changed{% endif %}">{{ features.cosmetic | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'features_other' in changed %} cell-changed{% endif %}">{{ '✔️' if features.other and (features.other|string).strip() else '❌' }}</td>
                 
                 <!-- Techniques -->
                 {% set technique = data.technique if data.technique else {} %}
@@ -121,11 +123,11 @@
                 <td class="status-cell{% if 'technique_dl_transformer' in changed %} cell-changed{% endif %}">{{ technique.dl_transformer | render_status }}</td>
                 <td class="status-cell{% if 'technique_dl_other' in changed %} cell-changed{% endif %}">{{ technique.dl_other | render_status }}</td>
                 <td class="status-cell{% if 'technique_hybrid' in changed %} cell-changed{% endif %}">{{ technique.hybrid | render_status }}</td>
-                <td class="highlight-status status-cell{% if 'technique_available_dataset' in changed %} cell-changed{% endif %}">{{ technique.available_dataset | render_status }}</td>
+                <td class="highlight-history status-cell{% if 'technique_available_dataset' in changed %} cell-changed{% endif %}">{{ technique.available_dataset | render_status }}</td>
                 
                 <!-- Metadata -->
-                <td class="highlight-status secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
-                <td class="highlight-status status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
+                <td class="highlight-history secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
+                <td class="highlight-history status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
                 
                 <!-- Verification Fields -->
                 {% if entry.verification_data %}

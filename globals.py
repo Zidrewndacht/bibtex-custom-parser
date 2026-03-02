@@ -199,10 +199,12 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     payload = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6,
+        "temperature": 0.7 if not is_verification else 0.6,  # Different for classification vs verification
         "top_p": 0.95,
         "top_k": 20,
-        "min_p": 0,
+        "min_p": 0.0,
+        "presence_penalty": 1.5 if is_verification else 1.05,  # NEW parameter
+        "repetition_penalty": 1.0,
         "max_tokens": 32768,
         "stream": False
     }
@@ -210,7 +212,7 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=7200)
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()
