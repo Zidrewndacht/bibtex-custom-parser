@@ -9,9 +9,12 @@ import re
 import threading
 import os
 
+import json
+from datetime import datetime
+
 LLM_SERVER_URL = "http://localhost:8086"
 MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr 
-MAX_CONCURRENT_WORKERS_VERIFY = 480
+MAX_CONCURRENT_WORKERS_VERIFY = 256 # 480
 MAX_CONCURRENT_WORKERS_CONSENSUS = 96
 
 
@@ -126,6 +129,31 @@ def signal_handler(sig, frame):
     # Use os._exit for immediate shutdown across all threads
     os._exit(1)
     
+
+
+# Performance logging - writes to data/performance_log.jsonl
+PERFORMANCE_LOG_FILE = os.path.join(os.getcwd(), 'data', 'performance_log.jsonl')
+os.makedirs(os.path.dirname(PERFORMANCE_LOG_FILE), exist_ok=True)
+
+def log_performance_event(event_type, data):
+    """
+    Logs a performance event to JSONL file.
+    event_type: 'classification_batch', 'verification_batch', 'consensus_iteration', 'consensus_complete'
+    data: dict with relevant metrics
+    """
+    log_entry = {
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'event_type': event_type,
+        **data
+    }
+    try:
+        with open(PERFORMANCE_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry) + '\n')
+    except Exception as e:
+        print(f"Warning: Failed to write performance log: {e}")
+        
+
+
 #usados por automate and verify:
 def get_model_alias(server_url_base):
     """Fetches the model alias from the LLM server's /v1/models endpoint."""
@@ -197,14 +225,25 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     if LLM_API_KEY:
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"
     payload = {
+        # For Qwen3.5:
+        # "model": model_name,
+        # "messages": [{"role": "user", "content": prompt_text}],
+        # "temperature": 0.7 if not is_verification else 0.6,  # Different for classification vs verification
+        # "top_p": 0.95,
+        # "top_k": 20,
+        # "min_p": 0.0,
+        # "presence_penalty": 1.5 if is_verification else 1.25,  # NEW parameter
+        # "repetition_penalty": 1.0,
+        # "max_tokens": 32768,
+        # "stream": False
+
+        #For Qwen3:
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.7 if not is_verification else 0.6,  # Different for classification vs verification
-        "top_p": 0.95,
-        "top_k": 20,
-        "min_p": 0.0,
-        "presence_penalty": 1.5 if is_verification else 1.05,  # NEW parameter
-        "repetition_penalty": 1.0,
+        "temperature": 0.6, 
+        "top_p": 0.95, 
+        "top_k": 20, 
+        "min_p": 0,
         "max_tokens": 32768,
         "stream": False
     }
@@ -212,7 +251,7 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=7200)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800)
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()

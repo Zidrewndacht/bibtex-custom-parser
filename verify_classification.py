@@ -296,6 +296,9 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         prompt_template (str): Path to the verification prompt template file.
         server_url (str): Base URL of the LLM server.
     """
+
+    start_time = time.time()
+
     if db_file is None:
         db_file = globals.DATABASE_FILE
     if prompt_template is None:
@@ -312,6 +315,12 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         print(f"Loaded verification prompt template from '{prompt_template}'")
     except Exception as e:
         print(f"Error loading verification prompt template: {e}")
+        return False
+
+    print("Fetching model alias from LLM server for verification...")
+    model_alias = globals.get_model_alias(server_url)
+    if not model_alias:
+        print("Error: Could not determine model alias for verification. Exiting.")
         return False
 
     print(f"Connecting to database '{db_file}' to fetch papers for verification...")
@@ -349,16 +358,18 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         total_papers = len(paper_ids)
         print(f"Found {total_papers} paper(s) to verify based on mode '{mode}'.")
 
+        # Log verification batch start
+        globals.log_performance_event('verification_batch_start', {
+            'mode': mode,
+            'total_papers': total_papers,
+            'model_alias': model_alias,
+            'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS_VERIFY
+        })
+    
         # Remove any None values that might have been included due to missing years
         paper_ids = [pid for pid in paper_ids if pid is not None]
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
-        return False
-
-    print("Fetching model alias from LLM server for verification...")
-    model_alias = globals.get_model_alias(server_url)
-    if not model_alias:
-        print("Error: Could not determine model alias for verification. Exiting.")
         return False
 
     if not paper_ids:
@@ -408,12 +419,23 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
     except Exception as e:
         print(f"Error in main verification execution loop: {e}")
         globals.set_shutdown_flag()
+
     finally:
         end_time = time.time()
         final_count = 0
         if progress_lock:
             with progress_lock:
                 final_count = processed_count[0] if processed_count else 0
+        
+        # Log verification batch complete
+        globals.log_performance_event('verification_batch_complete', {
+            'mode': mode,
+            'papers_total': total_papers,
+            'papers_processed': final_count,
+            'duration_seconds': end_time - start_time,
+            'model_alias': model_alias
+        })
+        
         print(f"\n--- Verification Summary ---")
         print(f"Papers verified: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")

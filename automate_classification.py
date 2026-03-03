@@ -13,6 +13,7 @@ import signal
 import globals  #globals.py for global settings and variables used by multiple files.
 import verify_classification
 
+
 # Using a simple boolean guarded by a lock for absolute immediacy
 shutdown_lock = threading.Lock()
 shutdown_flag = False
@@ -356,6 +357,9 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
         prompt_template (str): Path to the prompt template file.
         server_url (str): Base URL of the LLM server.
     """
+    
+    start_time = time.time()
+
     # Use globals for defaults if not provided
     if db_file is None:
         db_file = globals.DATABASE_FILE
@@ -375,6 +379,12 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
         print(f"Loaded prompt template from '{prompt_template}'")
     except Exception as e:
         print(f"Failed to load prompt template: {e}")
+        return False
+    
+    print("Fetching model alias from LLM server...")
+    model_alias = globals.get_model_alias(server_url)
+    if not model_alias:
+        print("Error: Could not determine model alias. Exiting.")
         return False
     
     print(f"Connecting to database '{db_file}'...")
@@ -434,6 +444,14 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
         
         total_papers = len(paper_ids)
         print(f"Found {total_papers} paper(s) to process based on mode '{mode}'.")
+            
+        # Log batch start
+        globals.log_performance_event('classification_batch_start', {
+            'mode': mode,
+            'total_papers': total_papers,
+            'model_alias': model_alias,
+            'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS
+        })
         
         if not paper_ids:
             print("No papers found matching the criteria. Nothing to process.")
@@ -448,17 +466,10 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
         return False
-
-    print("Fetching model alias from LLM server...")
-    model_alias = globals.get_model_alias(server_url)
-    if not model_alias:
-        print("Error: Could not determine model alias. Exiting.")
-        return False
         
     progress_lock = threading.Lock()
     processed_count = [0]
     print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS} workers...")
-    start_time = time.time()
     try:
         with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
             # Submit worker tasks
@@ -496,6 +507,16 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
         if progress_lock:
             with progress_lock:
                 final_count = processed_count[0] if processed_count else 0
+        
+        # Log batch completion
+        globals.log_performance_event('classification_batch_complete', {
+            'mode': mode,
+            'papers_total': total_papers,
+            'papers_processed': final_count,
+            'duration_seconds': end_time - start_time,
+            'model_alias': model_alias
+        })
+        
         print(f"\n--- Classification Summary ---")
         print(f"Papers processed: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")
@@ -507,7 +528,11 @@ def run_consensus_classification(db_file, server_url):
     Runs the consensus classification process.
     Starts with classify remaining and verify remaining, then re-classifies misclassifications (score <= 8) until consensus is reached.
     """
+    consensus_start_time = time.time()
     iteration = 0
+    total_consensus_papers = 0
+    consensus_iterations = []
+    
     while True:
         iteration += 1
         print(f"\n--- Consensus Iteration {iteration} ---")
@@ -548,8 +573,32 @@ def run_consensus_classification(db_file, server_url):
         misclassified_paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         
+
+        # Log consensus iteration
+        globals.log_performance_event('consensus_iteration', {
+            'iteration': iteration,
+            'papers_remaining': len(misclassified_paper_ids),
+            'papers_processed_this_iteration': len(misclassified_paper_ids)
+        })
+        
+        consensus_iterations.append({
+            'iteration': iteration,
+            'papers_remaining': len(misclassified_paper_ids)
+        })
+        
+
         if not misclassified_paper_ids:
             print("No more misclassified papers found. Consensus reached!")
+            
+            # Log consensus complete
+            consensus_end_time = time.time()
+            globals.log_performance_event('consensus_complete', {
+                'total_iterations': iteration,
+                'total_duration_seconds': consensus_end_time - consensus_start_time,
+                'iterations_detail': consensus_iterations,
+                'model_alias': globals.get_model_alias(server_url)
+            })
+            
             return True
         
         print(f"Found {len(misclassified_paper_ids)} misclassified papers for re-classification.")
@@ -575,6 +624,15 @@ def run_consensus_classification(db_file, server_url):
         # Check if user wants to abort
         if globals.is_shutdown_flag_set():
             print("Shutdown signal received. Stopping consensus process.")
+            
+            # Log consensus aborted
+            globals.log_performance_event('consensus_aborted', {
+                'iterations_completed': iteration,
+                'papers_remaining': len(misclassified_paper_ids),
+                'total_duration_seconds': time.time() - consensus_start_time,
+                'iterations_detail': consensus_iterations
+            })
+            
             return False
         
 def run_reclassification_batch(paper_ids, db_file, server_url):
@@ -585,6 +643,14 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
     if total_papers == 0:
         print("No papers to reclassify in this batch.")
         return True
+    
+    start_time = time.time()
+    
+    # Log reclassification batch start
+    globals.log_performance_event('reclassification_batch_start', {
+        'papers_total': total_papers,
+        'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS_CONSENSUS
+    })
     
     print(f"Reclassifying {total_papers} papers...")
     
@@ -648,12 +714,22 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
     except Exception as e:
         print(f"Error in reclassification execution loop: {e}")
         globals.set_shutdown_flag()
+
     finally:
         end_time = time.time()
         final_count = 0
         if progress_lock:
             with progress_lock:
                 final_count = processed_count[0] if processed_count else 0
+        
+        # Log reclassification batch complete
+        globals.log_performance_event('reclassification_batch_complete', {
+            'papers_total': total_papers,
+            'papers_processed': final_count,
+            'duration_seconds': end_time - start_time,
+            'model_alias': model_alias
+        })
+        
         print(f"\n--- Reclassification Summary ---")
         print(f"Papers reclassified: {final_count}/{total_papers}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")

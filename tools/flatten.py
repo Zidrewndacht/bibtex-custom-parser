@@ -334,6 +334,7 @@ def main():
         "templates/papers_table.html",
         "templates/papers_table_tfoot.html",
         "templates/detail_row.html",
+        "templates/history_row.html",
         "templates/stats_modal_content.html",
         "templates/about_modal_content.html",
         "templates/index_static_export.html",

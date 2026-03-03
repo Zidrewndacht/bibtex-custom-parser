@@ -79,9 +79,6 @@ def reset_papers(db_path, keep_user_comments=True):
     update_fields.append("llm_log = ?")
     update_values.append("[]")
     
-    # Reasoning traces
-    update_fields.extend(["reasoning_trace = ?", "verifier_trace = ?"])
-    update_values.extend([None, None])
     
     # Last LLM cache fields
     for field in main_bool_fields:
@@ -117,7 +114,6 @@ def reset_papers(db_path, keep_user_comments=True):
     print(f"  - Audit fields (changed, changed_by)")
     print(f"  - User override count")
     print(f"  - LLM log (all history/traces)")
-    print(f"  - Reasoning traces (reasoning_trace, verifier_trace)")
     print(f"  - Last LLM cache fields (last_llm_*)")
     if not keep_user_comments:
         print(f"  - User comments (user_trace)")

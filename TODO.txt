@@ -282,3 +282,5 @@ OK              Implement ResearchParça Lite, a standalone non-domain-specific 
                 Update PDF icon on first annotation without manual reload.
 
         Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
+
+        convert "conference" to "inproceedings" on import, fix existing offline.
