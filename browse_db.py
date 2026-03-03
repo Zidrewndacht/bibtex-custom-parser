@@ -1058,6 +1058,7 @@ def prepare_history_log_data(paper_dict):
     3. Reverse to descending (newest first) for UI
     4. Cache verifiers and attach to classifiers during reverse pass
     ALL entries show in log trace, only valid classifier/consensus/user create table rows.
+    NEVER crashes on malformed data - invalid entries are marked invalid and skipped from table.
     """
     raw_log = paper_dict.get('llm_log', '[]')
     try:
@@ -1065,23 +1066,17 @@ def prepare_history_log_data(paper_dict):
     except (json.JSONDecodeError, TypeError):
         log_entries = []
     
-    # Parse output JSON strings for all entries
+    # Parse output JSON strings for all entries - NEVER crash here
     for entry in log_entries:
         try:
-            entry['output'] = json.loads(entry.get('output', '{}')) if entry.get('output') else {}
-        except (json.JSONDecodeError, TypeError) as e:
-            # print(f"DEBUG: Failed to parse output for entry {entry.get('timestamp')}: {e}")
+            output_raw = entry.get('output', '{}')
+            entry['output'] = json.loads(output_raw) if output_raw else {}
+        except (json.JSONDecodeError, TypeError, AttributeError) as e:
+            print(f"Warning: Failed to parse output for entry {entry.get('timestamp')}: {e}")
             entry['output'] = {}
-        
         entry['valid'] = bool(entry.get('valid', False))
-        
-        # DEBUG: Print user entry outputs
-        # if entry.get('type') == 'user':
-        #     print(f"DEBUG: User entry {entry.get('timestamp')} output: {entry.get('output')}")
-        #     print(f"DEBUG: User entry is_offtopic type: {type(entry.get('output', {}).get('is_offtopic'))}")
     
-    # PASS 1: Ascending order (oldest first) - Mark changed cells
-    # Compare each entry with the older one before it in the list
+    # PASS 1: Ascending order - Mark changed cells
     # FILTER: Only include valid entries for diff calculation
     table_entries = [e for e in log_entries if e.get('type') in ['classifier', 'consensus', 'user'] and e.get('valid', False)]
     
@@ -1094,48 +1089,62 @@ def prepare_history_log_data(paper_dict):
             older_output = older.get('output', {})
             current_output = current.get('output', {})
             
+            # SAFETY: Ensure these are always dicts, never None
+            if not isinstance(older_output, dict):
+                older_output = {}
+            if not isinstance(current_output, dict):
+                current_output = {}
+            
             # Compare main classification fields
             main_fields = ['is_offtopic', 'relevance', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
             for field in main_fields:
                 if current_output.get(field) != older_output.get(field):
                     current['changed_fields'].add(field)
             
-            # Compare features
-            current_features = current_output.get('features', {})
-            older_features = older_output.get('features', {})
+            # Compare features - SAFETY: Handle null/None gracefully
+            current_features = current_output.get('features') or {}
+            older_features = older_output.get('features') or {}
+            if not isinstance(current_features, dict):
+                current_features = {}
+            if not isinstance(older_features, dict):
+                older_features = {}
+            
             all_feature_keys = set(current_features.keys()) | set(older_features.keys())
             for feat_key in all_feature_keys:
                 if current_features.get(feat_key) != older_features.get(feat_key):
                     current['changed_fields'].add(f'features_{feat_key}')
             
-            # Compare techniques
-            current_technique = current_output.get('technique', {})
-            older_technique = older_output.get('technique', {})
+            # Compare techniques - SAFETY: Handle null/None gracefully
+            current_technique = current_output.get('technique') or {}
+            older_technique = older_output.get('technique') or {}
+            if not isinstance(current_technique, dict):
+                current_technique = {}
+            if not isinstance(older_technique, dict):
+                older_technique = {}
+            
             all_technique_keys = set(current_technique.keys()) | set(older_technique.keys())
             for tech_key in all_technique_keys:
                 if current_technique.get(tech_key) != older_technique.get(tech_key):
                     current['changed_fields'].add(f'technique_{tech_key}')
     
-    # Create a mapping from entry timestamp to changed_fields for lookup later
+    # Create changed_fields map
     changed_fields_map = {}
     for entry in table_entries:
-        # Use timestamp as key since it's unique per entry
         changed_fields_map[entry['timestamp']] = entry.get('changed_fields', set())
     
-    # PASS 2: Reverse to descending (newest first) for UI, attach verifiers
+    # PASS 2: Reverse to descending for UI, attach verifiers
     log_entries.reverse()
     processed_entries = []
     cached_verifier = None
     
     for entry in log_entries:
         entry_type = entry.get('type', '')
-        
-        # Attach changed_fields from the map
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
         
         if entry_type == 'verifier':
-            # Cache this verifier for the next classifier
             verifier_output = entry.get('output', {})
+            if not isinstance(verifier_output, dict):
+                verifier_output = {}
             cached_verifier = {
                 'verified': verifier_output.get('verified'),
                 'estimated_score': verifier_output.get('estimated_score'),
@@ -1146,7 +1155,6 @@ def prepare_history_log_data(paper_dict):
             entry['verification_data'] = None
             processed_entries.append(entry)
         elif entry_type in ['classifier', 'consensus']:
-            # Attach cached verifier to this classifier
             entry['verification_data'] = cached_verifier
             cached_verifier = None
             processed_entries.append(entry)
@@ -1154,7 +1162,6 @@ def prepare_history_log_data(paper_dict):
             entry['verification_data'] = None
             processed_entries.append(entry)
         else:
-            # Include other types (like invalid entries of any type) in the log trace
             entry['verification_data'] = None
             processed_entries.append(entry)
     

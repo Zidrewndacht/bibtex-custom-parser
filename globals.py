@@ -14,8 +14,10 @@ from datetime import datetime
 
 LLM_SERVER_URL = "http://localhost:8086"
 MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr 
-MAX_CONCURRENT_WORKERS_VERIFY = 256 # 480
+MAX_CONCURRENT_WORKERS_VERIFY = 480 # 480
 MAX_CONCURRENT_WORKERS_CONSENSUS = 96
+MAX_CONSENSUS_ITERATIONS = 12  # Hard limit for consensus loops
+FRESH_CLASSIFY_FALLBACK_ITERATION = 8  # Switch to fresh classify at iteration 8
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -251,7 +253,7 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=1800)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=1200)
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()

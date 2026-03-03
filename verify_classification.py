@@ -72,7 +72,7 @@ def update_paper_verification(db_path, paper_id, verification_result, verified_b
         "type": "verifier",
         "model": model_name_used,
         "trace": reasoning_trace or "",
-        "output": json_result_str,
+        "output": json_result_str if json_result_str else "{}",  # ← Never None/empty
         "valid": success_flag
     }
     

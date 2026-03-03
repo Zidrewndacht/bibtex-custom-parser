@@ -126,10 +126,10 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
         "type": "classifier",
         "model": model_name_used,
         "trace": reasoning_trace or "",
-        "output": json_result_str,
+        "output": json_result_str if json_result_str else "{}",  # ← Never None/empty
         "valid": success_flag
     }
-    
+        
     # --- Append Log Entry ---
     existing_log.append(llm_log_entry)
     
@@ -532,11 +532,48 @@ def run_consensus_classification(db_file, server_url):
     iteration = 0
     total_consensus_papers = 0
     consensus_iterations = []
-    
+
     while True:
         iteration += 1
         print(f"\n--- Consensus Iteration {iteration} ---")
+            
+            
+        # --- NEW: Check iteration limit ---
+        if iteration > globals.MAX_CONSENSUS_ITERATIONS:
+            print(f"\nConsensus iteration limit ({globals.MAX_CONSENSUS_ITERATIONS}) reached.")
+            # Export problematic papers for analysis
+            return False
         
+        # --- NEW: Fresh classification fallback ---
+        if iteration == globals.FRESH_CLASSIFY_FALLBACK_ITERATION:
+            print(f"\nIteration {iteration}: Switching to fresh classification (breaking consensus loop). This may fix stuck papers.")
+            globals.log_performance_event('consensus_fresh_fallback', {
+                'iteration': iteration,
+                'papers_affected': len(misclassified_paper_ids),
+                'paper_ids': misclassified_paper_ids
+            })
+            
+            # Run fresh classification instead of consensus prompt
+            fresh_classify_success = run_classification(
+                mode='id',  # Only re-classify the stuck papers
+                paper_id=None,  # Will use misclassified_paper_ids
+                db_file=db_file,
+                prompt_template=globals.PROMPT_TEMPLATE,  # Normal classifier prompt, NOT consensus
+                server_url=server_url
+            )
+            
+            # Then verify the fresh classifications
+            verify_classification.run_verification(
+                mode='remaining',
+                db_file=db_file,
+                prompt_template=globals.VERIFIER_TEMPLATE,
+                server_url=server_url
+            )
+            
+            # Continue normal consensus check after fallback
+            continue
+        
+
         # First, classify any remaining unprocessed papers
         print("\n--- Starting Initial Classification of Remaining Papers ---")
         initial_classification_success = run_classification(
