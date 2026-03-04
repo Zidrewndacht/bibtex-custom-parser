@@ -98,8 +98,6 @@ def build_reclassification_prompt(paper_data, template_content):
         print(f"Error formatting reclassification prompt: Missing key {e} in paper data or template expects it.")
         raise
 
-# automate_classification.py - Replace update_paper_from_llm function
-
 def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None, success_flag=False, json_result_str="", model_name_used="Unknown"):
     """Updates paper classification fields and the continuous log in the database."""
     conn = sqlite3.connect(db_path)
@@ -126,10 +124,10 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
         "type": "classifier",
         "model": model_name_used,
         "trace": reasoning_trace or "",
-        "output": json_result_str if json_result_str else "{}",  # ← Never None/empty
+        "output": json_result_str if json_result_str else "{}",
         "valid": success_flag
     }
-        
+    
     # --- Append Log Entry ---
     existing_log.append(llm_log_entry)
     
@@ -150,27 +148,32 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
         if 'research_area' in llm_data:
             update_fields.append("research_area = ?")
             update_values.append(llm_data['research_area'])
+        
         if 'relevance' in llm_data:
             update_fields.append("relevance = ?")
             update_values.append(llm_data['relevance'])
         
-        # Features (Merge with existing)
-        if 'features' in llm_data and isinstance(llm_data['features'], dict):
-            cursor.execute("SELECT features FROM papers WHERE id = ?", (paper_id,))
-            row = cursor.fetchone()
-            current_features = json.loads(row[0]) if row and row[0] else {}
-            current_features.update(llm_data['features'])
+        # === FIXED: Features (Direct assignment, NOT merge) ===
+        if 'features' in llm_data:
+            if llm_data['features'] is None:
+                features_value = None
+            elif isinstance(llm_data['features'], dict):
+                features_value = json.dumps(llm_data['features'])
+            else:
+                features_value = None
             update_fields.append("features = ?")
-            update_values.append(json.dumps(current_features))
+            update_values.append(features_value)
         
-        # Technique (Merge with existing)
-        if 'technique' in llm_data and isinstance(llm_data['technique'], dict):
-            cursor.execute("SELECT technique FROM papers WHERE id = ?", (paper_id,))
-            row = cursor.fetchone()
-            current_technique = json.loads(row[0]) if row and row[0] else {}
-            current_technique.update(llm_data['technique'])
+        # === FIXED: Technique (Direct assignment, NOT merge) ===
+        if 'technique' in llm_data:
+            if llm_data['technique'] is None:
+                technique_value = None
+            elif isinstance(llm_data['technique'], dict):
+                technique_value = json.dumps(llm_data['technique'])
+            else:
+                technique_value = None
             update_fields.append("technique = ?")
-            update_values.append(json.dumps(current_technique))
+            update_values.append(technique_value)
         
         # Reset verification fields on new classification
         update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
@@ -191,15 +194,20 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
                 update_fields.append(f"last_llm_{field} = ?")
                 update_values.append(1 if value is True else 0 if value is False else None)
         
-        if 'features' in llm_data and isinstance(llm_data['features'], dict):
+        # === FIXED: last_llm_features (Direct assignment, NOT merge) ===
+        if 'features' in llm_data:
             update_fields.append("last_llm_features = ?")
-            update_values.append(json.dumps(current_features))
-        if 'technique' in llm_data and isinstance(llm_data['technique'], dict):
+            update_values.append(features_value)
+        
+        # === FIXED: last_llm_technique (Direct assignment, NOT merge) ===
+        if 'technique' in llm_data:
             update_fields.append("last_llm_technique = ?")
-            update_values.append(json.dumps(current_technique))
+            update_values.append(technique_value)
+        
         if 'relevance' in llm_data:
             update_fields.append("last_llm_relevance = ?")
             update_values.append(llm_data['relevance'])
+    
     else:
         # On failure, still update audit fields
         update_fields.extend(["changed = ?", "changed_by = ?"])

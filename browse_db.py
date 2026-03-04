@@ -1046,19 +1046,9 @@ def run_verification_subprocess(mode, paper_id, db_file):
         print(f"Error starting verification subprocess: {e}")
 
 
-
 def prepare_history_log_data(paper_dict):
     """
     Prepares llm_log data for history row rendering.
-    Log entries come from DB in ascending order (oldest first).
-    Process:
-    1. Parse all entries (keep DB order - ascending/oldest first)
-    2. Mark changed cells by comparing each entry with the older one before it
-       -> EXCLUDE invalid entries from this diff calculation
-    3. Reverse to descending (newest first) for UI
-    4. Cache verifiers and attach to classifiers during reverse pass
-    ALL entries show in log trace, only valid classifier/consensus/user create table rows.
-    NEVER crashes on malformed data - invalid entries are marked invalid and skipped from table.
     """
     raw_log = paper_dict.get('llm_log', '[]')
     try:
@@ -1066,19 +1056,30 @@ def prepare_history_log_data(paper_dict):
     except (json.JSONDecodeError, TypeError):
         log_entries = []
     
-    # Parse output JSON strings for all entries - NEVER crash here
+    # SINGLE parsing pass - parse output JSON strings safely
     for entry in log_entries:
         try:
             output_raw = entry.get('output', '{}')
-            entry['output'] = json.loads(output_raw) if output_raw else {}
-        except (json.JSONDecodeError, TypeError, AttributeError) as e:
-            print(f"Warning: Failed to parse output for entry {entry.get('timestamp')}: {e}")
+            # Only parse if it's a string, not already a dict
+            if isinstance(output_raw, str) and output_raw:
+                entry['output'] = json.loads(output_raw)
+            elif isinstance(output_raw, dict):
+                entry['output'] = output_raw
+            else:
+                entry['output'] = {}
+        except (json.JSONDecodeError, TypeError, AttributeError):
             entry['output'] = {}
+        
         entry['valid'] = bool(entry.get('valid', False))
+        
+        # Ensure timestamp exists (don't generate new ones - breaks map lookup)
+        # if 'timestamp' not in entry or not entry['timestamp']:
+        #     entry['timestamp'] = f"missing_{id(entry)}"
     
-    # PASS 1: Ascending order - Mark changed cells
-    # FILTER: Only include valid entries for diff calculation
-    table_entries = [e for e in log_entries if e.get('type') in ['classifier', 'consensus', 'user'] and e.get('valid', False)]
+    # PASS 1: Ascending order - Mark changed cells (valid entries only)
+    table_entries = [e for e in log_entries 
+                     if e.get('type') in ['classifier', 'consensus', 'user'] 
+                     and e.get('valid', False)]
     
     for i in range(len(table_entries)):
         current = table_entries[i]
@@ -1086,53 +1087,46 @@ def prepare_history_log_data(paper_dict):
         current['changed_fields'] = set()
         
         if older:
-            older_output = older.get('output', {})
-            current_output = current.get('output', {})
+            older_output = older.get('output', {}) or {}
+            current_output = current.get('output', {}) or {}
             
-            # SAFETY: Ensure these are always dicts, never None
+            # Safety: ensure dicts
             if not isinstance(older_output, dict):
                 older_output = {}
             if not isinstance(current_output, dict):
                 current_output = {}
             
-            # Compare main classification fields
-            main_fields = ['is_offtopic', 'relevance', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
-            for field in main_fields:
+            # Compare main fields
+            for field in ['is_offtopic', 'relevance', 'is_survey', 
+                         'is_through_hole', 'is_smt', 'is_x_ray']:
                 if current_output.get(field) != older_output.get(field):
                     current['changed_fields'].add(field)
             
-            # Compare features - SAFETY: Handle null/None gracefully
+            # Compare features
             current_features = current_output.get('features') or {}
             older_features = older_output.get('features') or {}
-            if not isinstance(current_features, dict):
-                current_features = {}
-            if not isinstance(older_features, dict):
-                older_features = {}
+            if isinstance(current_features, dict) and isinstance(older_features, dict):
+                all_keys = set(current_features.keys()) | set(older_features.keys())
+                for key in all_keys:
+                    if current_features.get(key) != older_features.get(key):
+                        current['changed_fields'].add(f'features_{key}')
             
-            all_feature_keys = set(current_features.keys()) | set(older_features.keys())
-            for feat_key in all_feature_keys:
-                if current_features.get(feat_key) != older_features.get(feat_key):
-                    current['changed_fields'].add(f'features_{feat_key}')
-            
-            # Compare techniques - SAFETY: Handle null/None gracefully
+            # Compare techniques
             current_technique = current_output.get('technique') or {}
             older_technique = older_output.get('technique') or {}
-            if not isinstance(current_technique, dict):
-                current_technique = {}
-            if not isinstance(older_technique, dict):
-                older_technique = {}
-            
-            all_technique_keys = set(current_technique.keys()) | set(older_technique.keys())
-            for tech_key in all_technique_keys:
-                if current_technique.get(tech_key) != older_technique.get(tech_key):
-                    current['changed_fields'].add(f'technique_{tech_key}')
+            if isinstance(current_technique, dict) and isinstance(older_technique, dict):
+                all_keys = set(current_technique.keys()) | set(older_technique.keys())
+                for key in all_keys:
+                    if current_technique.get(key) != older_technique.get(key):
+                        current['changed_fields'].add(f'technique_{key}')
     
-    # Create changed_fields map
-    changed_fields_map = {}
-    for entry in table_entries:
-        changed_fields_map[entry['timestamp']] = entry.get('changed_fields', set())
+    # Create timestamp → changed_fields map
+    changed_fields_map = {
+        entry['timestamp']: entry.get('changed_fields', set()) 
+        for entry in table_entries
+    }
     
-    # PASS 2: Reverse to descending for UI, attach verifiers
+    # PASS 2: Reverse for UI, attach verifiers
     log_entries.reverse()
     processed_entries = []
     cached_verifier = None
@@ -1142,28 +1136,25 @@ def prepare_history_log_data(paper_dict):
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
         
         if entry_type == 'verifier':
-            verifier_output = entry.get('output', {})
+            verifier_output = entry.get('output', {}) or {}
             if not isinstance(verifier_output, dict):
                 verifier_output = {}
+            
             cached_verifier = {
                 'verified': verifier_output.get('verified'),
                 'estimated_score': verifier_output.get('estimated_score'),
                 'verifier_trace': entry.get('trace', ''),
                 'verifier_model': entry.get('model', ''),
-                'verifier_timestamp': entry.get('timestamp', '')
+                'verifier_timestamp': entry['timestamp']
             }
             entry['verification_data'] = None
-            processed_entries.append(entry)
         elif entry_type in ['classifier', 'consensus']:
             entry['verification_data'] = cached_verifier
             cached_verifier = None
-            processed_entries.append(entry)
-        elif entry_type == 'user':
-            entry['verification_data'] = None
-            processed_entries.append(entry)
         else:
             entry['verification_data'] = None
-            processed_entries.append(entry)
+        
+        processed_entries.append(entry)
     
     return processed_entries
 
