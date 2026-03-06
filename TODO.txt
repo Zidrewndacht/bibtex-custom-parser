@@ -215,28 +215,13 @@ OK                Show negative vs positive checkboxes differently (tri-state)
 
 OK      Set up vLLM backend via hardware-accelerated WSL2 Docker:
 Ok              Deprecate GBNF, make API generic enough for all main engines (llama.cpp, vLLM, TabbyAPI)
-OK              Improve batching (8 > ~256 threads), put vLLM to good use: inference time (full classification + verification) for ~14000 papers reduced from ~6 DAYS to ~8 HOURS in the same hardware (2x RTX 3090) with only ~20% increased power draw.
-OK              Make it 42000 papers instead, from 1985 to 2025.
-
-OK      Add agentic classification: Re-classify misclassifications (score <=6 starting from empty/worst) automatically until consensus. Agent prompt template should include full classification, classifier trace, verifier trace, user trace and should explains an imperfect verifier verified the imperfect classification (so it's not guaranteed that the verifier is correct in saying it was misclassified to start with).
-OK              ThreadPool all misclassifications through this same prompt, them after everything completes, run a new, "normal" verify remaining step (which will take all just re-classified papers), and a new re-classify misclassifications with whatever is still left as misclassified, until there's full consensus or user abort.
-OK              Do NOT alternate between classification/verification for each paper as this would fuck up prompt prefix caching. Do all tasks of same class at each step.
+OK              Improve batching (8 > ~256 threads), put vLLM to good use: inference time (full classification + verification) for ~14000 papers reduced from ~6 DAYS to ~8h in the same hardware (2x RTX 3090) with only ~20% increased power draw.
+OK              Make it 45000 papers instead, from 1974 to 2026.
 
 OK      Deannualize conferences (imperfect, but it's a way harder natural language problem than initially expected -- still classifies the same conference with 2 or 3 different representations, but better than 9 or one for each year...)
                 Automatic deannualize conferences on input (from cached DB data or new inference if the conference wasn't previously seen)
 
-OK      Create new Lite branch for a generic, stripped down, non-domain-specific, free autosaving PDF annotator on steroids.
-
-OK      Further remove "Ultra Graphics", e.g., eyecandy that gives too much performance concerns with too little visual changes. Namely removed backdrop-filters, translucent modals and 3D transforms globally since newer Intel Arc Xe iGPU also disliked those.
-
-OK      Change to a single continuous log per paper instead of separate (last inference only) classifier and verifier traces.
-
-OK      Log all user changes, have a count of fields that were user-changed to a value different than the last inference.
-OK?             Use new columns for user overrides in the DB, such that user changes don't really replace the original inferred data, cache it by always setting both by model, only overrides by user, always use overrides to render the page
-        
-OK?     Change the server-side API for changes: every change from user or model has to be logged. 
-OK?             Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
-OK?             User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
+OK      Further remove eyecandy that gives too much performance concerns with too little visual changes. Namely removed backdrop-filters, translucent modals and 3D transforms globally since newer Intel Arc Xe iGPU also disliked those.
 
 OK      Add a separate button in main row for logs/traces: 2 columns:
 OK              Changelog: matches table layout from off-topic to commented row, most recent on top, make unchanged fields transparent;
@@ -247,6 +232,20 @@ OK              Getting rid of server-side stats and search already reduced it a
                 Moving SQLite logic to a separate file for DB operations may cause 
                         'sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 34640 and this is thread id 16976.'
                 Moving helpers away is fine, but there aren't many.
+
+        Refactor comms.js
+                Works fine, just need some better mantainability. Low priority.
+
+OK      Add agentic classification: Re-classify misclassifications (score <=6 starting from empty/worst) automatically until consensus. Agent prompt template should include full classification, classifier trace, verifier trace, user trace and should explains an imperfect verifier verified the imperfect classification (so it's not guaranteed that the verifier is correct in saying it was misclassified to start with).
+OK              ThreadPool all misclassifications through this same prompt, them after everything completes, run a new, "normal" verify remaining step (which will take all just re-classified papers), and a new re-classify misclassifications with whatever is still left as misclassified, until there's full consensus or user abort.
+OK              Do NOT alternate between classification/verification for each paper as this would fuck up prompt prefix caching. Do all tasks of same class at each step.
+
+OK      Change to a single continuous log per paper instead of separate (last inference only) classifier and verifier traces.
+OK              Log all user changes, have a count of fields that were user-changed to a value different than the last inference.
+OK?             Use new columns for user overrides in the DB, such that user changes don't really replace the original inferred data, cache it by always setting both by model, only overrides by user, always use overrides to render the page
+OK?             Change the server-side API for changes: every change from user or model has to be logged. 
+OK?             Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
+OK?             User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
 
         Add further 'agentic' functionality:
                 Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
@@ -259,12 +258,10 @@ OK              Getting rid of server-side stats and search already reduced it a
                                 ...?
 
         Better onboarding for both main and Lite:
-                Automatic delete placeholder ID 1 when first importing
+ OK             Automatic delete placeholder ID 1 when first importing
 
         Import papers from exactly 2000 (somehow missing?)
-
-        Refactor comms.js
-                Works fine, just need some better mantainability. Low priority.
+        Import new papers from 2026
 
         Isolate most domain-specific logic where possible -- long term, complicated refactor with little usefulness for now:
                 separate fixed from domain-specific HTML templates;
@@ -272,15 +269,25 @@ OK              Getting rid of server-side stats and search already reduced it a
                 separate JS for logic that access the domain-specific HTML parts from generic JS
                 See docs.md for info on some domain-specific scattered code.
                 
-OK              Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other research.
+OK      Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other research.
 
         Add multiuser capability (naming users, user-selectable DB) -- good for offline "sneakernet" collaboration;
                 Possibly auth for online server hosting? -- low priority
 
         Low relevance XHR limitations/fixes:
-                Update commented&other field displays on save.
-                Update PDF icon on first annotation without manual reload.
+OK?             Update commented&other field displays on save.
+                Update PDF icon on first annotation without manual reload - not too trivial as saving is "external" to the table webpage.
+
+OK      Hide history row when a parent is filtered out
 
         Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
 
-        convert "conference" to "inproceedings" on import, fix existing offline.
+        convert "conference" to "inproceedings" on import, fix such existing offline entries from Scopus.
+
+        Implement average-of-3 full runs:
+                record 3 full sets of fields(last_llm)+history logs
+                When asked to classify, classify all three runs in parallel (not sequentially, of course) - same when asking to verify
+                Add automatic classify until consensus for this paper (does consensus for all 3 runs - at least 6 inference requests, more if consensus isn't reached for all of then in first verification)
+                Change the main set to be the average result of the 3 sets:
+                        For display, make it proportionally translucent when it's a mix like YYU, NNU, YUU, NUU; show a solid warning sign instead if it's YYN, YNN, YUN
+                        Change history row to have 4 tabs: main (for final averaged/warnings results and user results), set 1, set 2, set 3.

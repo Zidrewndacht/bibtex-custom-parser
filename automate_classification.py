@@ -610,10 +610,11 @@ def run_consensus_classification(db_file, server_url):
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id FROM papers 
-            WHERE verified = 0 
-            AND (estimated_score IS NULL OR estimated_score <= 8)
-            ORDER BY estimated_score ASC
+        SELECT id FROM papers
+        WHERE verified = 0
+        AND (is_offtopic IS NOT NULL AND is_offtopic != '')
+        AND (estimated_score IS NULL OR estimated_score <= 8)
+        ORDER BY estimated_score ASC
         """)
         misclassified_paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()

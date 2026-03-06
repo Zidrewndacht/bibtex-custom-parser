@@ -13,9 +13,9 @@ import json
 from datetime import datetime
 
 LLM_SERVER_URL = "http://localhost:8086"
-MAX_CONCURRENT_WORKERS = 256 # vLLM go brrr 
-MAX_CONCURRENT_WORKERS_VERIFY = 480 # 480
-MAX_CONCURRENT_WORKERS_CONSENSUS = 96
+MAX_CONCURRENT_WORKERS = 128 # vLLM go brrr 
+MAX_CONCURRENT_WORKERS_VERIFY = 192 # 480
+MAX_CONCURRENT_WORKERS_CONSENSUS = 64
 MAX_CONSENSUS_ITERATIONS = 12  # Hard limit for consensus loops
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8  # Switch to fresh classify at iteration 8
 
@@ -228,32 +228,32 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"
     payload = {
         # For Qwen3.5:
-        # "model": model_name,
-        # "messages": [{"role": "user", "content": prompt_text}],
-        # "temperature": 0.7 if not is_verification else 0.6,  # Different for classification vs verification
-        # "top_p": 0.95,
-        # "top_k": 20,
-        # "min_p": 0.0,
-        # "presence_penalty": 1.5 if is_verification else 1.25,  # NEW parameter
-        # "repetition_penalty": 1.0,
-        # "max_tokens": 32768,
-        # "stream": False
-
-        #For Qwen3:
         "model": model_name,
         "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 0.6, 
-        "top_p": 0.95, 
-        "top_k": 20, 
-        "min_p": 0,
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "repetition_penalty": 1.0,
+        "presence_penalty": 1.5, # Qwen3.5
         "max_tokens": 32768,
         "stream": False
+
+        #For Qwen3:
+        # "model": model_name,
+        # "messages": [{"role": "user", "content": prompt_text}],
+        # "temperature": 0.6, # Qwen3, or 1.0 for Qwen3.5
+        # "top_p": 0.95, 
+        # "top_k": 20, 
+        # "min_p": 0,
+        # "max_tokens": 32768,
+        # "stream": False
     }
     context = "verification " if is_verification else ""
     try:
         if is_shutdown_flag_set():
             return None, None, None
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=1200)
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=2400)
         if is_shutdown_flag_set():
             return None, None, None
         response.raise_for_status()

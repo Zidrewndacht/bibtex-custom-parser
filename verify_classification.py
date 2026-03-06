@@ -330,7 +330,12 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         
         if mode == 'all': #All classified papers (there's no sense in verifying classification of papers that weren't even classified)
             print("Fetching ALL classified papers for re-verification (most recent to oldest)...")
-            cursor.execute("SELECT id FROM papers WHERE (changed_by IS NOT NULL AND changed_by != '') ORDER BY year DESC")
+            cursor.execute("""
+            SELECT id FROM papers 
+            WHERE (changed_by IS NOT NULL AND changed_by != '')
+            AND (is_offtopic IS NOT NULL AND is_offtopic != '')
+            ORDER BY year DESC
+            """)
         elif mode == 'id':
             if paper_id is None:
                 print("Error: Mode 'id' requires a specific paper ID.")
@@ -346,13 +351,13 @@ def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_templ
         else: # Default to 'remaining'
             print("Fetching classified but unverified papers (most recent to oldest)...")
             cursor.execute("""
-                SELECT id 
-                FROM papers 
-                WHERE (changed_by IS NOT NULL AND changed_by != '') 
-                AND (verified_by IS NULL OR verified_by = '' OR verified = 'unknown' OR verified = '')
-                ORDER BY year DESC
-            """) #added  OR verified_by = 'unknown' to verify to manually set to ?
-            
+            SELECT id
+            FROM papers
+            WHERE (changed_by IS NOT NULL AND changed_by != '')
+            AND (is_offtopic IS NOT NULL AND is_offtopic != '')
+            AND (verified_by IS NULL OR verified_by = '' OR verified = 'unknown' OR verified = '')
+            ORDER BY year DESC
+            """)
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         total_papers = len(paper_ids)
