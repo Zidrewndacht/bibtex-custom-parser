@@ -154,7 +154,299 @@ def log_performance_event(event_type, data):
     except Exception as e:
         print(f"Warning: Failed to write performance log: {e}")
         
+# Add to globals.py (after existing imports and constants)
 
+# ============================================================================
+# TRIPLE-CLASSIFICATION SYSTEM
+# ============================================================================
+
+def calculate_field_certainty(values):
+    """
+    Calculate the majority vote and certainty for a field across 3 sets.
+    
+    Args:
+        values: list of 3 values (1=True, 0=False, None=Unknown)
+    
+    Returns:
+        tuple: (main_value, certainty_string)
+            - main_value: 1, 0, or None (majority vote)
+            - certainty_string: 'solid', '80', '60', or 'conflict'
+    """
+    if not values or len(values) != 3:
+        return None, 'solid'
+    
+    # Count yes (1), no (0), and null (None)
+    yes_count = sum(1 for v in values if v == 1)
+    no_count = sum(1 for v in values if v == 0)
+    null_count = sum(1 for v in values if v is None or v == '')
+    
+    # Determine majority vote
+    if yes_count > no_count:
+        main_value = 1
+        has_disagreement = (no_count > 0)
+    elif no_count > yes_count:
+        main_value = 0
+        has_disagreement = (yes_count > 0)
+    else:
+        # Tie or all null
+        main_value = None
+        has_disagreement = True
+    
+    # Determine certainty
+    if has_disagreement and yes_count > 0 and no_count > 0:
+        # Actual conflict (both yes and no present)
+        certainty = 'conflict'
+    elif null_count == 2:
+        # Only 1 value available
+        certainty = '60'
+    elif null_count == 1:
+        # 2 values available, agree
+        certainty = '80'
+    else:
+        # All 3 values agree
+        certainty = 'solid'
+    
+    return main_value, certainty
+
+
+# Add to globals.py - recalculate_main_set() function
+
+def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", create_log_entry=True):
+    """
+    Recalculate the main averaged set from all 3 classification sets.
+    
+    Args:
+        paper_id: The paper ID to recalculate
+        db_path: Database path (uses globals.DATABASE_FILE if None)
+        changed_by: Identifier for who triggered the recalculation
+        create_log_entry: Whether to create a log entry in main llm_log
+    
+    Returns:
+        dict: The updated certainty map, or None if paper not found
+    """
+    if db_path is None:
+        db_path = DATABASE_FILE
+    
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Fetch paper data
+    cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
+    paper = cursor.fetchone()
+    
+    if not paper:
+        conn.close()
+        return None
+    
+    paper = dict(paper)
+    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+    
+    # Fields to average (boolean fields)
+    boolean_fields = [
+        'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray'
+    ]
+    
+    # Build certainty map AND main output data for logging
+    certainty_map = {}
+    main_output = {}
+    
+    # Process boolean classification fields
+    for field in boolean_fields:
+        values = [
+            paper.get(f'set_1_last_llm_{field}'),
+            paper.get(f'set_2_last_llm_{field}'),
+            paper.get(f'set_3_last_llm_{field}'),
+        ]
+        main_value, certainty = calculate_field_certainty(values)
+        certainty_map[field] = certainty
+        main_output[field] = main_value
+        
+        # Update main field
+        cursor.execute(
+            f"UPDATE papers SET {field} = ? WHERE id = ?",
+            (main_value, paper_id)
+        )
+    
+    # Process relevance (numeric average)
+    relevance_values = [
+        paper.get('set_1_last_llm_relevance'),
+        paper.get('set_2_last_llm_relevance'),
+        paper.get('set_3_last_llm_relevance'),
+    ]
+    relevance_valid = [v for v in relevance_values if v is not None]
+    main_relevance = sum(relevance_valid) / len(relevance_valid) if relevance_valid else None
+    main_output['relevance'] = main_relevance
+    cursor.execute("UPDATE papers SET relevance = ? WHERE id = ?", (main_relevance, paper_id))
+    
+    # Process verified (all 3 must be verified)
+    verified_values = [
+        paper.get('set_1_last_llm_verified'),
+        paper.get('set_2_last_llm_verified'),
+        paper.get('set_3_last_llm_verified'),
+    ]
+    main_verified = 1 if all(v == 1 for v in verified_values) else (0 if any(v == 0 for v in verified_values) else None)
+    main_output['verified'] = main_verified
+    cursor.execute("UPDATE papers SET verified = ? WHERE id = ?", (main_verified, paper_id))
+    
+    # Process estimated_score (average of verified sets)
+    score_values = [
+        paper.get('set_1_last_llm_estimated_score'),
+        paper.get('set_2_last_llm_estimated_score'),
+        paper.get('set_3_last_llm_estimated_score'),
+    ]
+    score_valid = [v for v in score_values if v is not None]
+    main_score = sum(score_valid) / len(score_valid) if score_valid else None
+    main_output['estimated_score'] = int(main_score) if main_score is not None else None
+    cursor.execute("UPDATE papers SET estimated_score = ? WHERE id = ?", (main_output['estimated_score'], paper_id))
+    
+    # Process features JSON fields
+    main_features = {}
+    for feature_key in BOOLEAN_FEATURE_KEYS:
+        values = []
+        for sn in [1, 2, 3]:
+            feat_key = f'set_{sn}_last_llm_features'
+            feat_str = paper.get(feat_key)
+            try:
+                feat = json.loads(feat_str) if feat_str else {}
+            except:
+                feat = {}
+            values.append(feat.get(feature_key))
+        
+        main_value, certainty = calculate_field_certainty(values)
+        field_name = f'features_{feature_key}'
+        certainty_map[field_name] = certainty
+        main_features[feature_key] = main_value
+    
+    main_output['features'] = main_features
+    cursor.execute("UPDATE papers SET features = ? WHERE id = ?", (json.dumps(main_features), paper_id))
+    
+    # Process technique JSON fields
+    main_technique = {}
+    for tech_key in DEFAULT_TECHNIQUE.keys():
+        if tech_key in ['model', 'available_dataset']:
+            continue  # Skip non-boolean fields for averaging
+        values = []
+        for sn in [1, 2, 3]:
+            tech_key_db = f'set_{sn}_last_llm_technique'
+            tech_str = paper.get(tech_key_db)
+            try:
+                tech = json.loads(tech_str) if tech_str else {}
+            except:
+                tech = {}
+            values.append(tech.get(tech_key))
+        
+        main_value, certainty = calculate_field_certainty(values)
+        field_name = f'technique_{tech_key}'
+        certainty_map[field_name] = certainty
+        main_technique[tech_key] = main_value
+    
+    # Copy model name from set_1 (not averaged)
+    try:
+        tech1_str = paper.get('set_1_last_llm_technique')
+        tech1 = json.loads(tech1_str) if tech1_str else {}
+        main_technique['model'] = tech1.get('model')
+        main_technique['available_dataset'] = tech1.get('available_dataset')
+    except:
+        main_technique['model'] = None
+        main_technique['available_dataset'] = None
+    
+    main_output['technique'] = main_technique
+    cursor.execute("UPDATE papers SET technique = ? WHERE id = ?", (json.dumps(main_technique), paper_id))
+    
+    # Update main_certainty column
+    cursor.execute(
+        "UPDATE papers SET main_certainty = ? WHERE id = ?",
+        (json.dumps(certainty_map), paper_id)
+    )
+    
+    # Update last_llm_* cache fields (mirror main columns for backward compatibility)
+    cursor.execute("""
+        UPDATE papers SET
+            last_llm_features = features,
+            last_llm_technique = technique,
+            last_llm_is_offtopic = is_offtopic,
+            last_llm_is_survey = is_survey,
+            last_llm_is_through_hole = is_through_hole,
+            last_llm_is_smt = is_smt,
+            last_llm_is_x_ray = is_x_ray,
+            last_llm_relevance = relevance,
+            last_llm_verified = verified,
+            last_llm_estimated_score = estimated_score
+        WHERE id = ?
+    """, (paper_id,))
+    
+    # === CREATE MAIN LOG ENTRY ===
+    if create_log_entry:
+        # Fetch existing main log
+        cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
+        row = cursor.fetchone()
+        try:
+            existing_log = json.loads(row[0]) if row and row[0] else []
+        except:
+            existing_log = []
+        
+        # Create averaged classification log entry
+        log_entry = {
+            "timestamp": changed_timestamp,
+            "type": "averaged_llm",  # NEW type for averaged results
+            "model": "averaged_3_sets",
+            "trace": f"Averaged from {sum(1 for v in [paper.get('set_1_last_llm_is_offtopic'), paper.get('set_2_last_llm_is_offtopic'), paper.get('set_3_last_llm_is_offtopic')] if v is not None)} of 3 classification sets",
+            "output": json.dumps({
+                **main_output,
+                "certainty_map": certainty_map  # Include certainty info in main log
+            }),
+            "valid": True,
+            "certainty_map": certainty_map  # Also at top level for easier access
+        }
+        
+        # Check if last entry was also an averaged_llm entry (consolidate)
+        if existing_log and existing_log[-1].get('type') == 'averaged_llm':
+            # Update the existing averaged entry instead of creating duplicate
+            existing_log[-1] = log_entry
+        else:
+            existing_log.append(log_entry)
+        
+        cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+    
+    conn.commit()
+    conn.close()
+    
+    return certainty_map
+
+def get_set_data(paper_data, set_num):
+    """
+    Extract classification data for a specific set from paper data.
+    
+    Args:
+        paper_data: dict with all paper fields
+        set_num: 1, 2, or 3
+    
+    Returns:
+        dict: Classification data for the specified set
+    """
+    prefix = f'set_{set_num}_last_llm_'
+    
+    # Extract boolean fields
+    data = {}
+    for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray', 'relevance', 'verified', 'estimated_score']:
+        data[field] = paper_data.get(f'{prefix}{field}')
+    
+    # Extract JSON fields
+    features_str = paper_data.get(f'{prefix}features')
+    technique_str = paper_data.get(f'{prefix}technique')
+    
+    try:
+        data['features'] = json.loads(features_str) if features_str else {}
+    except:
+        data['features'] = {}
+    
+    try:
+        data['technique'] = json.loads(technique_str) if technique_str else {}
+    except:
+        data['technique'] = {}
+    
+    return data
 
 #usados por automate and verify:
 def get_model_alias(server_url_base):
@@ -212,7 +504,39 @@ def get_paper_by_id(db_path, paper_id):
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
-# globals.py
+
+
+
+def get_best_set_for_text_fields(paper_data):
+    """
+    Determine which set (1, 2, or 3) has the highest verifier score.
+    Returns the set number (1, 2, or 3) to use for text field values.
+    
+    Args:
+        paper_data: dict with all paper fields
+    
+    Returns:
+        int: 1, 2, or 3 (the set with highest verifier score)
+    """
+    set_scores = []
+    
+    for set_num in [1, 2, 3]:
+        verified = paper_data.get(f'set_{set_num}_last_llm_verified')
+        score = paper_data.get(f'set_{set_num}_last_llm_estimated_score')
+        
+        # Priority: verified=1 with high score > verified=1 low score > unverified
+        if verified == 1 and score is not None:
+            set_scores.append((set_num, score + 1000))  # Verified gets priority boost
+        elif verified == 1:
+            set_scores.append((set_num, 1000))  # Verified but no score
+        elif score is not None:
+            set_scores.append((set_num, score))
+        else:
+            set_scores.append((set_num, 0))
+    
+    # Return set with highest score
+    best_set = max(set_scores, key=lambda x: x[1])[0]
+    return best_set
 
 def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", is_verification=False):
     """

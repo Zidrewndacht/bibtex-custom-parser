@@ -1,48 +1,42 @@
 <!-- templates/history_row.html -->
-{% block history_row_content %}
-<div class="history-flex-container">
-    <!-- Log Visualization Section - Shows ALL entries including verifiers -->
+{% macro render_history_tab(paper, set_num, tab_name, show_certainty) %}
+<div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" id="history-tab-{{ tab_name }}-{{ paper.id }}">
+    <!-- Trace Content -->
     <div class="trace-content">
-        {% if paper.llm_log_entries %}
-            {% for entry in paper.llm_log_entries %}
-            <div class="log-entry log-type-{{ entry.type }}{% if entry.type == 'consensus' %} log-type-consensus{% endif %}">
-                <div class="log-header">
-                    <span class="log-timestamp">{{ entry.timestamp|format_changed_timestamp }}</span>
-                    <span class="log-type">{{ entry.type | capitalize }} Trace</span>
-                    {% if entry.type != 'user' %}
-                    <span class="log-model">Model: {{ entry.model }}</span>
+        {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}
+        {% if log_entries %}
+        {% for entry in log_entries %}
+        <div class="log-entry log-type-{{ entry.type }}">
+            <div class="log-header">
+                <span class="log-timestamp">{{ entry.timestamp|format_changed_timestamp }}</span>
+                <span class="log-type">{{ entry.type | capitalize }}{% if set_num %} (Set {{ set_num }}){% endif %}</span>
+                {% if entry.type != 'user' %}
+                <span class="log-model">Model: {{ entry.model }}</span>
+                {% endif %}
+                <span class="log-validity">
+                    {% if entry.valid %}<span class="valid-indicator valid">✓ Valid</span>
+                    {% else %}<span class="valid-indicator invalid">✗ Invalid</span>
                     {% endif %}
-                    <span class="log-validity">
-                        {% if entry.valid %}
-                        <span class="valid-indicator valid">✓ Valid</span>
-                        {% else %}
-                        <span class="valid-indicator invalid">✗ Invalid</span>
-                        {% endif %}
-                    </span>
-                </div>
-                {% if entry.trace %}
-                <div class="log-trace">
-                    <pre>{{ entry.trace }}</pre>
-                </div>
-                {% endif %}
-                {% if entry.verification_data %}
-                <div class="log-verification-summary">
-                    <strong>Verification:</strong> 
-                    {% if entry.verification_data.verified == 1 %}✓ Approved{% elif entry.verification_data.verified == 0 %}✗ Rejected{% else %}❔ Unknown{% endif %}
-                    {% if entry.verification_data.estimated_score is not none %} | Score: {{ entry.verification_data.estimated_score }}{% endif %}
-                </div>
-                {% endif %}
+                </span>
             </div>
-            {% endfor %}
-        {% else %}
-        <div class="log-entry log-type-user">
-            <p>No trace available.</p>
+            {% if entry.trace %}<div class="log-trace"><pre>{{ entry.trace }}</pre></div>{% endif %}
+            {% if entry.verification_data %}
+            <div class="log-verification-summary">
+                <strong>Verification:</strong>
+                {% if entry.verification_data.verified == 1 %}✓ Approved{% elif entry.verification_data.verified == 0 %}✗ Rejected{% else %}❔ Unknown{% endif %}
+                {% if entry.verification_data.estimated_score is not none %} | Score: {{ entry.verification_data.estimated_score }}{% endif %}
+            </div>
+            {% endif %}
         </div>
+        {% endfor %}
+        {% else %}
+        <div class="log-entry log-type-user"><p>No classification data{% if set_num %} for Set {{ set_num }}{% endif %}.</p></div>
         {% endif %}
     </div>
-
+    <!-- Main History Table (with certainty indicators) -->
     <table class="history-table">
         <colgroup>
+
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Off-topic -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Relevance -->
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Survey -->
@@ -82,54 +76,225 @@
             <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
         </colgroup>
         <tbody>
-            {% for entry in paper.llm_log_entries %}
+            {% for entry in log_entries %}
             {% if entry.type in ['classifier', 'consensus', 'user'] and entry.valid %}
             <tr>
                 {% set data = entry.output %}
                 {% set changed = entry.changed_fields %}
-                
-                <!-- Classification Fields -->
-                <td class="status-cell{% if 'is_offtopic' in changed %} cell-changed{% endif %}">{{ data.is_offtopic | render_status }}</td>
+                {% set certainty = entry.certainty_map if show_certainty and entry.certainty_map else {} %}
+        
+                <!-- Classification Fields with certainty -->
+                <td class="status-cell certainty-{{ certainty.get('is_offtopic', 'solid') }}{% if 'is_offtopic' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('is_offtopic') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ data.is_offtopic | render_status }}</span>
+                    {% endif %}
+                </td>
                 <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">{{ data.relevance if data.relevance is not none else '' }}</td>
-                <td class="status-cell{% if 'is_survey' in changed %} cell-changed{% endif %}">{{ data.is_survey | render_status }}</td>
-                <td class="status-cell{% if 'is_through_hole' in changed %} cell-changed{% endif %}">{{ data.is_through_hole | render_status }}</td>
-                <td class="status-cell{% if 'is_smt' in changed %} cell-changed{% endif %}">{{ data.is_smt | render_status }}</td>
-                <td class="status-cell{% if 'is_x_ray' in changed %} cell-changed{% endif %}">{{ data.is_x_ray | render_status }}</td>
+                <td class="status-cell certainty-{{ certainty.get('is_survey', 'solid') }}{% if 'is_survey' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('is_survey') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ data.is_survey | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('is_through_hole', 'solid') }}{% if 'is_through_hole' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('is_through_hole') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ data.is_through_hole | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('is_smt', 'solid') }}{% if 'is_smt' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('is_smt') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ data.is_smt | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('is_x_ray', 'solid') }}{% if 'is_x_ray' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('is_x_ray') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ data.is_x_ray | render_status }}</span>
+                    {% endif %}
+                </td>
                 
-                <!-- Features -->
+                <!-- Features (14 fields) -->
                 {% set features = data.features if data.features else {} %}
-                <td class="highlight-history status-cell{% if 'features_tracks' in changed %} cell-changed{% endif %}">{{ features.tracks | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_holes' in changed %} cell-changed{% endif %}">{{ features.holes | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_bare_pcb_other' in changed %} cell-changed{% endif %}">{{ features.bare_pcb_other | render_status }}</td>
-                <td class="status-cell{% if 'features_solder_insufficient' in changed %} cell-changed{% endif %}">{{ features.solder_insufficient | render_status }}</td>
-                <td class="status-cell{% if 'features_solder_excess' in changed %} cell-changed{% endif %}">{{ features.solder_excess | render_status }}</td>
-                <td class="status-cell{% if 'features_solder_void' in changed %} cell-changed{% endif %}">{{ features.solder_void | render_status }}</td>
-                <td class="status-cell{% if 'features_solder_crack' in changed %} cell-changed{% endif %}">{{ features.solder_crack | render_status }}</td>
-                <td class="status-cell{% if 'features_solder_other' in changed %} cell-changed{% endif %}">{{ features.solder_other | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_missing_component' in changed %} cell-changed{% endif %}">{{ features.missing_component | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_wrong_component' in changed %} cell-changed{% endif %}">{{ features.wrong_component | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_orientation' in changed %} cell-changed{% endif %}">{{ features.orientation | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_component_other' in changed %} cell-changed{% endif %}">{{ features.component_other | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_cosmetic' in changed %} cell-changed{% endif %}">{{ features.cosmetic | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'features_other' in changed %} cell-changed{% endif %}">{{ '✔️' if features.other and (features.other|string).strip() else '❌' }}</td>
+                <td class="status-cell certainty-{{ certainty.get('features_tracks', 'solid') }}{% if 'features_tracks' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_tracks') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.tracks | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_holes', 'solid') }}{% if 'features_holes' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_holes') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.holes | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_bare_pcb_other', 'solid') }}{% if 'features_bare_pcb_other' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_bare_pcb_other') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.bare_pcb_other | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_solder_insufficient', 'solid') }}{% if 'features_solder_insufficient' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_solder_insufficient') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.solder_insufficient | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_solder_excess', 'solid') }}{% if 'features_solder_excess' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_solder_excess') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.solder_excess | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_solder_void', 'solid') }}{% if 'features_solder_void' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_solder_void') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.solder_void | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_solder_crack', 'solid') }}{% if 'features_solder_crack' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_solder_crack') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.solder_crack | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_solder_other', 'solid') }}{% if 'features_solder_other' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_solder_other') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.solder_other | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_missing_component', 'solid') }}{% if 'features_missing_component' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_missing_component') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.missing_component | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_wrong_component', 'solid') }}{% if 'features_wrong_component' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_wrong_component') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.wrong_component | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_orientation', 'solid') }}{% if 'features_orientation' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_orientation') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.orientation | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_component_other', 'solid') }}{% if 'features_component_other' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_component_other') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.component_other | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_cosmetic', 'solid') }}{% if 'features_cosmetic' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_cosmetic') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ features.cosmetic | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('features_other_state', 'solid') }}{% if 'features_other_state' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('features_other_state') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ '✔️' if features.other and (features.other|string).strip() else '❌' }}</span>
+                    {% endif %}
+                </td>
                 
-                <!-- Techniques -->
+                <!-- Techniques (9 fields) -->
                 {% set technique = data.technique if data.technique else {} %}
-                <td class="status-cell{% if 'technique_classic_cv_based' in changed %} cell-changed{% endif %}">{{ technique.classic_cv_based | render_status }}</td>
-                <td class="status-cell{% if 'technique_ml_traditional' in changed %} cell-changed{% endif %}">{{ technique.ml_traditional | render_status }}</td>
-                <td class="status-cell{% if 'technique_dl_cnn_classifier' in changed %} cell-changed{% endif %}">{{ technique.dl_cnn_classifier | render_status }}</td>
-                <td class="status-cell{% if 'technique_dl_cnn_detector' in changed %} cell-changed{% endif %}">{{ technique.dl_cnn_detector | render_status }}</td>
-                <td class="status-cell{% if 'technique_dl_rcnn_detector' in changed %} cell-changed{% endif %}">{{ technique.dl_rcnn_detector | render_status }}</td>
-                <td class="status-cell{% if 'technique_dl_transformer' in changed %} cell-changed{% endif %}">{{ technique.dl_transformer | render_status }}</td>
-                <td class="status-cell{% if 'technique_dl_other' in changed %} cell-changed{% endif %}">{{ technique.dl_other | render_status }}</td>
-                <td class="status-cell{% if 'technique_hybrid' in changed %} cell-changed{% endif %}">{{ technique.hybrid | render_status }}</td>
-                <td class="highlight-history status-cell{% if 'technique_available_dataset' in changed %} cell-changed{% endif %}">{{ technique.available_dataset | render_status }}</td>
+                <td class="status-cell certainty-{{ certainty.get('technique_classic_cv_based', 'solid') }}{% if 'technique_classic_cv_based' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_classic_cv_based') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.classic_cv_based | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_ml_traditional', 'solid') }}{% if 'technique_ml_traditional' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_ml_traditional') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.ml_traditional | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_dl_cnn_classifier', 'solid') }}{% if 'technique_dl_cnn_classifier' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_dl_cnn_classifier') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.dl_cnn_classifier | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_dl_cnn_detector', 'solid') }}{% if 'technique_dl_cnn_detector' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_dl_cnn_detector') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.dl_cnn_detector | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_dl_rcnn_detector', 'solid') }}{% if 'technique_dl_rcnn_detector' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_dl_rcnn_detector') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.dl_rcnn_detector | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_dl_transformer', 'solid') }}{% if 'technique_dl_transformer' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_dl_transformer') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.dl_transformer | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_dl_other', 'solid') }}{% if 'technique_dl_other' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_dl_other') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.dl_other | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_hybrid', 'solid') }}{% if 'technique_hybrid' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_hybrid') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.hybrid | render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="status-cell certainty-{{ certainty.get('technique_available_dataset', 'solid') }}{% if 'technique_available_dataset' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('technique_available_dataset') == 'conflict' %}
+                        <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                        <span class="emoji-content">{{ technique.available_dataset | render_status }}</span>
+                    {% endif %}
+                </td>
                 
-                <!-- Metadata -->
-                <td class="highlight-history secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
-                <td class="highlight-history status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
+                <!-- Timestamp Column (56px) -->
+                <td class="secondary-text-cell changed-cell{% if 'timestamp' in changed %} cell-changed{% endif %}">{{ entry.timestamp|format_changed_timestamp }}</td>
                 
-                <!-- Verification Fields -->
+                <!-- Changed By Column (40px) -->
+                <td class="status-cell changed-by-cell{% if 'changed_by' in changed %} cell-changed{% endif %}">{{ entry.model|render_changed_by }}</td>
+                
+                <!-- Verification Fields (3 columns: 27px + 32px + 27px) -->
                 {% if entry.verification_data %}
                 <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">{{ entry.verification_data.verified|render_status }}</td>
                 <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">{{ entry.verification_data.estimated_score if entry.verification_data.estimated_score is not none else '' }}</td>
@@ -144,11 +309,14 @@
             {% endfor %}
         </tbody>
     </table>
+            
+    {% if tab_name == 'main' %}
     <div class="history-info">
         <div style="text-align:center">
-            <span>Data is sorted from <b>newest</b> to <b>oldest</b> in logs and history rows.</span>
-            <br><br>
-            <span>Highlights identify cells changed between classification runs.</span>
+            <span>Data sorted from <b>newest</b> to <b>oldest</b>.</span><br><br>
+            <span>Highlights identify cells changed between runs.</span><br>
+            <span>⚠️ indicates conflicting classifications across the 3 sets.</span><br>
+            <span>Translucent emojis indicate partial agreement (60% = 1 set, 80% = 2 sets agree).</span>
         </div>
     </div>
     <div class="row-actions">
@@ -156,6 +324,35 @@
             <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
             <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
         </div>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block history_row_content %}
+<div class="history-flex-container">
+    <!-- 4 Vertical Tabs Navigation -->
+    <div class="history-tabs-nav">
+        <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}">
+            <span>Main</span>
+        </button>
+        <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}">
+            <span>Set 1</span>
+        </button>
+        <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}">
+            <span>Set 2</span>
+        </button>
+        <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}">
+            <span>Set 3</span>
+        </button>
+    </div>
+    
+    <!-- Tab Content Container -->
+    <div class="history-tabs-content">
+        {{ render_history_tab(paper, none, 'main', true) }}
+        {{ render_history_tab(paper, 1, 'set1', false) }}
+        {{ render_history_tab(paper, 2, 'set2', false) }}
+        {{ render_history_tab(paper, 3, 'set3', false) }}
     </div>
 </div>
 {% endblock %}

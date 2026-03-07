@@ -88,15 +88,17 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row 
     return conn
 
+
 def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_count=None):
     """Fetch papers from the database, applying various optional filters."""
     conn = get_db_connection()
     base_query = "SELECT p.* FROM papers p"
     conditions = []
     params = []
-
+    
     if hide_offtopic:
         conditions.append("(p.is_offtopic = 0 OR p.is_offtopic IS NULL)")
+    
     if year_from is not None:
         try:
             year_from = int(year_from)
@@ -104,6 +106,7 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
             params.append(year_from)
         except (ValueError, TypeError):
             pass
+    
     if year_to is not None:
         try:
             year_to = int(year_to)
@@ -111,6 +114,7 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
             params.append(year_to)
         except (ValueError, TypeError):
             pass
+    
     if min_page_count is not None:
         try:
             min_page_count = int(min_page_count)
@@ -118,71 +122,75 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
             params.append(min_page_count)
         except (ValueError, TypeError):
             pass
-
-    # --- Build Final Query ---
-    # Start with base query
+    
+    # Build Final Query
     query_parts = [base_query]
-
-    # Add WHERE clause if conditions exist
     if conditions:
         query_parts.append("WHERE " + " AND ".join(conditions))
-
-    # Add ORDER BY clause for user comments first
-    # This sorts rows where user_trace is NOT NULL and NOT empty string first
     query_parts.append("ORDER BY (p.user_trace IS NULL OR p.user_trace = '') ASC")
-
-    # Combine all parts
+    
     query = " ".join(query_parts)
-
+    
     try:
         papers = conn.execute(query, params).fetchall()
     except sqlite3.Error as e:
         conn.close()
         print(f"Database error during fetch_papers: {e}")
-        raise # Re-raise to be caught by the calling function (e.g., render_papers_table)
+        raise
     finally:
         conn.close()
-
-    # --- Process Results (Same as before) ---
+    
+    # Process Results
     paper_list = []
     for paper in papers:
         paper_dict = dict(paper)
+        
+        # Parse main JSON fields
         try:
-            paper_dict['features'] = json.loads(paper_dict['features'])
+            paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
         except (json.JSONDecodeError, TypeError):
             paper_dict['features'] = {}
+        
         try:
-            paper_dict['technique'] = json.loads(paper_dict['technique'])
+            paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
         except (json.JSONDecodeError, TypeError):
             paper_dict['technique'] = {}
-
-        paper_dict['pdf_filename'] = paper_dict.get('pdf_filename')     # Could be None or a string
-        paper_dict['pdf_state'] = paper_dict.get('pdf_state', 'none')   # Default state if not present
+        
+        # Parse main_certainty
+        try:
+            paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
+        except (json.JSONDecodeError, TypeError):
+            paper_dict['main_certainty'] = {}
+        
+        paper_dict['pdf_filename'] = paper_dict.get('pdf_filename')
+        paper_dict['pdf_state'] = paper_dict.get('pdf_state', 'none')
         paper_dict['changed_formatted'] = format_changed_timestamp(paper_dict.get('changed'))
-        # paper_dict['authors_truncated'] = truncate_authors(paper_dict.get('authors', ''))
+        
         paper_list.append(paper_dict)
     
     return paper_list
 
-
 def update_paper_custom_fields(paper_id, data, changed_by="user"):
-    """Update the custom classification fields for a paper and audit fields.
-    Handles partial updates based on keys present in `data`.
-    ALSO handles llm_log entry creation/consolidation and user_override_count."""
+    """
+    Update the custom classification fields for a paper.
+    User changes only affect main columns, not set_* columns.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
+    
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
     
-    # --- Fetch current state for logging and count calculation ---
+    # Fetch current state
     cursor.execute("""
         SELECT llm_log, user_override_count,
                last_llm_features, last_llm_technique, last_llm_is_survey, last_llm_is_offtopic,
                last_llm_is_through_hole, last_llm_is_smt, last_llm_is_x_ray, last_llm_relevance,
                last_llm_verified, last_llm_estimated_score,
                features, technique, is_survey, is_offtopic, is_through_hole, is_smt, is_x_ray,
-               relevance, verified, estimated_score, user_trace
+               relevance, verified, estimated_score, user_trace, main_certainty
         FROM papers WHERE id = ?
     """, (paper_id,))
+    
     row = cursor.fetchone()
     if not row:
         conn.close()
@@ -194,7 +202,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
      last_llm_verified, last_llm_estimated_score,
      current_features_str, current_technique_str, current_is_survey, current_is_offtopic,
      current_is_through_hole, current_is_smt, current_is_x_ray, current_relevance,
-     current_verified, current_estimated_score, current_user_trace) = row
+     current_verified, current_estimated_score, current_user_trace, current_certainty_str) = row
     
     # Parse existing log
     try:
@@ -202,29 +210,28 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     except json.JSONDecodeError:
         existing_log = []
     
-    # Parse last LLM data for count calculation
-    try:
-        last_llm_features = json.loads(last_llm_features_str) if last_llm_features_str else {}
-        last_llm_technique = json.loads(last_llm_technique_str) if last_llm_technique_str else {}
-    except json.JSONDecodeError:
-        last_llm_features = {}
-        last_llm_technique = {}
-    
-    # Parse current features/technique for building full state
+    # Parse current features/technique
     try:
         current_features = json.loads(current_features_str) if current_features_str else {}
     except:
         current_features = {}
+    
     try:
         current_technique = json.loads(current_technique_str) if current_technique_str else {}
     except:
         current_technique = {}
     
-    # --- Prepare Database Updates ---
+    # Parse current certainty
+    try:
+        certainty_map = json.loads(current_certainty_str) if current_certainty_str else {}
+    except:
+        certainty_map = {}
+    
+    # Prepare Database Updates
     update_fields = []
     update_values = []
     
-    # Handle features_ updates (partial update)
+    # Handle features_ updates
     feature_updates = {}
     for key in list(data.keys()):
         if key.startswith('features_'):
@@ -245,8 +252,12 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         current_features.update(feature_updates)
         update_fields.append("features = ?")
         update_values.append(json.dumps(current_features))
+        
+        # Set certainty to 'solid' for user-changed feature fields
+        for feature_key in feature_updates.keys():
+            certainty_map[f'features_{feature_key}'] = 'solid'
     
-    # Handle technique_ updates (partial update)
+    # Handle technique_ updates
     technique_updates = {}
     for key in list(data.keys()):
         if key.startswith('technique_'):
@@ -267,8 +278,12 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         current_technique.update(technique_updates)
         update_fields.append("technique = ?")
         update_values.append(json.dumps(current_technique))
+        
+        # Set certainty to 'solid' for user-changed technique fields
+        for tech_key in technique_updates.keys():
+            certainty_map[f'technique_{tech_key}'] = 'solid'
     
-    # Handle remaining direct field updates from data
+    # Handle main boolean field updates
     main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
     for field in main_bool_fields:
         if field in data:
@@ -277,20 +292,16 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 db_val = 1 if value.lower() in ('true', '1', 'on') else (0 if value.lower() in ('false', '0') else None)
             else:
                 db_val = 1 if value is True else (0 if value is False else None)
+            
             update_fields.append(f"{field} = ?")
             update_values.append(db_val)
-            if field == 'is_survey':
-                current_is_survey = db_val
-            elif field == 'is_offtopic':
-                current_is_offtopic = db_val
-            elif field == 'is_through_hole':
-                current_is_through_hole = db_val
-            elif field == 'is_smt':
-                current_is_smt = db_val
-            elif field == 'is_x_ray':
-                current_is_x_ray = db_val
+            
+            # Set certainty to 'solid' for user-changed fields
+            certainty_map[field] = 'solid'
+            
             data.pop(field)
     
+    # Handle other fields (research_area, page_count, relevance, user_trace, verified, estimated_score)
     if 'research_area' in data:
         update_fields.append("research_area = ?")
         update_values.append(data['research_area'])
@@ -310,13 +321,11 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     if 'relevance' in data:
         update_fields.append("relevance = ?")
         update_values.append(data['relevance'])
-        current_relevance = data['relevance']
         data.pop('relevance')
     
     if 'user_trace' in data:
         update_fields.append("user_trace = ?")
         update_values.append(data['user_trace'])
-        current_user_trace = data['user_trace']
         data.pop('user_trace')
     
     if 'verified' in data:
@@ -324,28 +333,20 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         db_val = 1 if val is True else (0 if val is False else None)
         update_fields.append("verified = ?")
         update_values.append(db_val)
-        current_verified = db_val
         data.pop('verified')
-
+    
     if 'estimated_score' in data:
         val = data['estimated_score']
         db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) else None
         update_fields.append("estimated_score = ?")
         update_values.append(db_val)
-        current_estimated_score = db_val
         data.pop('estimated_score')
-
-    # ============================================
-    # Verification Reset Logic
-    # ============================================
-    # --- Handle Verification Reset on User Edit ---
-    # If paper was verified by LLM (not user), reset verification on user edit
-    # If paper was verified by user, keep verification status
+    
+    # Verification Reset Logic (if changed by user and was verified by LLM)
     if changed_by == "user":
         cursor.execute("SELECT verified_by FROM papers WHERE id = ?", (paper_id,))
         current_verified_by = cursor.fetchone()[0]
         
-        # Reset verification only if it was done by a model (not user)
         if current_verified_by and current_verified_by != 'user':
             update_fields.append("verified = ?")
             update_values.append(None)
@@ -353,22 +354,21 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(None)
             update_fields.append("verified_by = ?")
             update_values.append("")
-
-    user_override_count = 0
-
+    
+    # Calculate user_override_count
     BOOLEAN_FEATURE_KEYS = [
         'tracks', 'holes', 'bare_pcb_other', 'solder_insufficient',
         'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
         'orientation', 'wrong_component', 'missing_component',
         'component_other', 'cosmetic'
     ]
-
+    
     BOOLEAN_TECHNIQUE_KEYS = [
         'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
         'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
         'dl_other', 'hybrid', 'available_dataset'
     ]
-
+    
     def normalize_bool(val):
         if val is None or val == '' or val == 'null':
             return None
@@ -376,40 +376,55 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             return 1
         if val is False or val == 0 or val == '0' or val == 'false':
             return 0
-        return val
-
-    # Check Features (13 boolean fields only)
+        return None
+    
+    user_override_count = 0
+    
+    # Parse last_llm data for comparison
+    try:
+        last_llm_features = json.loads(last_llm_features_str) if last_llm_features_str else {}
+    except:
+        last_llm_features = {}
+    
+    try:
+        last_llm_technique = json.loads(last_llm_technique_str) if last_llm_technique_str else {}
+    except:
+        last_llm_technique = {}
+    
+    # Check Features
     for key in BOOLEAN_FEATURE_KEYS:
         current_val = normalize_bool(current_features.get(key))
         llm_val = normalize_bool(last_llm_features.get(key))
         if current_val != llm_val:
             user_override_count += 1
-
-    # Check Technique (9 boolean fields only)
+    
+    # Check Technique
     for key in BOOLEAN_TECHNIQUE_KEYS:
         current_val = normalize_bool(current_technique.get(key))
         llm_val = normalize_bool(last_llm_technique.get(key))
         if current_val != llm_val:
             user_override_count += 1
-
-    # Check Main Boolean Fields (5 fields)
+    
+    # Check Main Boolean Fields
     for field in ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']:
         current_val = normalize_bool(locals()[f'current_{field}'])
         llm_val = normalize_bool(locals()[f'last_llm_{field}'])
         if current_val != llm_val:
             user_override_count += 1
-
+    
     # Audit fields
     update_fields.append("changed = ?")
     update_values.append(changed_timestamp)
     update_fields.append("changed_by = ?")
     update_values.append(changed_by)
-    
-    # Update override count
     update_fields.append("user_override_count = ?")
     update_values.append(user_override_count)
     
-    # --- Prepare User Log Entry (FULL STATE SNAPSHOT) ---
+    # Update main_certainty
+    update_fields.append("main_certainty = ?")
+    update_values.append(json.dumps(certainty_map))
+    
+    # Prepare User Log Entry
     def db_to_bool(val):
         if val == 1:
             return True
@@ -418,7 +433,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         else:
             return None
     
-    # Build FULL state snapshot (matching classifier output structure)
     user_log_output = {
         "is_offtopic": db_to_bool(current_is_offtopic),
         "relevance": current_relevance,
@@ -429,33 +443,32 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         "features": current_features if current_features else {},
         "technique": current_technique if current_technique else {},
         "verified": db_to_bool(current_verified),
-        "estimated_score": current_estimated_score
+        "estimated_score": current_estimated_score,
+        "certainty_map": certainty_map  # Include certainty in user log entries
     }
     
-    # KEY FIX: Store output as JSON STRING (like classifier entries), not as dict
     user_log_entry = {
         "timestamp": changed_timestamp,
         "type": "user",
         "model": "user",
         "trace": current_user_trace or "",
-        "output": json.dumps(user_log_output),  # <-- Store as JSON STRING
+        "output": json.dumps(user_log_output),
         "valid": True
     }
     
-    # --- Consolidate or Append User Log Entry ---
+    # Consolidate or Append User Log Entry
     if existing_log and existing_log[-1].get('type') == 'user':
         last_user_entry = existing_log[-1]
-        # Replace entire output with current full state (as JSON string)
         last_user_entry['output'] = json.dumps(user_log_output)
         last_user_entry['trace'] = current_user_trace or ""
         last_user_entry['timestamp'] = changed_timestamp
     else:
         existing_log.append(user_log_entry)
     
-    # --- Update Database ---
     update_fields.append("llm_log = ?")
     update_values.append(json.dumps(existing_log))
     
+    # Execute Update
     if update_fields:
         update_values.append(paper_id)
         update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
@@ -471,11 +484,10 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         updated_paper = globals.get_paper_by_id(DATABASE, paper_id)
         if updated_paper:
             updated_paper['changed_formatted'] = format_changed_timestamp(updated_paper.get('changed'))
-            
             return_data = {
                 'status': 'success',
                 'changed': updated_paper.get('changed'),
-                'changed_formatted': updated_paper.get('changed_formatted'), 
+                'changed_formatted': updated_paper.get('changed_formatted'),
                 'changed_by': updated_paper.get('changed_by'),
                 'research_area': updated_paper.get('research_area'),
                 'page_count': updated_paper.get('page_count'),
@@ -489,16 +501,18 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 'technique': updated_paper.get('technique', {}),
                 'user_trace': updated_paper.get('user_trace'),
                 'user_override_count': updated_paper.get('user_override_count'),
-                'verified': updated_paper.get('verified'),           # ← Ensure this exists
-                'verified_by': updated_paper.get('verified_by'),     # ← Ensure this exists
-                'estimated_score': updated_paper.get('estimated_score')
+                'verified': updated_paper.get('verified'),
+                'verified_by': updated_paper.get('verified_by'),
+                'estimated_score': updated_paper.get('estimated_score'),
+                'main_certainty': certainty_map
             }
             return return_data
         else:
             return {'status': 'error', 'message': 'Paper not found after update.'}
     else:
         return {'status': 'error', 'message': 'No rows updated.'}
-        
+    
+         
 def fetch_updated_paper_data(paper_id):
     """Fetches the full paper data after classification/verification for client-side update."""
     conn = get_db_connection()
@@ -1044,13 +1058,27 @@ def run_verification_subprocess(mode, paper_id, db_file):
         print(f"Error: Python interpreter or script 'verify_classification.py' not found.")
     except Exception as e:
         print(f"Error starting verification subprocess: {e}")
-
-
-def prepare_history_log_data(paper_dict):
+        
+def prepare_history_log_data(paper_dict, set_num=None):
     """
     Prepares llm_log data for history row rendering.
+    Each entry uses its OWN stored certainty_map, not current paper.main_certainty.
+    
+    Args:
+        paper_dict: Paper data dictionary
+        set_num: None for main log, 1/2/3 for set-specific logs
+    
+    Returns:
+        List of processed log entries
     """
-    raw_log = paper_dict.get('llm_log', '[]')
+    # Determine which log column to use
+    if set_num and set_num in [1, 2, 3]:
+        raw_log = paper_dict.get(f'set_{set_num}_llm_log', '[]')
+        has_certainty = False  # Set logs don't have certainty
+    else:
+        raw_log = paper_dict.get('llm_log', '[]')
+        has_certainty = True  # Main log has certainty_map
+    
     try:
         log_entries = json.loads(raw_log) if raw_log else []
     except (json.JSONDecodeError, TypeError):
@@ -1069,17 +1097,12 @@ def prepare_history_log_data(paper_dict):
                 entry['output'] = {}
         except (json.JSONDecodeError, TypeError, AttributeError):
             entry['output'] = {}
-        
         entry['valid'] = bool(entry.get('valid', False))
-        
-        # Ensure timestamp exists (don't generate new ones - breaks map lookup)
-        # if 'timestamp' not in entry or not entry['timestamp']:
-        #     entry['timestamp'] = f"missing_{id(entry)}"
     
     # PASS 1: Ascending order - Mark changed cells (valid entries only)
-    table_entries = [e for e in log_entries 
-                     if e.get('type') in ['classifier', 'consensus', 'user'] 
-                     and e.get('valid', False)]
+    table_entries = [e for e in log_entries
+                    if e.get('type') in ['classifier', 'consensus', 'user']
+                    and e.get('valid', False)]
     
     for i in range(len(table_entries)):
         current = table_entries[i]
@@ -1097,7 +1120,7 @@ def prepare_history_log_data(paper_dict):
                 current_output = {}
             
             # Compare main fields
-            for field in ['is_offtopic', 'relevance', 'is_survey', 
+            for field in ['is_offtopic', 'relevance', 'is_survey',
                          'is_through_hole', 'is_smt', 'is_x_ray']:
                 if current_output.get(field) != older_output.get(field):
                     current['changed_fields'].add(field)
@@ -1122,24 +1145,31 @@ def prepare_history_log_data(paper_dict):
     
     # Create timestamp → changed_fields map
     changed_fields_map = {
-        entry['timestamp']: entry.get('changed_fields', set()) 
+        entry['timestamp']: entry.get('changed_fields', set())
         for entry in table_entries
     }
     
     # PASS 2: Reverse for UI, attach verifiers
     log_entries.reverse()
+    
     processed_entries = []
     cached_verifier = None
-    
     for entry in log_entries:
         entry_type = entry.get('type', '')
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
+        
+        # Use entry's OWN stored certainty_map, don't overwrite with current
+        # Only calculate if entry doesn't already have one stored
+        if has_certainty and entry_type in ['classifier', 'consensus', 'user']:
+            if 'certainty_map' not in entry:
+                # Fallback for old entries without stored certainty
+                entry['certainty_map'] = paper_dict.get('main_certainty', {})
+            # else: entry already has its own certainty_map from when it was created
         
         if entry_type == 'verifier':
             verifier_output = entry.get('output', {}) or {}
             if not isinstance(verifier_output, dict):
                 verifier_output = {}
-            
             cached_verifier = {
                 'verified': verifier_output.get('verified'),
                 'estimated_score': verifier_output.get('estimated_score'),
@@ -1821,30 +1851,43 @@ def get_detail_row():
 app.jinja_env.filters['format_changed_timestamp'] = format_changed_timestamp
 
 
-# Update the get_history_row endpoint in browse_db.py
 @app.route('/get_history_row', methods=['GET'])
 def get_history_row():
     """Endpoint to fetch and render the history row content for a specific paper."""
     paper_id = request.args.get('paper_id')
     if not paper_id:
         return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+    
     try:
         conn = get_db_connection()
         paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         conn.close()
+        
         if paper:
             paper_dict = dict(paper)
+            
+            # Parse main JSON fields
             try:
                 paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
             except (json.JSONDecodeError, TypeError):
                 paper_dict['features'] = {}
+            
             try:
                 paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
             except (json.JSONDecodeError, TypeError):
                 paper_dict['technique'] = {}
             
-            # Prepare log data for template - parse output JSON and pair verifiers
-            paper_dict['llm_log_entries'] = prepare_history_log_data(paper_dict)
+            # Parse main_certainty
+            try:
+                paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
+            except (json.JSONDecodeError, TypeError):
+                paper_dict['main_certainty'] = {}
+            
+            # Prepare ALL 4 logs using the SAME function
+            paper_dict['llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=None)
+            paper_dict['set_1_llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=1)
+            paper_dict['set_2_llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=2)
+            paper_dict['set_3_llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=3)
             
             # Render the history row template
             history_html = render_template('history_row.html', paper=paper_dict)
@@ -1853,8 +1896,9 @@ def get_history_row():
             return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
     except Exception as e:
         print(f"Error fetching history row for paper {paper_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 500
+        return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 50
     
+
 @app.route('/load_table', methods=['GET'])
 def load_table():
     """Endpoint to fetch and render the table content based on current filters."""

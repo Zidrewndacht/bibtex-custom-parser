@@ -814,25 +814,33 @@ document.addEventListener('DOMContentLoaded', function () {
     //server-side search removed for now as FTS is broken. Using full-client-side search instead (filtering.js, shared with HTML export):
 
     // Click Handler for Editable Status Cells
+
     document.addEventListener('click', function (event) {
-        // Check if the clicked element is an editable status cell
-        if (event.target.classList.contains('editable-status')) {
-            const cell = event.target;
-            const currentText = cell.textContent.trim();
+        const cell = event.target.closest('.editable-status');
+        if (cell) {
+            const currentText = cell.querySelector('.emoji-content')?.textContent.trim() 
+                            || cell.textContent.trim();
             const field = cell.getAttribute('data-field');
-            const row = cell.closest('tr[data-paper-id]'); // Find the parent row with the paper ID
+            const row = cell.closest('tr[data-paper-id]');
             const paperId = row ? row.getAttribute('data-paper-id') : null;
+            
             if (!paperId) {
                 console.error('Paper ID not found for clicked cell.');
                 return;
             }
+            
             // Find the next status in the general cycle
             const nextStatusInfo = STATUS_CYCLE[currentText];
             if (!nextStatusInfo) {
                 console.error('Unknown status symbol:', currentText);
-                // default to unknown if symbol is unrecognized
                 const defaultNextStatusInfo = STATUS_CYCLE['❔'];
-                cell.textContent = defaultNextStatusInfo.next;
+                // Update display
+                const emojiSpan = cell.querySelector('.emoji-content');
+                if (emojiSpan) {
+                    emojiSpan.textContent = defaultNextStatusInfo.next;
+                } else {
+                    cell.textContent = defaultNextStatusInfo.next;
+                }
                 // Prepare data for AJAX using the default value
                 const dataToSend = {
                     id: paperId,
@@ -841,24 +849,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field);
                 return;
             }
+            
             const nextSymbol = nextStatusInfo.next;
             const nextValue = nextStatusInfo.value;
-
-            // 1. Immediately update the UI (for general fields)
-            cell.textContent = nextSymbol;
-            cell.style.backgroundColor = '#f9e79f'; // Light yellow flash
+            
+            // Update the UI immediately
+            const emojiSpan = cell.querySelector('.emoji-content');
+            if (emojiSpan) {
+                emojiSpan.textContent = nextSymbol;
+            } else {
+                cell.textContent = nextSymbol;
+            }
+            cell.style.backgroundColor = '#f9e79f';
             setTimeout(() => {
-                 // Ensure we only reset the background if it hasn't changed again
-                 if (cell.textContent === nextSymbol) {
-                     cell.style.backgroundColor = ''; // Reset to default
-                 }
+                if ((emojiSpan?.textContent.trim() || cell.textContent.trim()) === nextSymbol) {
+                    cell.style.backgroundColor = '';
+                }
             }, 300);
-
-            // 2. Prepare data for the AJAX request (for general fields)
+            
+            // Prepare data for AJAX
             const dataToSend = {
                 id: paperId,
                 [field]: nextValue
             };
+            
             sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field);
         }
     });

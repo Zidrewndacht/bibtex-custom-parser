@@ -600,16 +600,23 @@ function applyLocalFilters() {
             }
 
             /* ----------------------------------------------------
-                2c.  queue the visibility change (no DOM touch yet)
+            2c.  queue the visibility change (no DOM touch yet)
             ---------------------------------------------------- */
-            const detailRow = row.nextElementSibling;
+            const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ?
+                row.nextElementSibling : null;
+            const historyRow = detailRow && detailRow.nextElementSibling &&
+                detailRow.nextElementSibling.classList.contains('history-row') ?
+                detailRow.nextElementSibling : null;
             const hide = !showRow;
-
             if (row.classList.contains('filter-hidden') !== hide) {
                 (hide ? toHide : toShow).push(row);
             }
             if (detailRow && detailRow.classList.contains('filter-hidden') !== hide) {
                 (hide ? toHide : toShow).push(detailRow);
+            }
+            // Also hide/show the history row when parent is filtered
+            if (historyRow && historyRow.classList.contains('filter-hidden') !== hide) {
+                (hide ? toHide : toShow).push(historyRow);
             }
         }
 
@@ -1287,6 +1294,42 @@ function copyLatexLongtable() {
         });
 }
 
+/**
+ * Switches between history tabs (Main, Set 1, Set 2, Set 3)
+ * Pure client-side - no server communication needed
+ * @param {HTMLElement} tabButton - The clicked tab button element
+ */
+function switchHistoryTab(tabButton) {
+    const paperId = tabButton.getAttribute('data-paper-id');
+    const selectedTab = tabButton.getAttribute('data-tab');
+    
+    // Find the history row container
+    const historyRow = document.querySelector(`#history-tab-main-${paperId}`)?.closest('.history-flex-container');
+    if (!historyRow) {
+        console.error(`History container not found for paper ${paperId}`);
+        return;
+    }
+    
+    // Remove active class from all tabs
+    historyRow.querySelectorAll('.history-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Remove active class from all tab panels
+    historyRow.querySelectorAll('.history-tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    
+    // Add active class to selected tab
+    tabButton.classList.add('active');
+    
+    // Add active class to selected tab panel
+    const selectedPanel = historyRow.querySelector(`#history-tab-${selectedTab}-${paperId}`);
+    if (selectedPanel) {
+        selectedPanel.classList.add('active');
+    }
+}
+
 
 // Existing DOMContentLoaded listener and other code follows...
 document.addEventListener('DOMContentLoaded', function () {
@@ -1333,6 +1376,13 @@ document.addEventListener('DOMContentLoaded', function () {
         header.addEventListener('click', sortTable);
     });
     
+    // Event delegation for history tab switching
+    document.addEventListener('click', function(event) {
+        const tabButton = event.target.closest('.history-tab-btn');
+        if (tabButton) {
+            switchHistoryTab(tabButton);
+        }
+    });
     applyLocalFilters(); // Apply initial filtering
     updateSurveyCheckboxUI();
 }); 
