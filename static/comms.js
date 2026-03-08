@@ -111,6 +111,31 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
             // 4. Update other relevant cells in the row based on the response
             const mainRow = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (mainRow) {
+                if (data.main_certainty) {
+                    for (const [fieldName, certainty] of Object.entries(data.main_certainty)) {
+                        const cell = mainRow.querySelector(`[data-field="${fieldName}"]`);
+                        if (cell) {
+                            // Remove old certainty classes
+                            cell.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
+                            // Add new certainty class
+                            if (certainty && certainty !== 'solid') {
+                                cell.classList.add(`certainty-${certainty}`);
+                            }
+                            // Handle conflict warning
+                            const emojiSpan = cell.querySelector('.emoji-content');
+                            const conflictWarning = cell.querySelector('.conflict-warning');
+                            if (certainty === 'conflict') {
+                                if (emojiSpan) emojiSpan.style.display = 'none';
+                                if (!conflictWarning) {
+                                    cell.innerHTML = '<span class="conflict-warning">⚠️</span>';
+                                }
+                            } else {
+                                if (emojiSpan) emojiSpan.style.display = '';
+                                if (conflictWarning) conflictWarning.remove();
+                            }
+                        }
+                    }
+                }
                 // Update audit fields (using formatted timestamp sent back)
                 if (data.changed_formatted !== undefined) {
                     mainRow.querySelector('.changed-cell').textContent = data.changed_formatted;

@@ -283,8 +283,12 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         for tech_key in technique_updates.keys():
             certainty_map[f'technique_{tech_key}'] = 'solid'
     
-    # Handle main boolean field updates
+    # Handle remaining direct field updates from data
     main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
+
+    # Track which fields were updated and their new values
+    updated_main_fields = {}
+
     for field in main_bool_fields:
         if field in data:
             value = data[field]
@@ -296,11 +300,26 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_fields.append(f"{field} = ?")
             update_values.append(db_val)
             
-            # Set certainty to 'solid' for user-changed fields
+            # Track updated value for log output
+            updated_main_fields[field] = db_val
+            
+            # === Set certainty to 'solid' for user-changed main fields ===
             certainty_map[field] = 'solid'
             
+            # Also update the current_* variables for backward compatibility
+            if field == 'is_survey':
+                current_is_survey = db_val
+            elif field == 'is_offtopic':
+                current_is_offtopic = db_val
+            elif field == 'is_through_hole':
+                current_is_through_hole = db_val
+            elif field == 'is_smt':
+                current_is_smt = db_val
+            elif field == 'is_x_ray':
+                current_is_x_ray = db_val
+            
             data.pop(field)
-    
+
     # Handle other fields (research_area, page_count, relevance, user_trace, verified, estimated_score)
     if 'research_area' in data:
         update_fields.append("research_area = ?")
@@ -424,7 +443,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     update_fields.append("main_certainty = ?")
     update_values.append(json.dumps(certainty_map))
     
-    # Prepare User Log Entry
+
+    # --- Prepare User Log Entry (FULL STATE SNAPSHOT) ---
     def db_to_bool(val):
         if val == 1:
             return True
@@ -432,29 +452,32 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             return False
         else:
             return None
-    
+
+    # Build FULL state snapshot using tracked updated values
     user_log_output = {
-        "is_offtopic": db_to_bool(current_is_offtopic),
+        "is_offtopic": db_to_bool(updated_main_fields.get('is_offtopic', current_is_offtopic)),
         "relevance": current_relevance,
-        "is_survey": db_to_bool(current_is_survey),
-        "is_through_hole": db_to_bool(current_is_through_hole),
-        "is_smt": db_to_bool(current_is_smt),
-        "is_x_ray": db_to_bool(current_is_x_ray),
+        "is_survey": db_to_bool(updated_main_fields.get('is_survey', current_is_survey)),
+        "is_through_hole": db_to_bool(updated_main_fields.get('is_through_hole', current_is_through_hole)),
+        "is_smt": db_to_bool(updated_main_fields.get('is_smt', current_is_smt)),
+        "is_x_ray": db_to_bool(updated_main_fields.get('is_x_ray', current_is_x_ray)),
         "features": current_features if current_features else {},
         "technique": current_technique if current_technique else {},
         "verified": db_to_bool(current_verified),
-        "estimated_score": current_estimated_score,
-        "certainty_map": certainty_map  # Include certainty in user log entries
+        "estimated_score": current_estimated_score
     }
-    
+
+    # FIX: Include certainty_map in the log entry itself
     user_log_entry = {
         "timestamp": changed_timestamp,
         "type": "user",
         "model": "user",
         "trace": current_user_trace or "",
         "output": json.dumps(user_log_output),
-        "valid": True
+        "valid": True,
+        "certainty_map": certainty_map  # ← ADDED: Snapshot certainty at time of user change
     }
+
     
     # Consolidate or Append User Log Entry
     if existing_log and existing_log[-1].get('type') == 'user':
@@ -1101,7 +1124,7 @@ def prepare_history_log_data(paper_dict, set_num=None):
     
     # PASS 1: Ascending order - Mark changed cells (valid entries only)
     table_entries = [e for e in log_entries
-                    if e.get('type') in ['classifier', 'consensus', 'user']
+                    if e.get('type') in ['classifier', 'consensus', 'averaged_llm', 'user']
                     and e.get('valid', False)]
     
     for i in range(len(table_entries)):
@@ -1151,20 +1174,12 @@ def prepare_history_log_data(paper_dict, set_num=None):
     
     # PASS 2: Reverse for UI, attach verifiers
     log_entries.reverse()
-    
     processed_entries = []
     cached_verifier = None
+
     for entry in log_entries:
         entry_type = entry.get('type', '')
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
-        
-        # Use entry's OWN stored certainty_map, don't overwrite with current
-        # Only calculate if entry doesn't already have one stored
-        if has_certainty and entry_type in ['classifier', 'consensus', 'user']:
-            if 'certainty_map' not in entry:
-                # Fallback for old entries without stored certainty
-                entry['certainty_map'] = paper_dict.get('main_certainty', {})
-            # else: entry already has its own certainty_map from when it was created
         
         if entry_type == 'verifier':
             verifier_output = entry.get('output', {}) or {}

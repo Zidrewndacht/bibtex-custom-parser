@@ -42,7 +42,7 @@
         {% endif %}
     </td>
     
-    <td class="secondary-text-cell number-cell">{{ paper.relevance or '' }}</td>
+    <td class="secondary-text-cell number-cell">{{ (paper.relevance|round(1)|string).rstrip('0').rstrip('.') if paper.relevance else '' }}</td>    
     
     <td class="status-cell editable-status certainty-{{ certainty.get('is_survey', 'solid') }}" data-field="is_survey">
         {% if certainty.get('is_survey') == 'conflict' %}

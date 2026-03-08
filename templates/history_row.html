@@ -77,7 +77,7 @@
         </colgroup>
         <tbody>
             {% for entry in log_entries %}
-            {% if entry.type in ['classifier', 'consensus', 'user'] and entry.valid %}
+            {% if entry.type in ['classifier', 'consensus', 'averaged_llm', 'user'] and entry.valid %}
             <tr>
                 {% set data = entry.output %}
                 {% set changed = entry.changed_fields %}
@@ -91,7 +91,7 @@
                         <span class="emoji-content">{{ data.is_offtopic | render_status }}</span>
                     {% endif %}
                 </td>
-                <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">{{ data.relevance if data.relevance is not none else '' }}</td>
+                <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">{{ (data.relevance|round(1)|string).rstrip('0').rstrip('.') if data.relevance is not none else '' }}</td>
                 <td class="status-cell certainty-{{ certainty.get('is_survey', 'solid') }}{% if 'is_survey' in changed %} cell-changed{% endif %}">
                     {% if certainty.get('is_survey') == 'conflict' %}
                         <span class="conflict-warning">⚠️</span>

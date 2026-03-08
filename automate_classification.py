@@ -6,7 +6,7 @@ import argparse
 import time
 import os
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import queue
 import threading
 import signal
@@ -98,59 +98,37 @@ def build_reclassification_prompt(paper_data, template_content):
         print(f"Error formatting reclassification prompt: Missing key {e} in paper data or template expects it.")
         raise
 
-
-def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None, 
-                          success_flag=False, json_result_str="", model_name_used="Unknown", set_num=None):
-    """
-    UPDATED: Updates paper classification fields for a specific set.
-    Added set_num parameter to target set_1_*, set_2_*, or set_3_* columns.
-    """
+def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoning_trace=None, success_flag=False, json_result_str="", model_name_used="Unknown"):
+    """Updates paper classification fields and the continuous log in the database."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
     
-    # Determine column prefix based on set_num
-    if set_num and set_num in [1, 2, 3]:
-        prefix = f'set_{set_num}_'
-        log_column = f'set_{set_num}_llm_log'
-    else:
-        # Fallback to main columns if no set_num specified (shouldn't happen in triple-set mode)
-        prefix = 'last_llm_'
-        log_column = 'llm_log'
-    
     # --- Fetch current state for logging ---
-    cursor.execute(f"SELECT {log_column} FROM papers WHERE id = ?", (paper_id,))
+    cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
     row = cursor.fetchone()
     if not row:
         print(f"Error: Paper {paper_id} not found for LLM update.")
         conn.close()
         return False
     
-    current_log_str = row[0]
+    current_llm_log_str = row[0]
     try:
-        existing_log = json.loads(current_log_str) if current_log_str else []
+        existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
     except json.JSONDecodeError:
         existing_log = []
     
-    
-    # === KEY FIX: Calculate and embed certainty_map for THIS log entry ===
-    certainty_map = {}
-    if success_flag and set_num:
-        # Recalculate main set and get the certainty_map snapshot
-        certainty_map = globals.recalculate_main_set(paper_id, db_path)
-    
-    # Prepare LLM Log Entry WITH certainty_map
+    # --- Prepare LLM Log Entry (ALWAYS created, even on failure) ---
     llm_log_entry = {
         "timestamp": changed_timestamp,
         "type": "classifier",
         "model": model_name_used,
         "trace": reasoning_trace or "",
         "output": json_result_str if json_result_str else "{}",
-        "valid": success_flag,
-        "set_num": set_num,
-        "certainty_map": certainty_map  # ← EMBEDDED CERTAINTY SNAPSHOT
+        "valid": success_flag
     }
     
+    # --- Append Log Entry ---
     existing_log.append(llm_log_entry)
     
     # --- Prepare Database Updates ---
@@ -158,25 +136,24 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
     update_values = []
     
     if success_flag and llm_data:
-        # Main Boolean Fields (for main display - will be overwritten by recalculate_main_set)
+        # Main Boolean Fields
         main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
         for field in main_bool_fields:
             if field in llm_data:
                 value = llm_data[field]
-                # Update set-specific column
-                update_fields.append(f"{prefix}{field} = ?")
+                update_fields.append(f"{field} = ?")
                 update_values.append(1 if value is True else 0 if value is False else None)
         
         # Research Area and Relevance
         if 'research_area' in llm_data:
-            update_fields.append(f"{prefix}research_area = ?")
+            update_fields.append("research_area = ?")
             update_values.append(llm_data['research_area'])
         
         if 'relevance' in llm_data:
-            update_fields.append(f"{prefix}relevance = ?")
+            update_fields.append("relevance = ?")
             update_values.append(llm_data['relevance'])
         
-        # Features (JSON)
+        # === FIXED: Features (Direct assignment, NOT merge) ===
         if 'features' in llm_data:
             if llm_data['features'] is None:
                 features_value = None
@@ -184,10 +161,10 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
                 features_value = json.dumps(llm_data['features'])
             else:
                 features_value = None
-            update_fields.append(f"{prefix}features = ?")
+            update_fields.append("features = ?")
             update_values.append(features_value)
         
-        # Technique (JSON)
+        # === FIXED: Technique (Direct assignment, NOT merge) ===
         if 'technique' in llm_data:
             if llm_data['technique'] is None:
                 technique_value = None
@@ -195,55 +172,59 @@ def update_paper_from_llm(db_path, paper_id, llm_data, changed_by="LLM", reasoni
                 technique_value = json.dumps(llm_data['technique'])
             else:
                 technique_value = None
-            update_fields.append(f"{prefix}technique = ?")
+            update_fields.append("technique = ?")
             update_values.append(technique_value)
+        
+        # Reset verification fields on new classification
+        update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
+        update_values.extend([None, None, ""])
         
         # Audit fields
         update_fields.extend(["changed = ?", "changed_by = ?"])
         update_values.extend([changed_timestamp, changed_by])
         
-        # Update set-specific log
-        update_fields.append(f"{log_column} = ?")
-        update_values.append(json.dumps(existing_log))
+        # Reset user override count (LLM overwrites user state)
+        update_fields.append("user_override_count = ?")
+        update_values.append(0)
         
-        # Recalculate main set after updating this set
-        # (Done after DB commit to ensure data is available)
-        recalculate_main = True
+        # Update last_llm_* cache fields (mirror main field updates)
+        for field in main_bool_fields:
+            if field in llm_data:
+                value = llm_data[field]
+                update_fields.append(f"last_llm_{field} = ?")
+                update_values.append(1 if value is True else 0 if value is False else None)
+        
+        # === FIXED: last_llm_features (Direct assignment, NOT merge) ===
+        if 'features' in llm_data:
+            update_fields.append("last_llm_features = ?")
+            update_values.append(features_value)
+        
+        # === FIXED: last_llm_technique (Direct assignment, NOT merge) ===
+        if 'technique' in llm_data:
+            update_fields.append("last_llm_technique = ?")
+            update_values.append(technique_value)
+        
+        if 'relevance' in llm_data:
+            update_fields.append("last_llm_relevance = ?")
+            update_values.append(llm_data['relevance'])
+    
     else:
-        # On failure, still update audit fields and log
+        # On failure, still update audit fields
         update_fields.extend(["changed = ?", "changed_by = ?"])
         update_values.extend([changed_timestamp, changed_by])
-        update_fields.append(f"{log_column} = ?")
-        update_values.append(json.dumps(existing_log))
-        recalculate_main = False
-    
-    # Update llm_log
-    update_fields.append("llm_log = ?")
-    update_values.append(json.dumps(existing_log))
     
     # --- Update Database ---
-    update_values.append(paper_id)
-    update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
+    update_values.extend([json.dumps(existing_log), paper_id])
+    update_query = f"UPDATE papers SET {', '.join(update_fields)}, llm_log = ? WHERE id = ?"
     cursor.execute(update_query, update_values)
     conn.commit()
-    
-    # Recalculate main set if successful
-    if recalculate_main:
-        try:
-            globals.recalculate_main_set(paper_id, db_path)
-        except Exception as e:
-            print(f"Warning: Failed to recalculate main set for paper {paper_id}: {e}")
-    
     rows_affected = cursor.rowcount
     conn.close()
+    
     return rows_affected > 0
 
-
-def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progress_lock, 
-                         processed_count, total_papers, model_alias, reclassification_mode=False):
-    """
-    UPDATED: Worker function that classifies all 3 sets for each paper in parallel.
-    """
+def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progress_lock, processed_count, total_papers, model_alias, reclassification_mode=False):
+    """Worker function executed by each thread."""
     while True:
         try:
             paper_id = paper_id_queue.get(timeout=1)
@@ -251,118 +232,122 @@ def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progr
             if globals.is_shutdown_flag_set():
                 return
             continue
-        
+
         if paper_id is None:
             return
-        
+
         if globals.is_shutdown_flag_set():
             return
-        
+
         print(f"[Thread-{threading.get_ident()}] Processing paper ID: {paper_id}")
-        
+
         try:
             paper_data = globals.get_paper_by_id(db_path, paper_id)
             if not paper_data:
                 error_msg = f"Paper {paper_id} not found in DB."
                 print(f"[Thread-{threading.get_ident()}] Error: {error_msg}")
-                # Log error for all 3 sets
-                for set_num in [1, 2, 3]:
-                    update_paper_from_llm(
-                        db_path, paper_id, {}, changed_by="Error",
-                        reasoning_trace=error_msg, success_flag=False,
-                        json_result_str="", model_name_used=model_alias, set_num=set_num
-                    )
+                # Log the error
+                update_paper_from_llm(
+                    db_path,
+                    paper_id,
+                    {},
+                    changed_by="Error",
+                    reasoning_trace=error_msg,
+                    success_flag=False,
+                    json_result_str="",
+                    model_name_used=model_alias
+                )
                 continue
-            
-            # Build prompt (same for all 3 sets - randomness comes from LLM)
+
             if reclassification_mode:
                 prompt_text = build_reclassification_prompt(paper_data, prompt_template_content)
             else:
                 prompt_text = build_prompt(paper_data, prompt_template_content)
-            
+
             if globals.is_shutdown_flag_set():
                 return
-            
-            # --- Classify all 3 sets in parallel ---
-            set_results = {}
-            
-            with ThreadPoolExecutor(max_workers=3) as set_executor:
-                # Submit classification tasks for all 3 sets
-                set_futures = {
-                    set_executor.submit(
-                        globals.send_prompt_to_llm,
-                        prompt_text,
-                        server_url_base=globals.LLM_SERVER_URL,
-                        model_name=model_alias,
-                        is_verification=False
-                    ): set_num for set_num in [1, 2, 3]
-                }
-                
-                for future in as_completed(set_futures):
-                    set_num = set_futures[future]
-                    try:
-                        json_result_str, model_name_used, reasoning_trace = future.result()
-                        set_results[set_num] = (json_result_str, model_name_used, reasoning_trace)
-                    except Exception as e:
-                        print(f"[Thread-{threading.get_ident()}] Set {set_num} classification error: {e}")
-                        set_results[set_num] = (None, model_alias, str(e))
-            
+
+            # --- LLM Call ---
+            json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
+                prompt_text,
+                server_url_base=globals.LLM_SERVER_URL,
+                model_name=model_alias,
+                is_verification=False
+            )
+
             if globals.is_shutdown_flag_set():
                 return
-            
-            # --- Process results for each set ---
-            for set_num in [1, 2, 3]:
-                json_result_str, model_name_used, reasoning_trace = set_results.get(set_num, (None, model_alias, "Error"))
-                
-                if json_result_str:
-                    try:
-                        llm_classification = json.loads(json_result_str)
-                        if reasoning_trace:
-                            reasoning_trace = f"As classified by {model_name_used}\n{reasoning_trace}"
-                        else:
-                            reasoning_trace = f"As classified by {model_name_used}"
-                        
-                        success = update_paper_from_llm(
-                            db_path, paper_id, llm_classification,
-                            changed_by=model_name_used, reasoning_trace=reasoning_trace,
-                            success_flag=True, json_result_str=json_result_str,
-                            model_name_used=model_name_used, set_num=set_num
-                        )
-                        
-                        if success:
-                            print(f"[Thread-{threading.get_ident()}] Updated paper {paper_id} Set {set_num} (Model: {model_name_used})")
-                        else:
-                            print(f"[Thread-{threading.get_ident()}] Failed to update paper {paper_id} Set {set_num} (DB error)")
-                    
-                    except json.JSONDecodeError as e:
-                        error_msg = f"Error parsing LLM output: {str(e)}\nLLM Output:\n{json_result_str}"
-                        print(f"[Thread-{threading.get_ident()}] {error_msg}")
-                        update_paper_from_llm(
-                            db_path, paper_id, {}, changed_by=model_name_used,
-                            reasoning_trace=error_msg, success_flag=False,
-                            json_result_str=json_result_str, model_name_used=model_name_used, set_num=set_num
-                        )
-                else:
-                    error_msg = "No LLM response received. Check server connection."
-                    print(f"[Thread-{threading.get_ident()}] {error_msg}")
-                    update_paper_from_llm(
-                        db_path, paper_id, {}, changed_by=model_name_used,
-                        reasoning_trace=error_msg, success_flag=False,
-                        json_result_str="", model_name_used=model_name_used, set_num=set_num
+
+            # --- Process Result (Success OR Failure) ---
+            if json_result_str:
+                try:
+                    llm_classification = json.loads(json_result_str)
+                    if reasoning_trace:
+                        reasoning_trace = f"As classified by {model_name_used}\n{reasoning_trace}"
+                    else:
+                        reasoning_trace = f"As classified by {model_name_used}"
+
+                    success = update_paper_from_llm(
+                        db_path,
+                        paper_id,
+                        llm_classification,
+                        changed_by=model_name_used,
+                        reasoning_trace=reasoning_trace,
+                        success_flag=True,
+                        json_result_str=json_result_str,
+                        model_name_used=model_name_used
                     )
-        
+
+                    if success:
+                        print(f"[Thread-{threading.get_ident()}] Updated paper {paper_id} (Model: {model_name_used})")
+                    else:
+                        print(f"[Thread-{threading.get_ident()}] Failed to update paper {paper_id} (DB error)")
+
+                except json.JSONDecodeError as e:
+                    error_msg = f"Error parsing LLM output: {str(e)}\n\nLLM Output:\n{json_result_str}"
+                    print(f"[Thread-{threading.get_ident()}] {error_msg}")
+                    # Log the parsing error
+                    update_paper_from_llm(
+                        db_path,
+                        paper_id,
+                        {},
+                        changed_by=model_name_used,
+                        reasoning_trace=error_msg,
+                        success_flag=False,
+                        json_result_str=json_result_str,
+                        model_name_used=model_name_used
+                    )
+            else:
+                # --- LLM Call Failed (No Response) ---
+                error_msg = "No LLM response received. Check server connection."
+                print(f"[Thread-{threading.get_ident()}] {error_msg}")
+                # Log the failure
+                update_paper_from_llm(
+                    db_path,
+                    paper_id,
+                    {},
+                    changed_by=model_name_used,
+                    reasoning_trace=error_msg,
+                    success_flag=False,
+                    json_result_str="",
+                    model_name_used=model_name_used
+                )
+
         except Exception as e:
             error_msg = f"Exception during processing: {type(e).__name__}: {str(e)}"
             if not globals.is_shutdown_flag_set():
                 print(f"[Thread-{threading.get_ident()}] {error_msg}")
-            # Log failure for all 3 sets
-            for set_num in [1, 2, 3]:
-                update_paper_from_llm(
-                    db_path, paper_id, {}, changed_by="Error",
-                    reasoning_trace=error_msg, success_flag=False,
-                    json_result_str="", model_name_used=model_alias, set_num=set_num
-                )
-        
+            # Log the exception as a failure
+            update_paper_from_llm(
+                db_path,
+                paper_id,
+                {},
+                changed_by="Error",
+                reasoning_trace=error_msg,
+                success_flag=False,
+                json_result_str="",
+                model_name_used=model_alias
+            )
         finally:
             if globals.is_shutdown_flag_set():
                 return
@@ -370,25 +355,30 @@ def process_paper_worker(db_path, prompt_template_content, paper_id_queue, progr
                 processed_count[0] += 1
                 print(f"[Progress] Processed {processed_count[0]}/{total_papers} papers.")
 
-
 def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_template=None, server_url=None):
     """
-    UPDATED: Runs the LLM classification process for all 3 sets.
+    Runs the LLM classification process.
+    Args:
+        mode (str): 'all', 'remaining', 'id', 'no_features', 'on_topic_implementation', 'consensus'. Defaults to 'remaining'.
+        paper_id (int, optional): The specific paper ID to classify (required if mode='id').
+        db_file (str): Path to the SQLite database.
+        prompt_template (str): Path to the prompt template file.
+        server_url (str): Base URL of the LLM server.
     """
-    start_time = time.time()
     
+    start_time = time.time()
+
+    # Use globals for defaults if not provided
     if db_file is None:
         db_file = globals.DATABASE_FILE
     if prompt_template is None:
         prompt_template = globals.PROMPT_TEMPLATE
     if server_url is None:
         server_url = globals.LLM_SERVER_URL
-    
     if not os.path.exists(db_file):
         print(f"Error: Database file '{db_file}' not found.")
         return False
-    
-    # Consensus mode still uses the special loop
+
     if mode == 'consensus':
         return run_consensus_classification(db_file, server_url)
     
@@ -409,64 +399,66 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
     try:
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
-        
         if mode == 'all':
-            print("Fetching ALL papers for re-classification (all 3 sets)...")
+            print("Fetching ALL papers for re-classification...")
             cursor.execute("SELECT id FROM papers")
         elif mode == 'id':
             if paper_id is None:
                 print("Error: Mode 'id' requires a specific paper ID.")
                 conn.close()
                 return False
-            print(f"Fetching specific paper ID: {paper_id} for classification (all 3 sets)...")
+            print(f"Fetching specific paper ID: {paper_id} for classification...")
             cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
             if not cursor.fetchone():
-                print(f"Warning: Paper ID {paper_id} not found in the database.")
-                conn.close()
-                return True
+                 print(f"Warning: Paper ID {paper_id} not found in the database.")
+                 conn.close()
+                 return True
             cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
         elif mode == 'no_features':
-            print("Fetching on-topic papers with no boolean features set to true (all 3 sets)...")
+            # Goal: Re-classify on-topic papers that LLM failed to assign any defect/features to.
+            # Off-topic papers are excluded by design (they have no features intentionally).        
+            print("Fetching on-topic papers with no boolean features set to true...")
             conditions = [
                 f"(JSON_EXTRACT(features, '$.{key}') IS NULL OR JSON_EXTRACT(features, '$.{key}') = 0)"
                 for key in globals.BOOLEAN_FEATURE_KEYS
             ]
+            # Group all "no features" cases
             no_features_expr = f"""
-                (features IS NULL OR features = '' OR features = '{{}}' OR ({' AND '.join(conditions)}))
+                (features IS NULL 
+                 OR features = '' 
+                 OR features = '{{}}'
+                 OR ({' AND '.join(conditions)}))
             """
-            where_clause = f"{no_features_expr} AND (is_offtopic = 0 OR is_offtopic IS NULL)"
+            # Only include if NOT off-topic (i.e., on-topic or unreviewed)
+            where_clause = f"""
+                {no_features_expr}
+                AND (is_offtopic = 0 OR is_offtopic IS NULL)
+            """
             cursor.execute(f"SELECT id FROM papers WHERE {where_clause}")
         elif mode == 'on_topic_implementation':
-            print("Fetching papers marked as on-topic and non-survey (all 3 sets)...")
+            # Goal: Re-classify papers that are currently marked as on-topic AND non-survey.
+            print("Fetching papers marked as on-topic and non-survey for re-classification...")
             cursor.execute("""
                 SELECT id FROM papers
                 WHERE (is_offtopic = 0)
                 AND (is_survey = 0 OR is_survey IS NULL)
                 AND (changed_by IS NOT 'user')
             """)
-        else:  # Default to 'remaining'
-            print("Fetching unprocessed papers (all 3 sets)...")
-            # Check if ANY of the 3 sets is unprocessed
-            cursor.execute("""
-                SELECT id FROM papers 
-                WHERE set_1_last_llm_is_offtopic IS NULL 
-                   OR set_2_last_llm_is_offtopic IS NULL 
-                   OR set_3_last_llm_is_offtopic IS NULL
-            """)
-        
+        else: # Default to 'remaining'
+            print("Fetching unprocessed papers (changed_by IS NULL or blank)...")
+            cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = '' OR is_offtopic = '' OR is_offtopic IS NULL ") #set to reclassify when manually removing offtopic status
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         
         total_papers = len(paper_ids)
-        print(f"Found {total_papers} paper(s) to process based on mode '{mode}' (all 3 sets each).")
-        
+        print(f"Found {total_papers} paper(s) to process based on mode '{mode}'.")
+            
         # Log batch start
         globals.log_performance_event('classification_batch_start', {
             'mode': mode,
             'total_papers': total_papers,
             'model_alias': model_alias,
-            'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS,
-            'triple_set': True
+            'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS
         })
         
         if not paper_ids:
@@ -476,23 +468,19 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
         paper_id_queue = queue.Queue()
         for pid in paper_ids:
             paper_id_queue.put(pid)
-        
         # Add poison pills for each worker thread
         for _ in range(globals.MAX_CONCURRENT_WORKERS):
             paper_id_queue.put(None)
-    
     except Exception as e:
         print(f"Error fetching paper IDs: {e}")
         return False
-    
+        
     progress_lock = threading.Lock()
     processed_count = [0]
-    
     print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS} workers...")
-    print("Each paper will be classified for all 3 sets in parallel.")
-    
     try:
         with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS) as executor:
+            # Submit worker tasks
             futures = []
             for _ in range(globals.MAX_CONCURRENT_WORKERS):
                 future = executor.submit(
@@ -504,17 +492,17 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
                     processed_count,
                     total_papers,
                     model_alias,
-                    reclassification_mode=False
+                    reclassification_mode=False  # Not reclassification mode
                 )
                 futures.append(future)
             
             print("Processing started. Press Ctrl+C to abort.")
-            
             while not globals.is_shutdown_flag_set():
                 if all(f.done() for f in futures):
                     break
                 time.sleep(0.1)
-    
+            if globals.is_shutdown_flag_set():
+                print("\nShutdown signal received. Waiting for threads to finish...")
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt caught in run_classification. Setting shutdown flag.")
         globals.set_shutdown_flag()
@@ -534,115 +522,109 @@ def run_classification(mode='remaining', paper_id=None, db_file=None, prompt_tem
             'papers_total': total_papers,
             'papers_processed': final_count,
             'duration_seconds': end_time - start_time,
-            'model_alias': model_alias,
-            'triple_set': True
+            'model_alias': model_alias
         })
         
         print(f"\n--- Classification Summary ---")
         print(f"Papers processed: {final_count}/{total_papers}")
-        print(f"Total set classifications: {final_count * 3}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")
         print("Classification run finished.")
-        
         return not globals.is_shutdown_flag_set()
-
 
 def run_consensus_classification(db_file, server_url):
     """
-    UPDATED: Runs consensus classification with triple-set system.
-    Each set independently reaches classifier-verifier consensus.
+    Runs the consensus classification process.
+    Starts with classify remaining and verify remaining, then re-classifies misclassifications (score <= 8) until consensus is reached.
     """
     consensus_start_time = time.time()
     iteration = 0
+    total_consensus_papers = 0
     consensus_iterations = []
-    
+
     while True:
         iteration += 1
         print(f"\n--- Consensus Iteration {iteration} ---")
-        
-        # Check iteration limit
+            
+            
+        # --- NEW: Check iteration limit ---
         if iteration > globals.MAX_CONSENSUS_ITERATIONS:
             print(f"\nConsensus iteration limit ({globals.MAX_CONSENSUS_ITERATIONS}) reached.")
+            # Export problematic papers for analysis
             return False
         
-        # Fresh classification fallback
+        # --- NEW: Fresh classification fallback ---
         if iteration == globals.FRESH_CLASSIFY_FALLBACK_ITERATION:
-            print(f"\nIteration {iteration}: Switching to fresh classification (breaking consensus loop).")
+            print(f"\nIteration {iteration}: Switching to fresh classification (breaking consensus loop). This may fix stuck papers.")
             globals.log_performance_event('consensus_fresh_fallback', {
                 'iteration': iteration,
                 'papers_affected': len(misclassified_paper_ids),
                 'paper_ids': misclassified_paper_ids
             })
             
-            # Run fresh classification on stuck papers
-            run_classification(
-                mode='id',
+            # Run fresh classification instead of consensus prompt
+            fresh_classify_success = run_classification(
+                mode='id',  # Only re-classify the stuck papers
                 paper_id=None,  # Will use misclassified_paper_ids
                 db_file=db_file,
-                prompt_template=globals.PROMPT_TEMPLATE,
+                prompt_template=globals.PROMPT_TEMPLATE,  # Normal classifier prompt, NOT consensus
                 server_url=server_url
             )
             
-            # Verify the fresh classifications
+            # Then verify the fresh classifications
             verify_classification.run_verification(
                 mode='remaining',
                 db_file=db_file,
                 prompt_template=globals.VERIFIER_TEMPLATE,
                 server_url=server_url
             )
+            
+            # Continue normal consensus check after fallback
             continue
         
-        # Classify remaining unprocessed papers (all 3 sets)
-        print("\n--- Starting Initial Classification of Remaining Papers (All 3 Sets) ---")
+
+        # First, classify any remaining unprocessed papers
+        print("\n--- Starting Initial Classification of Remaining Papers ---")
         initial_classification_success = run_classification(
             mode='remaining',
             db_file=db_file,
             prompt_template=globals.PROMPT_TEMPLATE,
             server_url=server_url
         )
-        
         if not initial_classification_success:
             print("Initial classification failed. Stopping consensus process.")
             return False
         
-        # Verify all remaining unverified papers (all 3 sets)
-        print("\n--- Starting Verification of All Unverified Papers (All 3 Sets) ---")
+        # Then, verify all remaining unverified papers
+        print("\n--- Starting Verification of All Unverified Papers ---")
         verification_success = verify_classification.run_verification(
             mode='remaining',
             db_file=db_file,
             prompt_template=globals.VERIFIER_TEMPLATE,
             server_url=server_url
         )
-        
         if not verification_success:
             print("Initial verification failed. Stopping consensus process.")
             return False
         
-        # Check for misclassifications (papers where ANY set has verified=0 and low score)
+        # Now check for misclassifications (papers with verified=0 and low scores)
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id FROM papers
-            WHERE (
-                (set_1_last_llm_verified = 0 AND set_1_last_llm_estimated_score <= 8)
-                OR (set_2_last_llm_verified = 0 AND set_2_last_llm_estimated_score <= 8)
-                OR (set_3_last_llm_verified = 0 AND set_3_last_llm_estimated_score <= 8)
-            )
-            AND (is_offtopic IS NOT NULL AND is_offtopic != '')
-            ORDER BY 
-                COALESCE(set_1_last_llm_estimated_score, 999) + 
-                COALESCE(set_2_last_llm_estimated_score, 999) + 
-                COALESCE(set_3_last_llm_estimated_score, 999) ASC
+        SELECT id FROM papers
+        WHERE verified = 0
+        AND (is_offtopic IS NOT NULL AND is_offtopic != '')
+        AND (estimated_score IS NULL OR estimated_score <= 8)
+        ORDER BY estimated_score ASC
         """)
         misclassified_paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
         
+
         # Log consensus iteration
         globals.log_performance_event('consensus_iteration', {
             'iteration': iteration,
             'papers_remaining': len(misclassified_paper_ids),
-            'papers_processed_this_iteration': len(misclassified_paper_ids),
-            'triple_set': True
+            'papers_processed_this_iteration': len(misclassified_paper_ids)
         })
         
         consensus_iterations.append({
@@ -650,29 +632,30 @@ def run_consensus_classification(db_file, server_url):
             'papers_remaining': len(misclassified_paper_ids)
         })
         
+
         if not misclassified_paper_ids:
             print("No more misclassified papers found. Consensus reached!")
             
+            # Log consensus complete
             consensus_end_time = time.time()
             globals.log_performance_event('consensus_complete', {
                 'total_iterations': iteration,
                 'total_duration_seconds': consensus_end_time - consensus_start_time,
                 'iterations_detail': consensus_iterations,
-                'model_alias': globals.get_model_alias(server_url),
-                'triple_set': True
+                'model_alias': globals.get_model_alias(server_url)
             })
+            
             return True
         
         print(f"Found {len(misclassified_paper_ids)} misclassified papers for re-classification.")
         
         # Run reclassification on misclassified papers
         reclassification_success = run_reclassification_batch(misclassified_paper_ids, db_file, server_url)
-        
         if not reclassification_success:
             print("Reclassification batch failed. Stopping consensus process.")
             return False
         
-        # Verify after reclassification
+        # After reclassification, run verification again on the re-classified papers
         print("\n--- Starting Verification for Re-classified Papers ---")
         verification_success = verify_classification.run_verification(
             mode='remaining',
@@ -680,27 +663,27 @@ def run_consensus_classification(db_file, server_url):
             prompt_template=globals.VERIFIER_TEMPLATE,
             server_url=server_url
         )
-        
         if not verification_success:
             print("Verification after reclassification failed. Stopping consensus process.")
             return False
         
-        # Check for abort
+        # Check if user wants to abort
         if globals.is_shutdown_flag_set():
             print("Shutdown signal received. Stopping consensus process.")
+            
+            # Log consensus aborted
             globals.log_performance_event('consensus_aborted', {
                 'iterations_completed': iteration,
                 'papers_remaining': len(misclassified_paper_ids),
                 'total_duration_seconds': time.time() - consensus_start_time,
-                'iterations_detail': consensus_iterations,
-                'triple_set': True
+                'iterations_detail': consensus_iterations
             })
+            
             return False
-
-
+        
 def run_reclassification_batch(paper_ids, db_file, server_url):
     """
-    UPDATED: Runs reclassification on a batch of paper IDs (all 3 sets).
+    Runs reclassification on a batch of paper IDs.
     """
     total_papers = len(paper_ids)
     if total_papers == 0:
@@ -709,15 +692,16 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
     
     start_time = time.time()
     
+    # Log reclassification batch start
     globals.log_performance_event('reclassification_batch_start', {
         'papers_total': total_papers,
-        'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS_CONSENSUS,
-        'triple_set': True
+        'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS_CONSENSUS
     })
     
-    print(f"Reclassifying {total_papers} papers (all 3 sets each)...")
+    print(f"Reclassifying {total_papers} papers...")
     
     try:
+        # Load the reclassification prompt template
         reclassification_prompt_template = globals.RECLASSIFY_PROMPT_TEMPLATE
         reclassification_prompt_content = globals.load_prompt_template(reclassification_prompt_template)
         print(f"Loaded reclassification prompt template from '{reclassification_prompt_template}'")
@@ -731,20 +715,23 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
         print("Error: Could not determine model alias for reclassification. Exiting.")
         return False
     
+    # Create queue with paper IDs
     paper_id_queue = queue.Queue()
     for pid in paper_ids:
         paper_id_queue.put(pid)
-    
+    # Add poison pills for each worker thread
     for _ in range(globals.MAX_CONCURRENT_WORKERS_CONSENSUS):
         paper_id_queue.put(None)
     
     progress_lock = threading.Lock()
     processed_count = [0]
     
-    print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS_CONSENSUS} workers...")
+    print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS_CONSENSUS} workers for reclassification...")
+    start_time = time.time()
     
     try:
         with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS_CONSENSUS) as executor:
+            # Submit worker tasks
             futures = []
             for _ in range(globals.MAX_CONCURRENT_WORKERS_CONSENSUS):
                 future = executor.submit(
@@ -756,23 +743,24 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
                     processed_count,
                     total_papers,
                     model_alias,
-                    reclassification_mode=True
+                    reclassification_mode=True  # This is reclassification mode
                 )
                 futures.append(future)
             
             print("Reclassification processing started. Press Ctrl+C to abort.")
-            
             while not globals.is_shutdown_flag_set():
                 if all(f.done() for f in futures):
                     break
                 time.sleep(0.1)
-    
+            if globals.is_shutdown_flag_set():
+                print("\nShutdown signal received during reclassification. Waiting for threads to finish...")
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt caught in run_reclassification_batch. Setting shutdown flag.")
         globals.set_shutdown_flag()
     except Exception as e:
         print(f"Error in reclassification execution loop: {e}")
         globals.set_shutdown_flag()
+
     finally:
         end_time = time.time()
         final_count = 0
@@ -780,22 +768,19 @@ def run_reclassification_batch(paper_ids, db_file, server_url):
             with progress_lock:
                 final_count = processed_count[0] if processed_count else 0
         
+        # Log reclassification batch complete
         globals.log_performance_event('reclassification_batch_complete', {
             'papers_total': total_papers,
             'papers_processed': final_count,
             'duration_seconds': end_time - start_time,
-            'model_alias': model_alias,
-            'triple_set': True
+            'model_alias': model_alias
         })
         
         print(f"\n--- Reclassification Summary ---")
         print(f"Papers reclassified: {final_count}/{total_papers}")
-        print(f"Total set reclassifications: {final_count * 3}")
         print(f"Time taken: {end_time - start_time:.2f} seconds")
         print("Reclassification batch finished.")
-        
         return not globals.is_shutdown_flag_set()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automate LLM classification for papers in the database.')
