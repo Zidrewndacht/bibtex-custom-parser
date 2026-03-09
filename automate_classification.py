@@ -1,4 +1,4 @@
-# automate_classification
+# automate_classification   # unchanged from v1.0rc1 - needs updates, see the db_fixes tools to understand the new DB schema and rules
 # This should be agnostic to changes inside features and techniques:
 import sqlite3
 import json

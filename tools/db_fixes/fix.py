@@ -5,22 +5,7 @@ fix_verification_data.py
 Recalculates verification data from latest valid history entries per set,
 averaged according to v1.2 requirements, for all existing papers.
 
-Updates:
-- verified (tri-state: 1=yes, 0=no, None=unknown)
-- estimated_score (numeric average of latest valid scores per set)
-- main_certainty (for verified field)
-- llm_log (adds new averaged_llm entry with full snapshot)
-
-Score-to-verified conversion (per set):
-- score >= 7 → verified:yes (1)
-- score < 7 → verified:no (0)
-- no valid verification → verified:unknown (None)
-
-Averaging across 3 sets:
-- All 3 agree → solid
-- 2 agree, 1 unknown → 80%
-- 1 known, 2 unknown → 60%
-- Conflict (yes and no present) → conflict
+Sources data from set_{1,2,3}_llm_log (NOT set_*_last_llm_* cached columns)
 """
 
 import sqlite3
@@ -29,26 +14,37 @@ import os
 import sys
 from datetime import datetime
 
-# Import globals for paths and constants
+# Import globals for paths
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import globals
 
-def get_latest_valid_verification_from_set(paper_data, set_num):
+def get_latest_valid_verification_from_set_llm_log(db_path, paper_id, set_num):
     """
     Extract the latest valid verification data from a specific set's llm_log.
     
     Args:
-        paper_data: dict with all paper fields
+        db_path: Database path
+        paper_id: Paper ID
         set_num: 1, 2, or 3
     
     Returns:
         dict: {'verified': 1/0/None, 'estimated_score': int/None, 'has_data': bool}
     """
-    log_field = f'set_{set_num}_llm_log' if set_num else 'llm_log'
-    raw_log = paper_data.get(log_field, '[]')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Get the set-specific llm_log
+    log_field = f'set_{set_num}_llm_log'
+    cursor.execute(f"SELECT {log_field} FROM papers WHERE id = ?", (paper_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row or not row[0]:
+        return {'verified': None, 'estimated_score': None, 'has_data': False}
     
     try:
-        log_entries = json.loads(raw_log) if raw_log else []
+        log_entries = json.loads(row[0])
     except (json.JSONDecodeError, TypeError):
         return {'verified': None, 'estimated_score': None, 'has_data': False}
     
@@ -97,12 +93,9 @@ def get_latest_valid_verification_from_set(paper_data, set_num):
 def score_to_verified(score):
     """
     Convert verification score to verified tri-state.
-    
-    Args:
-        score: int or None
-    
-    Returns:
-        int or None: 1 if score >= 7, 0 if score < 7, None if score is None
+    Score >= 7 → verified:yes (1)
+    Score < 7 → verified:no (0)
+    Score None → verified:unknown (None)
     """
     if score is None:
         return None
@@ -194,14 +187,14 @@ def fix_paper_verification(db_path, paper_id):
     paper = dict(paper)
     changed_timestamp = datetime.utcnow().isoformat() + 'Z'
     
-    # Get latest valid verification from each set
+    # Get latest valid verification from each set's llm_log
     set_verifications = []
     set_scores = []
     
     for set_num in [1, 2, 3]:
-        verif_data = get_latest_valid_verification_from_set(paper, set_num)
+        verif_data = get_latest_valid_verification_from_set_llm_log(db_path, paper_id, set_num)
         
-        # Convert score to verified per set
+        # Convert score to verified per set (score >= 7 → yes, < 7 → no)
         if verif_data['has_data'] and verif_data['estimated_score'] is not None:
             verified_from_score = score_to_verified(verif_data['estimated_score'])
             set_verifications.append(verified_from_score)
@@ -213,7 +206,7 @@ def fix_paper_verification(db_path, paper_id):
     # Calculate averaged verification state
     main_verified, verification_certainty = calculate_verification_certainty(set_verifications)
     
-    # Calculate averaged estimated score
+    # Calculate averaged estimated score (numeric average of original scores)
     main_score = calculate_score_average(set_scores)
     
     # Update main_certainty
@@ -252,7 +245,6 @@ def fix_paper_verification(db_path, paper_id):
         existing_log = []
     
     # Build full state snapshot for log entry
-    # Fetch current main field values
     cursor.execute("""
         SELECT is_offtopic, is_survey, is_through_hole, is_smt, is_x_ray,
                relevance, features, technique, user_trace
@@ -293,7 +285,6 @@ def fix_paper_verification(db_path, paper_id):
     
     # Check if last entry was also an averaged_llm entry (consolidate)
     if existing_log and existing_log[-1].get('type') == 'averaged_llm':
-        # Update the existing averaged entry
         existing_log[-1] = {
             "timestamp": changed_timestamp,
             "type": "averaged_llm",
@@ -304,7 +295,6 @@ def fix_paper_verification(db_path, paper_id):
             "certainty_map": certainty_map
         }
     else:
-        # Create new averaged_llm entry
         log_entry = {
             "timestamp": changed_timestamp,
             "type": "averaged_llm",
@@ -348,6 +338,9 @@ def main():
     total_papers = len(paper_ids)
     print(f"Starting verification data fix for {total_papers} papers...")
     print(f"Database: {db_path}")
+    print()
+    print("Sourcing data from: set_{1,2,3}_llm_log (latest valid verifier entries)")
+    print("NOT from: set_*_last_llm_* cached columns (bogus)")
     print()
     
     # Statistics
@@ -398,9 +391,9 @@ def main():
     
     # Print summary
     print()
-    print("=" * 60)
+    print("=" * 70)
     print("VERIFICATION DATA FIX COMPLETE")
-    print("=" * 60)
+    print("=" * 70)
     print(f"Total papers processed: {total_papers}")
     print()
     print("Verification certainty distribution:")
@@ -417,7 +410,10 @@ def main():
     print("  - estimated_score (numeric average of latest valid scores per set)")
     print("  - main_certainty (for verified field)")
     print("  - llm_log (new/updated averaged_llm entry with full snapshot)")
-    print("=" * 60)
+    print()
+    print("Data source: set_{1,2,3}_llm_log (latest valid verifier entries)")
+    print("NOT from: set_*_last_llm_* cached columns")
+    print("=" * 70)
 
 if __name__ == "__main__":
     main()

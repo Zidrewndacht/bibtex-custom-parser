@@ -208,25 +208,21 @@ def calculate_field_certainty(values):
     
     return main_value, certainty
 
-
-# Add to globals.py - recalculate_main_set() function
+# In globals.py, update recalculate_main_set() function
 
 def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", create_log_entry=True):
     """
     Recalculate the main averaged set from all 3 classification sets.
-    
     Args:
         paper_id: The paper ID to recalculate
         db_path: Database path (uses globals.DATABASE_FILE if None)
         changed_by: Identifier for who triggered the recalculation
         create_log_entry: Whether to create a log entry in main llm_log
-    
     Returns:
         dict: The updated certainty map, or None if paper not found
     """
     if db_path is None:
         db_path = DATABASE_FILE
-    
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -234,7 +230,6 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     # Fetch paper data
     cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
     paper = cursor.fetchone()
-    
     if not paper:
         conn.close()
         return None
@@ -279,22 +274,32 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     main_output['relevance'] = main_relevance
     cursor.execute("UPDATE papers SET relevance = ? WHERE id = ?", (main_relevance, paper_id))
     
-    # Process verified (all 3 must be verified)
-    verified_values = [
-        paper.get('set_1_last_llm_verified'),
-        paper.get('set_2_last_llm_verified'),
-        paper.get('set_3_last_llm_verified'),
-    ]
-    main_verified = 1 if all(v == 1 for v in verified_values) else (0 if any(v == 0 for v in verified_values) else None)
-    main_output['verified'] = main_verified
-    cursor.execute("UPDATE papers SET verified = ? WHERE id = ?", (main_verified, paper_id))
-    
-    # Process estimated_score (average of verified sets)
+
+    # Process verified (from scores, NOT from explicit verified field)
     score_values = [
         paper.get('set_1_last_llm_estimated_score'),
         paper.get('set_2_last_llm_estimated_score'),
         paper.get('set_3_last_llm_estimated_score'),
     ]
+
+    # Convert each set's score to verified status BEFORE averaging
+    # >=7 = verified:yes (1), <7 = verified:no (0), None = unknown (None)
+    verified_from_score = []
+    for score in score_values:
+        if score is None:
+            verified_from_score.append(None)  # No verification data
+        elif score >= 7:
+            verified_from_score.append(1)  # Verified yes
+        else:
+            verified_from_score.append(0)  # Verified no
+
+    # Now average the verification statuses using certainty logic
+    main_verified, verified_certainty = calculate_field_certainty(verified_from_score)
+    certainty_map['verified'] = verified_certainty
+    main_output['verified'] = main_verified
+    cursor.execute("UPDATE papers SET verified = ? WHERE id = ?", (main_verified, paper_id))
+
+    # Process estimated_score (average of available scores, for display)
     score_valid = [v for v in score_values if v is not None]
     main_score = sum(score_valid) / len(score_valid) if score_valid else None
     main_output['estimated_score'] = int(main_score) if main_score is not None else None
@@ -312,12 +317,10 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
             except:
                 feat = {}
             values.append(feat.get(feature_key))
-        
         main_value, certainty = calculate_field_certainty(values)
         field_name = f'features_{feature_key}'
         certainty_map[field_name] = certainty
         main_features[feature_key] = main_value
-    
     main_output['features'] = main_features
     cursor.execute("UPDATE papers SET features = ? WHERE id = ?", (json.dumps(main_features), paper_id))
     
@@ -335,7 +338,6 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
             except:
                 tech = {}
             values.append(tech.get(tech_key))
-        
         main_value, certainty = calculate_field_certainty(values)
         field_name = f'technique_{tech_key}'
         certainty_map[field_name] = certainty
@@ -350,7 +352,6 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     except:
         main_technique['model'] = None
         main_technique['available_dataset'] = None
-    
     main_output['technique'] = main_technique
     cursor.execute("UPDATE papers SET technique = ? WHERE id = ?", (json.dumps(main_technique), paper_id))
     
@@ -362,18 +363,18 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     
     # Update last_llm_* cache fields (mirror main columns for backward compatibility)
     cursor.execute("""
-        UPDATE papers SET
-            last_llm_features = features,
-            last_llm_technique = technique,
-            last_llm_is_offtopic = is_offtopic,
-            last_llm_is_survey = is_survey,
-            last_llm_is_through_hole = is_through_hole,
-            last_llm_is_smt = is_smt,
-            last_llm_is_x_ray = is_x_ray,
-            last_llm_relevance = relevance,
-            last_llm_verified = verified,
-            last_llm_estimated_score = estimated_score
-        WHERE id = ?
+    UPDATE papers SET
+    last_llm_features = features,
+    last_llm_technique = technique,
+    last_llm_is_offtopic = is_offtopic,
+    last_llm_is_survey = is_survey,
+    last_llm_is_through_hole = is_through_hole,
+    last_llm_is_smt = is_smt,
+    last_llm_is_x_ray = is_x_ray,
+    last_llm_relevance = relevance,
+    last_llm_verified = verified,
+    last_llm_estimated_score = estimated_score
+    WHERE id = ?
     """, (paper_id,))
     
     # === CREATE MAIN LOG ENTRY ===
@@ -386,7 +387,7 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
         except:
             existing_log = []
         
-        # Create averaged classification log entry
+        # Create averaged classification log entry with FULL STATE SNAPSHOT
         log_entry = {
             "timestamp": changed_timestamp,
             "type": "averaged_llm",  # NEW type for averaged results
@@ -411,7 +412,6 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     
     conn.commit()
     conn.close()
-    
     return certainty_map
 
 def get_set_data(paper_data, set_num):

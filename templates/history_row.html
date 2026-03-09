@@ -91,7 +91,7 @@
                         <span class="emoji-content">{{ data.is_offtopic | render_status }}</span>
                     {% endif %}
                 </td>
-                <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">{{ (data.relevance|round(1)|string).rstrip('0').rstrip('.') if data.relevance is not none else '' }}</td>
+                <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">{% if data.relevance is defined and data.relevance is not none %}{{ (data.relevance|float|round(1)|string).rstrip('0').rstrip('.') }}{% endif %}</td>
                 <td class="status-cell certainty-{{ certainty.get('is_survey', 'solid') }}{% if 'is_survey' in changed %} cell-changed{% endif %}">
                     {% if certainty.get('is_survey') == 'conflict' %}
                         <span class="conflict-warning">⚠️</span>
@@ -293,17 +293,37 @@
                 
                 <!-- Changed By Column (40px) -->
                 <td class="status-cell changed-by-cell{% if 'changed_by' in changed %} cell-changed{% endif %}">{{ entry.model|render_changed_by }}</td>
-                
-                <!-- Verification Fields (3 columns: 27px + 32px + 27px) -->
-                {% if entry.verification_data %}
-                <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">{{ entry.verification_data.verified|render_status }}</td>
-                <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">{{ entry.verification_data.estimated_score if entry.verification_data.estimated_score is not none else '' }}</td>
+                            
+            <!-- Verification Fields -->
+            {% if entry.type == 'averaged_llm' %}
+                <!-- For averaged entries, verified/score are in data.output, with certainty -->
+                <td class="status-cell certainty-{{ certainty.get('verified', 'solid') }}{% if 'verified' in changed %} cell-changed{% endif %}">
+                    {% if certainty.get('verified') == 'conflict' %}
+                    <span class="conflict-warning">⚠️</span>
+                    {% else %}
+                    <span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>
+                    {% endif %}
+                </td>
+                <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                    {{ data.estimated_score|default('') }}
+                </td>
+                <td class="status-cell">🖥️</td>
+            {% elif entry.verification_data %}
+                <!-- For classifier/consensus with verifier, use verification_data (no certainty - single run) -->
+                <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
+                    {{ entry.verification_data.verified|render_status }}
+                </td>
+                <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                    {{ entry.verification_data.estimated_score|default('') }}
+                </td>
                 <td class="status-cell">{{ entry.verification_data.verifier_model|render_verified_by }}</td>
-                {% else %}
+            {% else %}
+                <!-- No verification data available -->
                 <td class="status-cell">❔</td>
                 <td class="secondary-text-cell number-cell"></td>
                 <td class="status-cell">❔</td>
-                {% endif %}
+            {% endif %}
+            
             </tr>
             {% endif %}
             {% endfor %}

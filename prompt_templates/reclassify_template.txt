@@ -269,4 +269,6 @@ Previous User Trace (Comments):
 {user_trace}
 
 
-Remember, your response is not being read by a human, it goes directly to an automated parser. Output only the result in JSON format in plaintext without any other tags like ```json or similar.
+Remember, your response is not being read by a human, it goes directly to an automated parser. 
+
+You have a classification task, NOT a verification task. Output a new classification JSON that's likely to be accepted by a new verifier in the future. Output only the result in JSON format in plaintext without any other tags like ```json or similar.
