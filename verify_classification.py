@@ -1,21 +1,289 @@
-# verify_classification.py  # unchanged from v1.0rc1 - needs updates, see the db_fixes tools to understand the new DB schema and rules
-# This should be agnostic to changes inside features and techniques:
+# verify_classification.py
+# v1.2 - Unified task queue with dynamic admission control
+# 1 task = 1 set verification = 1 vLLM request
+# Verifies data from set_{N}_last_llm_* cached columns, NOT history
+# After each set verification, triggers main recalculation via globals.recalculate_main_set()
+
 import sqlite3
 import json
 import argparse
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import queue
 import threading
 import signal
-import globals  # Import for global settings and shared functions
-from datetime import datetime
+import globals
 
-def build_verification_prompt(paper_data, classification_data, template_content):
-    """Builds the verification prompt string for a single paper using a loaded template."""
-    # Prepare data for insertion into the template
-    # Include original paper data
+# ============================================================================
+# TASK DEFINITION
+# ============================================================================
+class VerifyTask:
+    """Represents a single set verification task (1 vLLM request)."""
+    def __init__(self, paper_id, set_num, prompt_template_content, db_path,
+                 model_alias, server_url, max_retries=3):
+        self.paper_id = paper_id
+        self.set_num = set_num  # 1, 2, or 3
+        self.prompt_template_content = prompt_template_content
+        self.db_path = db_path
+        self.model_alias = model_alias
+        self.server_url = server_url
+        self.max_retries = max_retries
+        self.task_type = globals.TASK_TYPE_VERIFY
+        self.created_at = time.time()
+    
+    def __repr__(self):
+        return f"VerifyTask(paper={self.paper_id}, set={self.set_num})"
+
+# ============================================================================
+# VALIDATION HELPERS
+# ============================================================================
+REQUIRED_VERIFIER_FIELDS = ['verified', 'estimated_score']
+
+def _is_verification_output_valid(output: dict) -> tuple:
+    """Validate that a verification output dict has all required fields."""
+    if not isinstance(output, dict):
+        return False, ['output_not_dict']
+    
+    missing = [f for f in REQUIRED_VERIFIER_FIELDS if f not in output]
+    if missing:
+        return False, missing
+    
+    # Validate estimated_score is numeric
+    score = output.get('estimated_score')
+    if score is not None and not isinstance(score, (int, float)):
+        return False, ['estimated_score_not_numeric']
+    
+    # Validate verified is boolean or null
+    verified = output.get('verified')
+    if verified is not None and not isinstance(verified, bool):
+        return False, ['verified_not_boolean']
+    
+    return True, []
+
+# ============================================================================
+# ATOMIC SET UPDATE HELPER
+# ============================================================================
+def _update_set_verification(
+    db_path, paper_id, set_num, llm_data, model_name,
+    reasoning_trace, success_flag, json_result_str
+):
+    """Atomically update a single verification set's cache columns and log."""
+    conn = None
+    cursor = None
+    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+    
+    try:
+        conn = sqlite3.connect(db_path, timeout=30)  # ← 30 second timeout
+        conn.execute("PRAGMA journal_mode=WAL")  # ← Enable WAL PER CONNECTION
+        conn.execute("PRAGMA busy_timeout=30000")  # ← 30 second busy timeout
+        cursor = conn.cursor()
+        
+        prefix = f'set_{set_num}_last_llm_'
+        update_fields = []
+        update_values = []
+        
+        if success_flag and llm_data:
+            # Verified field (convert boolean to 1/0/None)
+            if 'verified' in llm_data:
+                val = llm_data['verified']
+                db_val = 1 if val is True else 0 if val is False else None
+                update_fields.append(f"{prefix}verified = ?")
+                update_values.append(db_val)
+            
+            # Estimated score
+            if 'estimated_score' in llm_data:
+                score = llm_data['estimated_score']
+                db_score = int(score) if isinstance(score, (int, float)) else None
+                update_fields.append(f"{prefix}estimated_score = ?")
+                update_values.append(db_score)
+            
+            # Set verifier tracking (for history purposes)
+            update_fields.append(f"{prefix}verified_by = ?")
+            update_values.append(model_name)
+        
+        # Update set log (ALWAYS done, even on failure)
+        log_field = f'set_{set_num}_llm_log'
+        cursor.execute(f"SELECT {log_field} FROM papers WHERE id = ?", (paper_id,))
+        row = cursor.fetchone()
+        try:
+            existing_log = json.loads(row[0]) if row and row[0] else []
+        except (json.JSONDecodeError, TypeError):
+            existing_log = []
+        
+        log_entry = {
+            "timestamp": changed_timestamp,
+            "type": "verifier",
+            "model": model_name,
+            "trace": reasoning_trace or "",
+            "output": json_result_str if json_result_str else "{}",
+            "valid": success_flag
+        }
+        existing_log.append(log_entry)
+        update_fields.append(f"{log_field} = ?")
+        update_values.append(json.dumps(existing_log))
+        
+        if update_fields:
+            update_values.append(paper_id)
+            query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
+            cursor.execute(query, update_values)
+            conn.commit()
+            return True
+        
+        return True
+    
+    except sqlite3.OperationalError as e:
+        if "locked" in str(e).lower():
+            print(f"[{datetime.utcnow().isoformat()}] [DB LOCKED] Paper {paper_id} set {set_num}: {e}")
+        else:
+            print(f"[{datetime.utcnow().isoformat()}] [DB ERROR] Paper {paper_id} set {set_num}: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return False
+    
+    except Exception as e:
+        print(f"[{datetime.utcnow().isoformat()}] [DB EXCEPTION] Paper {paper_id} set {set_num}: {type(e).__name__}: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        return False
+    
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+# ============================================================================
+# SINGLE SET VERIFICATION WITH RETRY (NO INTERNAL THREADING)
+# ============================================================================
+def _verify_single_set(task):
+    """
+    Verify a single set for a paper with retry logic.
+    This is a SINGLE vLLM request - no internal threading.
+    Returns True if verification succeeded and was saved, False otherwise.
+    """
+    paper_id = task.paper_id
+    set_num = task.set_num
+    prompt_template_content = task.prompt_template_content
+    db_path = task.db_path
+    model_alias = task.model_alias
+    server_url = task.server_url
+    max_retries = task.max_retries
+    
+    # Fetch paper data
+    paper_data = None
+    try:
+        paper_data = globals.get_paper_by_id(db_path, paper_id)
+    except Exception as e:
+        print(f"[{datetime.utcnow().isoformat()}] [FETCH ERROR] Paper {paper_id} set {set_num}: {type(e).__name__}: {e}")
+    
+    if not paper_data:
+        _update_set_verification(
+            db_path, paper_id, set_num, None, model_alias,
+            f"Paper {paper_id} not found in DB", False, ""
+        )
+        return False
+    
+    # Build verification prompt from set-specific cached data
+    try:
+        prompt_text = _build_verification_prompt(paper_data, set_num, prompt_template_content)
+    except Exception as e:
+        print(f"[{datetime.utcnow().isoformat()}] [PROMPT ERROR] Paper {paper_id} set {set_num}: {type(e).__name__}: {e}")
+        _update_set_verification(
+            db_path, paper_id, set_num, None, model_alias,
+            f"Prompt build error: {type(e).__name__}: {e}", False, ""
+        )
+        return False
+    
+    for attempt in range(max_retries + 1):
+        if globals.is_shutdown_flag_set():
+            return False
+        
+        # SINGLE vLLM call - this is what goes through admission control
+        json_result_str, model_used, reasoning_trace = globals.send_prompt_to_llm(
+            prompt_text,
+            server_url_base=server_url,
+            model_name=model_alias,
+            is_verification=True
+        )
+        
+        if globals.is_shutdown_flag_set():
+            return False
+        
+        # Process result
+        if json_result_str:
+            try:
+                llm_output = json.loads(json_result_str)
+                is_valid, missing = _is_verification_output_valid(llm_output)
+                
+                if is_valid:
+                    # Success: update set data
+                    trace_msg = f"As verified by {model_used}\n{reasoning_trace or ''}".strip()
+                    success = _update_set_verification(
+                        db_path, paper_id, set_num, llm_output,
+                        model_used, trace_msg, True, json_result_str
+                    )
+                    if success:
+                        # Trigger main set recalculation
+                        globals.recalculate_main_set(paper_id, db_path, changed_by=f"LLM_Verify_Set{set_num}")
+                        return True
+                    else:
+                        # DB update failed - log and retry
+                        error_msg = "DB update failed"
+                        _update_set_verification(
+                            db_path, paper_id, set_num, None, model_alias,
+                            error_msg, False, json_result_str
+                        )
+                else:
+                    # Invalid output - log failure and retry
+                    error_msg = f"Invalid output: missing {missing}"
+                    _update_set_verification(
+                        db_path, paper_id, set_num, None, model_alias,
+                        error_msg, False, json_result_str
+                    )
+            except json.JSONDecodeError as e:
+                error_msg = f"JSON parse error: {e}"
+                _update_set_verification(
+                    db_path, paper_id, set_num, None, model_alias,
+                    error_msg, False, json_result_str or ""
+                )
+        else:
+            # No response from LLM
+            _update_set_verification(
+                db_path, paper_id, set_num, None, model_alias,
+                "No LLM response received", False, ""
+            )
+        
+        # Retry logic
+        if attempt < max_retries:
+            time.sleep(0.5)  # Brief backoff
+    
+    return False
+
+# ============================================================================
+# PROMPT BUILDING
+# ============================================================================
+def _build_verification_prompt(paper_data, set_num, template_content):
+    """
+    Build verification prompt from set-specific cached columns.
+    Reads from set_{N}_last_llm_* columns, NOT main columns.
+    """
+    prefix = f'set_{set_num}_last_llm_'
+    
+    # Start with paper metadata
     format_data = {
         'title': paper_data.get('title', ''),
         'abstract': paper_data.get('abstract', ''),
@@ -24,447 +292,286 @@ def build_verification_prompt(paper_data, classification_data, template_content)
         'year': paper_data.get('year', ''),
         'type': paper_data.get('type', ''),
         'journal': paper_data.get('journal', ''),
-        'relevance': paper_data.get('relevance', ''),
+        'set_number': set_num,
     }
     
-    # Include the LLM-generated classification data for verification
-    # Convert complex fields (features, technique) back to JSON strings for template insertion
-    classification_for_template = classification_data.copy()
-    if isinstance(classification_for_template.get('features'), dict):
-        classification_for_template['features'] = json.dumps(classification_for_template['features'], indent=2)
-    if isinstance(classification_for_template.get('technique'), dict):
-        classification_for_template['technique'] = json.dumps(classification_for_template['technique'], indent=2)
-        
-    # Add classification fields to format data
-    format_data.update(classification_for_template)
-
+    # Extract classification data from set-specific cached columns
+    # Boolean fields - add DIRECTLY to format_data
+    bool_fields = ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
+    for field in bool_fields:
+        db_val = paper_data.get(f'{prefix}{field}')
+        if db_val == 1:
+            format_data[field] = True
+        elif db_val == 0:
+            format_data[field] = False
+        else:
+            format_data[field] = None
+    
+    # Numeric fields - add DIRECTLY to format_data
+    format_data['relevance'] = paper_data.get(f'{prefix}relevance')
+    
+    # Research area - from MAIN column (not set-specific)
+    format_data['research_area'] = paper_data.get('research_area')
+    
+    # JSON fields - add DIRECTLY to format_data
+    features_str = paper_data.get(f'{prefix}features')
+    technique_str = paper_data.get(f'{prefix}technique')
+    
+    try:
+        format_data['features'] = json.loads(features_str) if features_str else {}
+    except (json.JSONDecodeError, TypeError):
+        format_data['features'] = {}
+    
+    try:
+        format_data['technique'] = json.loads(technique_str) if technique_str else {}
+    except (json.JSONDecodeError, TypeError):
+        format_data['technique'] = {}
+    
     try:
         return template_content.format(**format_data)
     except KeyError as e:
-        print(f"Error formatting verification prompt: Missing key {e} in paper/classification data or template expects it.")
+        print(f"[{datetime.utcnow().isoformat()}] [PROMPT FORMAT ERROR] Missing key {e}")
         raise
 
-# verify_classification.py - Replace update_paper_verification function
-
-def update_paper_verification(db_path, paper_id, verification_result, verified_by="LLM", reasoning_trace=None, success_flag=False, json_result_str="", model_name_used="Unknown"):
-    """Updates verification fields and the continuous log. Does NOT touch user_override_count or last_llm_*."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
-    
-    # --- Fetch current llm_log for logging ---
-    cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    if not row:
-        print(f"Error: Paper {paper_id} not found for verification update.")
-        conn.close()
-        return False
-    
-    current_llm_log_str = row[0]
-    try:
-        existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
-    except json.JSONDecodeError:
-        existing_log = []
-    
-    # --- Prepare LLM Log Entry (ALWAYS created, even on failure) ---
-    llm_log_entry = {
-        "timestamp": changed_timestamp,
-        "type": "verifier",
-        "model": model_name_used,
-        "trace": reasoning_trace or "",
-        "output": json_result_str if json_result_str else "{}",  # ← Never None/empty
-        "valid": success_flag
-    }
-    
-    # --- Append Log Entry ---
-    existing_log.append(llm_log_entry)
-    
-    # --- Prepare Database Updates ---
-    update_fields = []
-    update_values = []
-    
-    if success_flag and verification_result:
-        verified = verification_result.get('verified')
-        if verified is True:
-            verified_db_value = 1
-        elif verified is False:
-            verified_db_value = 0
-        else:
-            verified_db_value = None
-        
-        estimated_score = verification_result.get('estimated_score')
-        if isinstance(estimated_score, (int, float)):
-            estimated_score_db_value = max(0, min(100, int(estimated_score)))
-        else:
-            estimated_score_db_value = None
-        
-        # Only update verification fields (NOT changed_by, NOT user_override_count, NOT last_llm_*)
-        update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
-        update_values.extend([verified_db_value, estimated_score_db_value, verified_by])
-    else:
-        # On failure, just update verifier_trace if available
-        pass
-    
-    # Trace is now stored in llm_log entry, not separate column
-    # No need to update verifier_trace column
-    
-    # --- Update Database ---
-    update_values.extend([json.dumps(existing_log), paper_id])
-    update_query = f"UPDATE papers SET {', '.join(update_fields)}, llm_log = ? WHERE id = ?"
-    cursor.execute(update_query, update_values)
-    conn.commit()
-    rows_affected = cursor.rowcount
-    conn.close()
-    
-    return rows_affected > 0
-
-def process_paper_verification_worker(
-    db_path,
-    verification_prompt_template_content,
-    paper_id_queue,
-    progress_lock,
-    processed_count,
-    total_papers,
-    model_alias
-):
-    """Worker function executed by each thread for verification."""
+# ============================================================================
+# WORKER FUNCTION - Each worker processes individual set tasks
+# ============================================================================
+def _worker(task_queue, controller, worker_id):
+    """Worker thread that pulls tasks from unified queue and executes them."""
     while True:
         try:
-            paper_id = paper_id_queue.get(timeout=1)
-        except queue.Empty:
-            if globals.is_shutdown_flag_set():
-                return
-            continue
-
-        if paper_id is None:
-            return
-
-        if globals.is_shutdown_flag_set():
-            return
-
-        print(f"[Thread-{threading.get_ident()}] Verifying paper ID: {paper_id}")
-
-        try:
-            # 1. Fetch paper data and current classification from DB
-            paper_data = globals.get_paper_by_id(db_path, paper_id)
-            if not paper_data:
-                error_msg = f"Paper {paper_id} not found in DB for verification."
-                print(f"[Thread-{threading.get_ident()}] Error: {error_msg}")
-                # Log the error
-                update_paper_verification(
-                    db_path,
-                    paper_id,
-                    {},
-                    verified_by="Error",
-                    reasoning_trace=error_msg,
-                    success_flag=False,
-                    json_result_str="",
-                    model_name_used=model_alias
-                )
+            # Get task from queue
+            try:
+                task = task_queue.get(timeout=0.5)
+            except queue.Empty:
+                if globals.is_shutdown_flag_set() or controller._shutdown:
+                    break
                 continue
-
-            # Prepare classification data for the prompt
-            classification_data = {}
-            bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
-            for field in bool_fields:
-                db_val = paper_data.get(field)
-                if db_val == 1:
-                    classification_data[field] = True
-                elif db_val == 0:
-                    classification_data[field] = False
-                else:
-                    classification_data[field] = None
-
-            classification_data['research_area'] = paper_data.get('research_area')
-
-            # Handle JSON fields
+            
+            if task is None:  # Poison pill
+                task_queue.task_done()
+                break
+            
+            # Wait for admission control (1 slot per vLLM request)
+            admitted = controller.acquire(task.task_type, timeout=300)
+            if not admitted:
+                print(f"[{datetime.utcnow().isoformat()}] [Worker {worker_id}] Task {task} admission timeout, requeuing")
+                task_queue.put(task)
+                task_queue.task_done()
+                continue
+            
             try:
-                classification_data['features'] = json.loads(paper_data.get('features', '{}')) if paper_data.get('features') else {}
-            except json.JSONDecodeError:
-                classification_data['features'] = {}
-                print(f"[Thread-{threading.get_ident()}] Warning: Could not parse features JSON for {paper_id}")
-
-            try:
-                classification_data['technique'] = json.loads(paper_data.get('technique', '{}')) if paper_data.get('technique') else {}
-            except json.JSONDecodeError:
-                classification_data['technique'] = {}
-                print(f"[Thread-{threading.get_ident()}] Warning: Could not parse technique JSON for {paper_id}")
-
-            # 2. Build the verification prompt
-            prompt_text = build_verification_prompt(paper_data, classification_data, verification_prompt_template_content)
-
-            if globals.is_shutdown_flag_set():
-                return
-
-            # 3. Send prompt to LLM
-            json_result_str, model_name_used, reasoning_trace = globals.send_prompt_to_llm(
-                prompt_text,
-                server_url_base=globals.LLM_SERVER_URL,
-                model_name=model_alias,
-                is_verification=True
-            )
-
-            if globals.is_shutdown_flag_set():
-                return
-
-            # 4. Process LLM response
-            if json_result_str:
-                try:
-                    llm_verification_result = json.loads(json_result_str)
-                    # 5. Update database with verification result
-                    if reasoning_trace:
-                        reasoning_trace = f"As verified by {model_name_used}\n{reasoning_trace}"
-                    else:
-                        reasoning_trace = f"As verified by {model_name_used}"
-
-                    success = update_paper_verification(
-                        db_path,
-                        paper_id,
-                        llm_verification_result,
-                        verified_by=model_name_used,
-                        reasoning_trace=reasoning_trace,
-                        success_flag=True,
-                        json_result_str=json_result_str,
-                        model_name_used=model_name_used
-                    )
-
-                    if success:
-                        print(f"[Thread-{threading.get_ident()}] Verified paper {paper_id} (Model: {model_name_used})")
-                    else:
-                        print(f"[Thread-{threading.get_ident()}] Failed to verify paper {paper_id} (DB error)")
-
-                except json.JSONDecodeError as e:
-                    error_msg = f"Error parsing LLM verification output: {str(e)}\n\nLLM Output:\n{json_result_str}"
-                    print(f"[Thread-{threading.get_ident()}] {error_msg}")
-                    # Log the parsing error
-                    update_paper_verification(
-                        db_path,
-                        paper_id,
-                        {},
-                        verified_by=model_name_used,
-                        reasoning_trace=error_msg,
-                        success_flag=False,
-                        json_result_str=json_result_str,
-                        model_name_used=model_name_used
-                    )
-            else:
-                # --- LLM Call Failed (No Response) ---
-                error_msg = "No LLM verification response received. Check server connection."
-                print(f"[Thread-{threading.get_ident()}] {error_msg}")
-                # Log the failure
-                update_paper_verification(
-                    db_path,
-                    paper_id,
-                    {},
-                    verified_by=model_name_used,
-                    reasoning_trace=error_msg,
-                    success_flag=False,
-                    json_result_str="",
-                    model_name_used=model_name_used
-                )
-
+                # Execute single set verification (1 vLLM request)
+                success = _verify_single_set(task)
+                print(f"[{datetime.utcnow().isoformat()}] [Worker {worker_id}] {task} completed: {'✓' if success else '✗'}")
+            finally:
+                # Release admission slot
+                controller.release(task.task_type)
+                task_queue.task_done()
+        
         except Exception as e:
-            error_msg = f"Exception during verification: {type(e).__name__}: {str(e)}"
-            if not globals.is_shutdown_flag_set():
-                print(f"[Thread-{threading.get_ident()}] {error_msg}")
-            # Log the exception as a failure
-            update_paper_verification(
-                db_path,
-                paper_id,
-                {},
-                verified_by="Error",
-                reasoning_trace=error_msg,
-                success_flag=False,
-                json_result_str="",
-                model_name_used=model_alias
-            )
-        finally:
+            print(f"[{datetime.utcnow().isoformat()}] [Worker {worker_id}] Error: {type(e).__name__}: {e}")
             if globals.is_shutdown_flag_set():
-                return
-            with progress_lock:
-                processed_count[0] += 1
-                print(f"[Progress] Verified {processed_count[0]}/{total_papers} papers.")
+                break
 
-def run_verification(mode='remaining', paper_id=None, db_file=None, prompt_template=None, server_url=None):
+# ============================================================================
+# MAIN ENTRY POINT
+# ============================================================================
+def run_verification(
+    mode='remaining',
+    paper_id=None,
+    db_file=None,
+    prompt_template=None,
+    server_url=None
+):
     """
-    Runs the LLM verification process.
-
-    Args:
-        mode (str): 'all', 'remaining', or 'id'. Defaults to 'remaining'.
-        paper_id (int, optional): The specific paper ID to verify (required if mode='id').
-        db_file (str): Path to the SQLite database.
-        prompt_template (str): Path to the verification prompt template file.
-        server_url (str): Base URL of the LLM server.
+    Runs the LLM verification process with unified task queue.
+    Each task = 1 set verification = 1 vLLM request.
     """
-
     start_time = time.time()
-
+    
     if db_file is None:
         db_file = globals.DATABASE_FILE
     if prompt_template is None:
         prompt_template = globals.VERIFIER_TEMPLATE
     if server_url is None:
         server_url = globals.LLM_SERVER_URL
-
+    
     if not os.path.exists(db_file):
-        print(f"Error: Database file '{db_file}' not found.")
+        print(f"[{datetime.utcnow().isoformat()}] Error: Database file '{db_file}' not found.")
         return False
-
+    
+    # Load prompt template
     try:
-        verification_prompt_template_content = globals.load_prompt_template(prompt_template)
-        print(f"Loaded verification prompt template from '{prompt_template}'")
+        prompt_template_content = globals.load_prompt_template(prompt_template)
+        print(f"[{datetime.utcnow().isoformat()}] Loaded verification prompt template from '{prompt_template}'")
     except Exception as e:
-        print(f"Error loading verification prompt template: {e}")
+        print(f"[{datetime.utcnow().isoformat()}] Failed to load prompt template: {e}")
         return False
-
-    print("Fetching model alias from LLM server for verification...")
+    
+    # Get model alias
+    print(f"[{datetime.utcnow().isoformat()}] Fetching model alias from LLM server...")
     model_alias = globals.get_model_alias(server_url)
     if not model_alias:
-        print("Error: Could not determine model alias for verification. Exiting.")
+        print(f"[{datetime.utcnow().isoformat()}] Error: Could not determine model alias. Exiting.")
         return False
-
-    print(f"Connecting to database '{db_file}' to fetch papers for verification...")
+    
+    # Fetch paper IDs based on mode
+    print(f"[{datetime.utcnow().isoformat()}] Connecting to database '{db_file}'...")
     try:
-        conn = sqlite3.connect(db_file)
+        conn = sqlite3.connect(db_file, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         cursor = conn.cursor()
         
-        if mode == 'all': #All classified papers (there's no sense in verifying classification of papers that weren't even classified)
-            print("Fetching ALL classified papers for re-verification (most recent to oldest)...")
+        if mode == 'all':
+            # Verify all classified papers (all 3 sets for each paper)
             cursor.execute("""
-            SELECT id FROM papers 
-            WHERE (changed_by IS NOT NULL AND changed_by != '')
-            AND (is_offtopic IS NOT NULL AND is_offtopic != '')
-            ORDER BY year DESC
+                SELECT id FROM papers
+                WHERE (changed_by IS NOT NULL AND changed_by != '')
+                AND (is_offtopic IS NOT NULL AND is_offtopic != '')
             """)
         elif mode == 'id':
             if paper_id is None:
-                print("Error: Mode 'id' requires a specific paper ID.")
+                print(f"[{datetime.utcnow().isoformat()}] Error: Mode 'id' requires a specific paper ID.")
                 conn.close()
                 return False
-            print(f"Fetching specific paper ID: {paper_id} for verification...")
-            cursor.execute("SELECT id FROM papers WHERE id = ? ORDER BY year DESC", (paper_id,))
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
             if not cursor.fetchone():
-                 print(f"Warning: Paper ID {paper_id} not found or not classified.")
-                 conn.close()
-                 return True
-            cursor.execute("SELECT id FROM papers WHERE id = ? ORDER BY year DESC", (paper_id,))
-        else: # Default to 'remaining'
-            print("Fetching classified but unverified papers (most recent to oldest)...")
+                print(f"[{datetime.utcnow().isoformat()}] Warning: Paper ID {paper_id} not found.")
+                conn.close()
+                return True
+            cursor.execute("SELECT id FROM papers WHERE id = ?", (paper_id,))
+        else:  # Default to 'remaining'
+            # Verify papers that have classification but no verification yet
+            # Check all 3 sets - if any set lacks verification, include the paper
             cursor.execute("""
-            SELECT id
-            FROM papers
-            WHERE (changed_by IS NOT NULL AND changed_by != '')
-            AND (is_offtopic IS NOT NULL AND is_offtopic != '')
-            AND (verified_by IS NULL OR verified_by = '' OR verified = 'unknown' OR verified = '')
-            ORDER BY year DESC
+                SELECT id FROM papers
+                WHERE (changed_by IS NOT NULL AND changed_by != '')
+                AND (is_offtopic IS NOT NULL AND is_offtopic != '')
+                AND (
+                    (set_1_last_llm_verified IS NULL OR set_1_last_llm_verified = '')
+                    OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_verified = '')
+                    OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_verified = '')
+                )
             """)
+        
         paper_ids = [row[0] for row in cursor.fetchall()]
         conn.close()
+        
         total_papers = len(paper_ids)
-        print(f"Found {total_papers} paper(s) to verify based on mode '{mode}'.")
-
-        # Log verification batch start
+        total_tasks = total_papers * 3  # 3 sets per paper
+        
+        print(f"[{datetime.utcnow().isoformat()}] Found {total_papers} paper(s) to process based on mode '{mode}'.")
+        print(f"[{datetime.utcnow().isoformat()}] Total set verification tasks: {total_tasks} (3 sets per paper)")
+        
         globals.log_performance_event('verification_batch_start', {
             'mode': mode,
             'total_papers': total_papers,
-            'model_alias': model_alias,
-            'max_concurrent_workers': globals.MAX_CONCURRENT_WORKERS_VERIFY
+            'total_tasks': total_tasks,
+            'model_alias': model_alias
         })
     
-        # Remove any None values that might have been included due to missing years
-        paper_ids = [pid for pid in paper_ids if pid is not None]
     except Exception as e:
-        print(f"Error fetching paper IDs: {e}")
+        print(f"[{datetime.utcnow().isoformat()}] Error fetching paper IDs: {type(e).__name__}: {e}")
         return False
-
+    
     if not paper_ids:
-        print("No papers found matching the verification criteria. Nothing to process.")
+        print(f"[{datetime.utcnow().isoformat()}] No papers found matching the criteria. Nothing to process.")
         return True
-
-    paper_id_queue = queue.Queue()
+    
+    # Create unified task queue
+    task_queue = queue.Queue()
+    controller = globals.get_task_queue_controller()
+    
+    # Create 3 tasks per paper (one for each set)
     for pid in paper_ids:
-        paper_id_queue.put(pid)
-
-    # Add poison pills for each worker thread
-    for _ in range(globals.MAX_CONCURRENT_WORKERS_VERIFY):
-        paper_id_queue.put(None)
-
-    progress_lock = threading.Lock()
-    processed_count = [0]
-
-    print(f"Starting ThreadPoolExecutor with up to {globals.MAX_CONCURRENT_WORKERS_VERIFY} workers for verification...")
-    start_time = time.time()
-
+        for set_num in [1, 2, 3]:
+            task = VerifyTask(
+                paper_id=pid,
+                set_num=set_num,
+                prompt_template_content=prompt_template_content,
+                db_path=db_file,
+                model_alias=model_alias,
+                server_url=server_url
+            )
+            task_queue.put(task)
+    
+    # Add poison pills for workers
+    num_workers = globals.MAX_CONCURRENT_WORKERS_VERIFY
+    for _ in range(num_workers):
+        task_queue.put(None)
+    
+    # Start worker threads
+    workers = []
+    for i in range(num_workers):
+        t = threading.Thread(target=_worker, args=(task_queue, controller, i), daemon=True)
+        t.start()
+        workers.append(t)
+    
+    print(f"[{datetime.utcnow().isoformat()}] Started {num_workers} workers with unified task queue.")
+    print(f"[{datetime.utcnow().isoformat()}] Processing started. Press Ctrl+C to abort.")
+    
     try:
-        with ThreadPoolExecutor(max_workers=globals.MAX_CONCURRENT_WORKERS_VERIFY) as executor:
-            futures = []
-            for _ in range(globals.MAX_CONCURRENT_WORKERS_VERIFY):
-                future = executor.submit(
-                    process_paper_verification_worker,
-                    db_file,
-                    verification_prompt_template_content,
-                    paper_id_queue,
-                    progress_lock,
-                    processed_count,
-                    total_papers,
-                    model_alias
-                )
-                futures.append(future)
+        # Monitor progress
+        while not globals.is_shutdown_flag_set():
+            remaining = task_queue.qsize()
+            stats = controller.get_stats()
+            papers_done = (total_tasks - remaining) // 3
+            print(f"\r[{datetime.utcnow().isoformat()}] [Progress] Queue: {remaining} | Running: {stats['total']} ({stats['state']}) | ", end='', flush=True)
             
-            print("Verification processing started. Press Ctrl+C to abort.")
+            if task_queue.empty() and all(not t.is_alive() for t in workers):
+                break
             
-            while not globals.is_shutdown_flag_set():
-                if all(f.done() for f in futures):
-                    break
-                time.sleep(0.1)
-
+            time.sleep(0.5)
+    
     except KeyboardInterrupt:
-        print("\nKeyboardInterrupt caught in run_verification. Setting shutdown flag.")
+        print(f"\n[{datetime.utcnow().isoformat()}] KeyboardInterrupt caught. Setting shutdown flag.")
         globals.set_shutdown_flag()
-    except Exception as e:
-        print(f"Error in main verification execution loop: {e}")
-        globals.set_shutdown_flag()
-
+        controller.shutdown()
+    
     finally:
-        end_time = time.time()
-        final_count = 0
-        if progress_lock:
-            with progress_lock:
-                final_count = processed_count[0] if processed_count else 0
+        # Wait for queue to drain
+        task_queue.join()
         
-        # Log verification batch complete
+        end_time = time.time()
         globals.log_performance_event('verification_batch_complete', {
             'mode': mode,
             'papers_total': total_papers,
-            'papers_processed': final_count,
+            'tasks_total': total_tasks,
             'duration_seconds': end_time - start_time,
             'model_alias': model_alias
         })
         
-        print(f"\n--- Verification Summary ---")
-        print(f"Papers verified: {final_count}/{total_papers}")
-        print(f"Time taken: {end_time - start_time:.2f} seconds")
-        print("Verification run finished.")
-        return not globals.is_shutdown_flag_set()
+        print(f"\n[{datetime.utcnow().isoformat()}] --- Verification Summary ---")
+        print(f"[{datetime.utcnow().isoformat()}] Papers processed: {total_papers}")
+        print(f"[{datetime.utcnow().isoformat()}] Total vLLM requests: {total_tasks}")
+        print(f"[{datetime.utcnow().isoformat()}] Time taken: {end_time - start_time:.2f} seconds")
+        print(f"[{datetime.utcnow().isoformat()}] Verification run finished.")
     
+    return not globals.is_shutdown_flag_set()
+
+# ============================================================================
+# CLI ENTRY POINT
+# ============================================================================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Verify LLM classifications for papers in the database.')
-    parser.add_argument('--mode', '-m', choices=['all', 'remaining', 'id'], default='remaining',
-                        help="Verification mode: 'all' (verify all classified), 'remaining' (verify unverified), 'id' (verify a specific paper). Default: 'remaining'.")
-    parser.add_argument('--paper_id', '-i', type=int, help='Paper ID to verify (required if --mode id).')
-    parser.add_argument('--db_file', default=globals.DATABASE_FILE,
-                       help=f'SQLite database file path (default: {globals.DATABASE_FILE})')
-    parser.add_argument('--prompt_template', '-t', default=globals.VERIFIER_TEMPLATE,
-                       help=f'Path to the verification prompt template file (default: {globals.VERIFIER_TEMPLATE})')
-    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL,
-                       help=f'Base URL of the LLM server (default: {globals.LLM_SERVER_URL})')
+    parser = argparse.ArgumentParser(description='Automate LLM verification.')
+    parser.add_argument('--mode', '-m',
+                       choices=['all', 'remaining', 'id'],
+                       default='remaining')
+    parser.add_argument('--paper_id', '-i', type=str)
+    parser.add_argument('--db_file', default=globals.DATABASE_FILE)
+    parser.add_argument('--prompt_template', '-t', default=globals.VERIFIER_TEMPLATE)
+    parser.add_argument('--server_url', default=globals.LLM_SERVER_URL)
+    parser.add_argument('--exit-on-complete', action='store_true')
+    
     args = parser.parse_args()
-
+    
     signal.signal(signal.SIGINT, globals.signal_handler)
-
+    
     if args.mode == 'id' and args.paper_id is None:
-        parser.error("--mode 'id' requires --paper_id to be specified.")
-
+        parser.error("--mode 'id' requires --paper_id")
+    
     success = run_verification(
         mode=args.mode,
         paper_id=args.paper_id,
@@ -472,6 +579,9 @@ if __name__ == "__main__":
         prompt_template=args.prompt_template,
         server_url=args.server_url
     )
-
-    if not success and not globals.is_shutdown_flag_set():
+    
+    if not success and not globals.is_shutdown_flag_set() and args.exit_on_complete:
         exit(1)
+    
+    if not args.exit_on_complete:
+        input("Press Enter to continue...")

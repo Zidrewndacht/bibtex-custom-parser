@@ -336,7 +336,7 @@
             <span>Data sorted from <b>newest</b> to <b>oldest</b>.</span><br><br>
             <span>Highlights identify cells changed between runs.</span><br>
             <span>⚠️ indicates conflicting classifications across the 3 sets.</span><br>
-            <span>Translucent emojis indicate partial agreement (60% = 1 set, 80% = 2 sets agree).</span>
+            <span>Translucent emojis indicate partial agreement (33% = 1 set, 66% = 2 sets agree).</span>
         </div>
     </div>
     <div class="row-actions">
@@ -354,16 +354,16 @@
     <!-- 4 Vertical Tabs Navigation -->
     <div class="history-tabs-nav">
         <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}">
-            <span>Main</span>
+            <span>Main <span class="arrow">▼</span></span>
         </button>
         <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}">
-            <span>Set 1</span>
+            <span>Set 1 <span class="arrow">▼</span></span>
         </button>
         <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}">
-            <span>Set 2</span>
+            <span>Set 2 <span class="arrow">▼</span></span>
         </button>
         <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}">
-            <span>Set 3</span>
+            <span>Set 3 <span class="arrow">▼</span></span>
         </button>
     </div>
     

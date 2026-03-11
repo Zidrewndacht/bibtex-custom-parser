@@ -8,17 +8,21 @@ import sqlite3
 import re
 import threading
 import os
+import time
 
 import json
 from datetime import datetime
 
 LLM_SERVER_URL = "http://localhost:8086"
-MAX_CONCURRENT_WORKERS = 128 # vLLM go brrr 
-MAX_CONCURRENT_WORKERS_VERIFY = 192 # 480
-MAX_CONCURRENT_WORKERS_CONSENSUS = 64
+# Maximum concurrent limits for homogeneous workloads (only one task type running)
+MAX_CONCURRENT_WORKERS_CLASSIFY = 192
+MAX_CONCURRENT_WORKERS_VERIFY = 384
+MAX_CONCURRENT_WORKERS_CONSENSUS = 128
+
+MIN_CONCURRENT_WORKERS = 32     # Minimum concurrent limit for mixed workloads (multiple task types running)
+
 MAX_CONSENSUS_ITERATIONS = 12  # Hard limit for consensus loops
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8  # Switch to fresh classify at iteration 8
-
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_TEMPLATES_DIR = os.path.join(BASE_DIR, 'prompt_templates')
@@ -106,6 +110,170 @@ PDF_EMOJIS = {
     'paywalled': '💰',
     'none': '❔'
 }
+
+
+
+
+# ============================================================================
+# TASK QUEUE CONTROLLER - Thread-safe admission control
+# ============================================================================
+
+# Task type enums
+TASK_TYPE_CLASSIFY = 'classify'
+TASK_TYPE_VERIFY = 'verify'
+TASK_TYPE_CONSENSUS = 'consensus'
+
+class TaskQueueController:
+    """
+    Unified task queue with dynamic admission control based on running task composition.
+    
+    Admission Logic:
+    - If only one task type is running: admit up to that type's MAX limit
+    - If multiple types are running (mixed): admit any type until total >= MIN, then hold
+    - When state transitions back to homogeneous: revert to that type's MAX limit
+    """
+    
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._running_counts = {
+            TASK_TYPE_CLASSIFY: 0,
+            TASK_TYPE_VERIFY: 0,
+            TASK_TYPE_CONSENSUS: 0
+        }
+        self._condition = threading.Condition(self._lock)
+        self._shutdown = False
+    
+    def _get_state(self):
+        """Determine current system state based on running task composition."""
+        classify = self._running_counts[TASK_TYPE_CLASSIFY]
+        verify = self._running_counts[TASK_TYPE_VERIFY]
+        consensus = self._running_counts[TASK_TYPE_CONSENSUS]
+        total = classify + verify + consensus
+        
+        # Count how many types are currently running
+        active_types = sum(1 for c in [classify, verify, consensus] if c > 0)
+        
+        if active_types == 0:
+            return 'idle', 0
+        elif active_types == 1:
+            if classify > 0:
+                return 'classify_homogeneous', MAX_CONCURRENT_WORKERS_CLASSIFY
+            elif verify > 0:
+                return 'verify_homogeneous', MAX_CONCURRENT_WORKERS_VERIFY
+            else:
+                return 'consensus_homogeneous', MAX_CONCURRENT_WORKERS_CONSENSUS
+        else:
+            # Mixed state - 2 or 3 types running
+            return 'mixed', MIN_CONCURRENT_WORKERS
+    
+    def acquire(self, task_type, timeout=None):
+        """
+        Acquire permission to run a task of the given type.
+        Blocks until admission is granted or timeout expires.
+        
+        Returns True if acquired, False if timeout or shutdown.
+        """
+        with self._condition:
+            start_time = time.time()
+            
+            while True:
+                if self._shutdown:
+                    return False
+                
+                state, limit = self._get_state()
+                total_running = sum(self._running_counts.values())
+                current_type_count = self._running_counts[task_type]
+                
+                # Check if we can admit this task
+                can_admit = False
+                
+                if state in ['classify_homogeneous', 'verify_homogeneous', 'consensus_homogeneous']:
+                    # Homogeneous state: admit up to type-specific MAX
+                    # (state already tells us which type is running, but we check anyway)
+                    if total_running < limit:
+                        can_admit = True
+                elif state == 'mixed':
+                    # Mixed state: admit any type until total >= MIN
+                    if total_running < limit:
+                        can_admit = True
+                else:
+                    # Idle state: admit any type
+                    can_admit = True
+                
+                if can_admit:
+                    self._running_counts[task_type] += 1
+                    return True
+                
+                # Calculate remaining timeout
+                if timeout is not None:
+                    elapsed = time.time() - start_time
+                    remaining = timeout - elapsed
+                    if remaining <= 0:
+                        return False
+                    self._condition.wait(timeout=remaining)
+                else:
+                    self._condition.wait(timeout=0.1)  # Prevent indefinite blocking
+    
+    def release(self, task_type):
+        """Release a task slot when a task completes."""
+        with self._condition:
+            if self._running_counts[task_type] > 0:
+                self._running_counts[task_type] -= 1
+            self._condition.notify_all()
+    
+    def shutdown(self):
+        """Signal shutdown to all waiting threads."""
+        with self._condition:
+            self._shutdown = True
+            self._condition.notify_all()
+    
+    def get_stats(self):
+        """Get current running task counts by type."""
+        with self._lock:
+            return {
+                'classify': self._running_counts[TASK_TYPE_CLASSIFY],
+                'verify': self._running_counts[TASK_TYPE_VERIFY],
+                'consensus': self._running_counts[TASK_TYPE_CONSENSUS],
+                'total': sum(self._running_counts.values()),
+                'state': self._get_state()[0]
+            }
+
+# Global task queue controller instance
+_task_queue_controller = None
+
+def get_task_queue_controller():
+    """Get or create the global task queue controller."""
+    global _task_queue_controller
+    if _task_queue_controller is None:
+        _task_queue_controller = TaskQueueController()
+    return _task_queue_controller
+
+def reset_task_queue_controller():
+    """Reset the global task queue controller (for testing/restarts)."""
+    global _task_queue_controller
+    if _task_queue_controller:
+        _task_queue_controller.shutdown()
+    _task_queue_controller = TaskQueueController()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # --- Global Shutdown Flag for Instant Shutdown (using Lock for atomicity) ---
 # This provides a common mechanism for scripts to handle Ctrl+C gracefully.
@@ -223,196 +391,213 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
     """
     if db_path is None:
         db_path = DATABASE_FILE
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
     
-    # Fetch paper data
-    cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
-    paper = cursor.fetchone()
-    if not paper:
-        conn.close()
-        return None
-    
-    paper = dict(paper)
-    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
-    
-    # Fields to average (boolean fields)
-    boolean_fields = [
-        'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray'
-    ]
-    
-    # Build certainty map AND main output data for logging
-    certainty_map = {}
-    main_output = {}
-    
-    # Process boolean classification fields
-    for field in boolean_fields:
-        values = [
-            paper.get(f'set_1_last_llm_{field}'),
-            paper.get(f'set_2_last_llm_{field}'),
-            paper.get(f'set_3_last_llm_{field}'),
-        ]
-        main_value, certainty = calculate_field_certainty(values)
-        certainty_map[field] = certainty
-        main_output[field] = main_value
-        
-        # Update main field
-        cursor.execute(
-            f"UPDATE papers SET {field} = ? WHERE id = ?",
-            (main_value, paper_id)
-        )
-    
-    # Process relevance (numeric average)
-    relevance_values = [
-        paper.get('set_1_last_llm_relevance'),
-        paper.get('set_2_last_llm_relevance'),
-        paper.get('set_3_last_llm_relevance'),
-    ]
-    relevance_valid = [v for v in relevance_values if v is not None]
-    main_relevance = sum(relevance_valid) / len(relevance_valid) if relevance_valid else None
-    main_output['relevance'] = main_relevance
-    cursor.execute("UPDATE papers SET relevance = ? WHERE id = ?", (main_relevance, paper_id))
-    
-
-    # Process verified (from scores, NOT from explicit verified field)
-    score_values = [
-        paper.get('set_1_last_llm_estimated_score'),
-        paper.get('set_2_last_llm_estimated_score'),
-        paper.get('set_3_last_llm_estimated_score'),
-    ]
-
-    # Convert each set's score to verified status BEFORE averaging
-    # >=7 = verified:yes (1), <7 = verified:no (0), None = unknown (None)
-    verified_from_score = []
-    for score in score_values:
-        if score is None:
-            verified_from_score.append(None)  # No verification data
-        elif score >= 7:
-            verified_from_score.append(1)  # Verified yes
-        else:
-            verified_from_score.append(0)  # Verified no
-
-    # Now average the verification statuses using certainty logic
-    main_verified, verified_certainty = calculate_field_certainty(verified_from_score)
-    certainty_map['verified'] = verified_certainty
-    main_output['verified'] = main_verified
-    cursor.execute("UPDATE papers SET verified = ? WHERE id = ?", (main_verified, paper_id))
-
-    # Process estimated_score (average of available scores, for display)
-    score_valid = [v for v in score_values if v is not None]
-    main_score = sum(score_valid) / len(score_valid) if score_valid else None
-    main_output['estimated_score'] = int(main_score) if main_score is not None else None
-    cursor.execute("UPDATE papers SET estimated_score = ? WHERE id = ?", (main_output['estimated_score'], paper_id))
-    
-    # Process features JSON fields
-    main_features = {}
-    for feature_key in BOOLEAN_FEATURE_KEYS:
-        values = []
-        for sn in [1, 2, 3]:
-            feat_key = f'set_{sn}_last_llm_features'
-            feat_str = paper.get(feat_key)
-            try:
-                feat = json.loads(feat_str) if feat_str else {}
-            except:
-                feat = {}
-            values.append(feat.get(feature_key))
-        main_value, certainty = calculate_field_certainty(values)
-        field_name = f'features_{feature_key}'
-        certainty_map[field_name] = certainty
-        main_features[feature_key] = main_value
-    main_output['features'] = main_features
-    cursor.execute("UPDATE papers SET features = ? WHERE id = ?", (json.dumps(main_features), paper_id))
-    
-    # Process technique JSON fields
-    main_technique = {}
-    for tech_key in DEFAULT_TECHNIQUE.keys():
-        if tech_key in ['model', 'available_dataset']:
-            continue  # Skip non-boolean fields for averaging
-        values = []
-        for sn in [1, 2, 3]:
-            tech_key_db = f'set_{sn}_last_llm_technique'
-            tech_str = paper.get(tech_key_db)
-            try:
-                tech = json.loads(tech_str) if tech_str else {}
-            except:
-                tech = {}
-            values.append(tech.get(tech_key))
-        main_value, certainty = calculate_field_certainty(values)
-        field_name = f'technique_{tech_key}'
-        certainty_map[field_name] = certainty
-        main_technique[tech_key] = main_value
-    
-    # Copy model name from set_1 (not averaged)
+    conn = None
     try:
-        tech1_str = paper.get('set_1_last_llm_technique')
-        tech1 = json.loads(tech1_str) if tech1_str else {}
-        main_technique['model'] = tech1.get('model')
-        main_technique['available_dataset'] = tech1.get('available_dataset')
-    except:
-        main_technique['model'] = None
-        main_technique['available_dataset'] = None
-    main_output['technique'] = main_technique
-    cursor.execute("UPDATE papers SET technique = ? WHERE id = ?", (json.dumps(main_technique), paper_id))
-    
-    # Update main_certainty column
-    cursor.execute(
-        "UPDATE papers SET main_certainty = ? WHERE id = ?",
-        (json.dumps(certainty_map), paper_id)
-    )
-    
-    # Update last_llm_* cache fields (mirror main columns for backward compatibility)
-    cursor.execute("""
-    UPDATE papers SET
-    last_llm_features = features,
-    last_llm_technique = technique,
-    last_llm_is_offtopic = is_offtopic,
-    last_llm_is_survey = is_survey,
-    last_llm_is_through_hole = is_through_hole,
-    last_llm_is_smt = is_smt,
-    last_llm_is_x_ray = is_x_ray,
-    last_llm_relevance = relevance,
-    last_llm_verified = verified,
-    last_llm_estimated_score = estimated_score
-    WHERE id = ?
-    """, (paper_id,))
-    
-    # === CREATE MAIN LOG ENTRY ===
-    if create_log_entry:
-        # Fetch existing main log
-        cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
-        row = cursor.fetchone()
+        conn = sqlite3.connect(db_path, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Fetch paper data
+        cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
+        paper = cursor.fetchone()
+        if not paper:
+            conn.close()
+            return None
+        
+        paper = dict(paper)
+        changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+        
+        # Fields to average (boolean fields)
+        boolean_fields = [
+            'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray'
+        ]
+        
+        # Build certainty map AND main output data for logging
+        certainty_map = {}
+        main_output = {}
+        
+        # Process boolean classification fields
+        for field in boolean_fields:
+            values = [
+                paper.get(f'set_1_last_llm_{field}'),
+                paper.get(f'set_2_last_llm_{field}'),
+                paper.get(f'set_3_last_llm_{field}'),
+            ]
+            main_value, certainty = calculate_field_certainty(values)
+            certainty_map[field] = certainty
+            main_output[field] = main_value
+            
+            # Update main field
+            cursor.execute(
+                f"UPDATE papers SET {field} = ? WHERE id = ?",
+                (main_value, paper_id)
+            )
+        
+        # Process relevance (numeric average)
+        relevance_values = [
+            paper.get('set_1_last_llm_relevance'),
+            paper.get('set_2_last_llm_relevance'),
+            paper.get('set_3_last_llm_relevance'),
+        ]
+        relevance_valid = [v for v in relevance_values if v is not None]
+        main_relevance = sum(relevance_valid) / len(relevance_valid) if relevance_valid else None
+        main_output['relevance'] = main_relevance
+        cursor.execute("UPDATE papers SET relevance = ? WHERE id = ?", (main_relevance, paper_id))
+        
+
+        # Process verified (from scores, NOT from explicit verified field)
+        score_values = [
+            paper.get('set_1_last_llm_estimated_score'),
+            paper.get('set_2_last_llm_estimated_score'),
+            paper.get('set_3_last_llm_estimated_score'),
+        ]
+
+        # Convert each set's score to verified status BEFORE averaging
+        # >=7 = verified:yes (1), <7 = verified:no (0), None = unknown (None)
+        verified_from_score = []
+        for score in score_values:
+            if score is None:
+                verified_from_score.append(None)  # No verification data
+            elif score >= 7:
+                verified_from_score.append(1)  # Verified yes
+            else:
+                verified_from_score.append(0)  # Verified no
+
+        # Now average the verification statuses using certainty logic
+        main_verified, verified_certainty = calculate_field_certainty(verified_from_score)
+        certainty_map['verified'] = verified_certainty
+        main_output['verified'] = main_verified
+        cursor.execute("UPDATE papers SET verified = ? WHERE id = ?", (main_verified, paper_id))
+
+        # Process estimated_score (average of available scores, for display)
+        score_valid = [v for v in score_values if v is not None]
+        main_score = sum(score_valid) / len(score_valid) if score_valid else None
+        main_output['estimated_score'] = int(main_score) if main_score is not None else None
+        cursor.execute("UPDATE papers SET estimated_score = ? WHERE id = ?", (main_output['estimated_score'], paper_id))
+        
+        # Process features JSON fields
+        main_features = {}
+        for feature_key in BOOLEAN_FEATURE_KEYS:
+            values = []
+            for sn in [1, 2, 3]:
+                feat_key = f'set_{sn}_last_llm_features'
+                feat_str = paper.get(feat_key)
+                try:
+                    feat = json.loads(feat_str) if feat_str else {}
+                except:
+                    feat = {}
+                values.append(feat.get(feature_key))
+            main_value, certainty = calculate_field_certainty(values)
+            field_name = f'features_{feature_key}'
+            certainty_map[field_name] = certainty
+            main_features[feature_key] = main_value
+        main_output['features'] = main_features
+        cursor.execute("UPDATE papers SET features = ? WHERE id = ?", (json.dumps(main_features), paper_id))
+        
+        # Process technique JSON fields
+        main_technique = {}
+        for tech_key in DEFAULT_TECHNIQUE.keys():
+            if tech_key in ['model', 'available_dataset']:
+                continue  # Skip non-boolean fields for averaging
+            values = []
+            for sn in [1, 2, 3]:
+                tech_key_db = f'set_{sn}_last_llm_technique'
+                tech_str = paper.get(tech_key_db)
+                try:
+                    tech = json.loads(tech_str) if tech_str else {}
+                except:
+                    tech = {}
+                values.append(tech.get(tech_key))
+            main_value, certainty = calculate_field_certainty(values)
+            field_name = f'technique_{tech_key}'
+            certainty_map[field_name] = certainty
+            main_technique[tech_key] = main_value
+        
+        # Copy model name from set_1 (not averaged)
         try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
+            tech1_str = paper.get('set_1_last_llm_technique')
+            tech1 = json.loads(tech1_str) if tech1_str else {}
+            main_technique['model'] = tech1.get('model')
+            main_technique['available_dataset'] = tech1.get('available_dataset')
         except:
-            existing_log = []
+            main_technique['model'] = None
+            main_technique['available_dataset'] = None
+        main_output['technique'] = main_technique
+        cursor.execute("UPDATE papers SET technique = ? WHERE id = ?", (json.dumps(main_technique), paper_id))
         
-        # Create averaged classification log entry with FULL STATE SNAPSHOT
-        log_entry = {
-            "timestamp": changed_timestamp,
-            "type": "averaged_llm",  # NEW type for averaged results
-            "model": "averaged_3_sets",
-            "trace": f"Averaged from {sum(1 for v in [paper.get('set_1_last_llm_is_offtopic'), paper.get('set_2_last_llm_is_offtopic'), paper.get('set_3_last_llm_is_offtopic')] if v is not None)} of 3 classification sets",
-            "output": json.dumps({
-                **main_output,
-                "certainty_map": certainty_map  # Include certainty info in main log
-            }),
-            "valid": True,
-            "certainty_map": certainty_map  # Also at top level for easier access
-        }
-        
-        # Check if last entry was also an averaged_llm entry (consolidate)
-        if existing_log and existing_log[-1].get('type') == 'averaged_llm':
-            # Update the existing averaged entry instead of creating duplicate
-            existing_log[-1] = log_entry
-        else:
-            existing_log.append(log_entry)
-        
-        cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+        # Update main_certainty column
+        cursor.execute(
+            "UPDATE papers SET main_certainty = ? WHERE id = ?",
+            (json.dumps(certainty_map), paper_id)
+        )
+        # Update last_llm_* cache fields (mirror main columns for backward compatibility)
+        cursor.execute("""
+        UPDATE papers SET
+        last_llm_features = features,
+        last_llm_technique = technique,
+        last_llm_is_offtopic = is_offtopic,
+        last_llm_is_survey = is_survey,
+        last_llm_is_through_hole = is_through_hole,
+        last_llm_is_smt = is_smt,
+        last_llm_is_x_ray = is_x_ray,
+        last_llm_relevance = relevance,
+        last_llm_verified = verified,
+        last_llm_estimated_score = estimated_score
+        WHERE id = ?
+        """, (paper_id,))
+
+        # Update main row audit fields (changed, changed_by)
+        cursor.execute("""
+        UPDATE papers SET
+            changed = ?,
+            changed_by = ?
+        WHERE id = ?
+        """, (changed_timestamp, changed_by, paper_id))
+        # === CREATE MAIN LOG ENTRY ===
+        if create_log_entry:
+            # Fetch existing main log
+            cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,))
+            row = cursor.fetchone()
+            try:
+                existing_log = json.loads(row[0]) if row and row[0] else []
+            except:
+                existing_log = []
+            
+            # Create averaged classification log entry with FULL STATE SNAPSHOT
+            log_entry = {
+                "timestamp": changed_timestamp,
+                "type": "averaged_llm",
+                "model": "averaged_3_sets",
+                "trace": f"Averaged from 3 classification sets ({sum(1 for v in [paper.get('set_1_last_llm_is_offtopic'), paper.get('set_2_last_llm_is_offtopic'), paper.get('set_3_last_llm_is_offtopic')] if v is not None)} currently populated)",
+                "output": json.dumps({
+                    **main_output,
+                    "certainty_map": certainty_map
+                }),
+                "valid": True,
+                "certainty_map": certainty_map
+            }
+            
+            # FIX: ALWAYS append for averaged_llm entries, NEVER consolidate
+            # Only consolidate user entries with previous user entries
+            if existing_log and existing_log[-1].get('type') == 'user':
+                # User entries can consolidate with previous user entries
+                existing_log[-1] = log_entry
+            else:
+                # averaged_llm entries ALWAYS append (even if previous was also averaged_llm)
+                existing_log.append(log_entry)
+            
+            cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+            
+        conn.commit()
+        conn.close()
+        return certainty_map
     
-    conn.commit()
-    conn.close()
-    return certainty_map
+    finally:
+        if conn:
+            conn.close()
 
 def get_set_data(paper_data, set_num):
     """
@@ -495,17 +680,22 @@ def load_prompt_template(template_path):
         print(f"Error reading prompt template file '{template_path}': {e}")
         raise
 
+# In globals.py - get_paper_by_id()
 def get_paper_by_id(db_path, paper_id):
     """Fetches a single paper's data from the database by its ID."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
-
-
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        if conn:
+            conn.close()
 
 def get_best_set_for_text_fields(paper_data):
     """
@@ -552,26 +742,29 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"
     payload = {
         # For Qwen3.5:
-        "model": model_name,
-        "messages": [{"role": "user", "content": prompt_text}],
-        "temperature": 1.0,
-        "top_p": 0.95,
-        "top_k": 20,
-        "min_p": 0.0,
-        "repetition_penalty": 1.0,
-        "presence_penalty": 1.5, # Qwen3.5
-        "max_tokens": 32768,
-        "stream": False
-
-        #For Qwen3:
         # "model": model_name,
         # "messages": [{"role": "user", "content": prompt_text}],
-        # "temperature": 0.6, # Qwen3, or 1.0 for Qwen3.5
-        # "top_p": 0.95, 
-        # "top_k": 20, 
-        # "min_p": 0,
+        # "temperature": 0.6,
+        # "top_p": 0.95,
+        # "top_k": 20,
+        # "min_p": 0.0,
+        # "repetition_penalty": 1.0,
+        # "presence_penalty": 1.5, # Qwen3.5, maybe.
         # "max_tokens": 32768,
-        # "stream": False
+        # "stream": False,
+        # "chat_template_kwargs": {"enable_thinking": True}
+
+        #For Qwen3:
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt_text}],
+        "temperature": 0.6,
+        "top_p": 0.95, 
+        "top_k": 20, 
+        "min_p": 0,
+        "max_tokens": 32768,
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": True}
+
     }
     context = "verification " if is_verification else ""
     try:
