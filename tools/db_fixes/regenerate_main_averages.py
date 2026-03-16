@@ -3,7 +3,7 @@
 regenerate_main_averages.py
 
 REGENERATES all main averaged classification data from the 3 independent classification sets.
-COMPLETELY REPLACES existing main history with a fresh averaged_llm entry.
+COMPLETELY REPLACES existing main history with a single fresh averaged_llm entry.
 """
 
 import sqlite3

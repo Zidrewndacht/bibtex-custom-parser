@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-fix_invalid_log_entries.py
+invalidate_bogus_log_entries.py
 
 Scans set_1/2/3_llm_log columns and marks malformed entries as invalid.
 Does NOT touch main llm_log (which should never have invalid entries).

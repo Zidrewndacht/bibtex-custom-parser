@@ -1981,80 +1981,128 @@ def update_paper():
         print(f"Error updating paper {paper_id}: {e}") # Log error
         return jsonify({'status': 'error', 'message': 'Failed to update database'}), 500
 
+# In browse_db.py, add these imports and functions:
+
+import subprocess
+import requests
+import time
+
+QUEUE_MANAGER_PORT = 8087
+QUEUE_MANAGER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'llm_queue_manager.py')
+
+def is_queue_manager_running():
+    try:
+        response = requests.get(f'http://127.0.0.1:{QUEUE_MANAGER_PORT}/health', timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
+def start_queue_manager():
+    if is_queue_manager_running():
+        return True
+    
+    print("[Flask] Starting queue manager...")
+    
+    if sys.platform.startswith('win'):
+        subprocess.Popen(
+            [sys.executable, QUEUE_MANAGER_SCRIPT],
+            cwd=os.getcwd(),
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+            close_fds=True
+        )
+    else:
+        subprocess.Popen(
+            [sys.executable, QUEUE_MANAGER_SCRIPT],
+            cwd=os.getcwd(),
+            start_new_session=True,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    
+    for _ in range(20):
+        time.sleep(0.5)
+        if is_queue_manager_running():
+            return True
+    
+    return False
+
+def call_queue_manager(endpoint: str, data: dict, wait_timeout: int = None):
+    if not is_queue_manager_running():
+        if not start_queue_manager():
+            return None
+    
+    try:
+        response = requests.post(
+            f'http://127.0.0.1:{QUEUE_MANAGER_PORT}{endpoint}',
+            json=data,
+            timeout=wait_timeout if wait_timeout else 600
+        )
+        return response.json()
+    except Exception as e:
+        print(f"[Flask] Queue manager error: {e}")
+        return None
+import requests
 
 @app.route('/classify', methods=['POST'])
 def classify_paper():
-    """Endpoint to handle classification requests (single or batch)."""
+    """Endpoint to handle classification requests."""
     data = request.get_json()
-    mode = data.get('mode', 'id') # Default to 'id' for single paper
+    mode = data.get('mode', 'id')
     paper_id = data.get('paper_id')
-    # Determine DB file (use command-line arg or global default)
-    db_file = DATABASE 
-
-    # Valid modes for batch classification subprocess
-    valid_batch_modes = ['all', 'remaining', 'no_features', 'on_topic_implementation','consensus']
-
-    if mode in valid_batch_modes:
-        # Run batch classification as a separate process
-        run_classification_subprocess(mode, paper_id, db_file) # Pass paper_id even if None for batch modes
-        # Return immediately
-        return jsonify({'status': 'started', 'message': f'<p>Batch classification ({mode}) initiated as a separate process. Reload the webpage after a while to see updated results.</p> <p>You should still be able to run single-paper classifications and verifications in the meantime, but results may take longer.</p>'})
-
-    elif mode == 'id' and paper_id:
-        try:
-            # Run single paper classification synchronously (still within the server process)
-            # The function updates the DB directly
-            automate_classification.run_classification(
-                mode=mode,
-                paper_id=paper_id,
-                db_file=db_file
-            )
-            # Fetch the updated data from the database
-            updated_data = fetch_updated_paper_data(paper_id)
-            if updated_data['status'] == 'success':
+    
+    # Try to call queue manager
+    try:
+        response = requests.post(
+            f"{globals.QUEUE_MANAGER_URL}/classify",
+            json={'mode': mode, 'paper_id': paper_id},
+            timeout=None  # No timeout for single-paper requests
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if mode == 'id':
+                # Single paper - fetch updated data and return
+                updated_data = fetch_updated_paper_data(paper_id)
                 return jsonify(updated_data)
             else:
-                return jsonify(updated_data), 404 # Or 500 if it's a server error fetching data
-        except Exception as e:
-            print(f"Error classifying paper {paper_id}: {e}")
-            return jsonify({'status': 'error', 'message': f'Classification failed: {str(e)}'}), 500
-    else:
-        return jsonify({'status': 'error', 'message': f'Invalid mode or missing paper_id for single classification. Valid batch modes: {valid_batch_modes}.'}), 400
+                # Batch - return immediately
+                return jsonify({'status': 'started', 'message': f'Batch classification ({mode}) initiated.'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Queue manager returned error'}), 500
+    
+    except requests.exceptions.RequestException as e:
+        # Queue manager unavailable
+        return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
+
 
 @app.route('/verify', methods=['POST'])
 def verify_paper():
-    """Endpoint to handle verification requests (single or batch)."""
+    """Endpoint to handle verification requests."""
     data = request.get_json()
-    mode = data.get('mode', 'id') # Default to 'id' for single paper
+    mode = data.get('mode', 'id')
     paper_id = data.get('paper_id')
-    # Determine DB file (use command-line arg or global default)
-    db_file = DATABASE
-
-    if mode in ['all', 'remaining']:
-        # Run batch verification as a separate process
-        run_verification_subprocess(mode, paper_id, db_file) # Pass paper_id even if None for 'all'/'remaining'
-        # Return immediately
-        return jsonify({'status': 'started', 'message': f'Batch verification ({mode}) initiated as a separate process.'})
-
-    elif mode == 'id' and paper_id:
-        try:
-            # Run single paper verification synchronously (still within the server process)
-            verify_classification.run_verification(
-                mode=mode,
-                paper_id=paper_id,
-                db_file=db_file
-            )
-            # Fetch the updated data from the database
-            updated_data = fetch_updated_paper_data(paper_id)
-            if updated_data['status'] == 'success':
+    
+    try:
+        response = requests.post(
+            f"{globals.QUEUE_MANAGER_URL}/verify",
+            json={'mode': mode, 'paper_id': paper_id},
+            timeout=None
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            if mode == 'id':
+                updated_data = fetch_updated_paper_data(paper_id)
                 return jsonify(updated_data)
             else:
-                return jsonify(updated_data), 404 # Or 500
-        except Exception as e:
-            print(f"Error verifying paper {paper_id}: {e}")
-            return jsonify({'status': 'error', 'message': f'Verification failed: {str(e)}'}), 500
-    else:
-        return jsonify({'status': 'error', 'message': 'Invalid mode or missing paper_id for single verification.'}), 400
+                return jsonify({'status': 'started', 'message': f'Batch verification ({mode}) initiated.'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Queue manager returned error'}), 500
+    
+    except requests.exceptions.RequestException as e:
+        return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
     
 @app.route('/upload_bibtex', methods=['POST'])
 def upload_bibtex():
