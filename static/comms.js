@@ -1215,6 +1215,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const searchInput = document.getElementById('search-input'); // Get search input
 
         let exportUrl = '/static_export?'; // Start building the URL
+        // // Make lite export optional: Read checkbox state
+        // const liteExportCheckbox = document.getElementById('lite-export-checkbox');
+        // exportUrl += `lite=${liteExportCheckbox.checked ? '1' : '0'}&`;
+        exportUrl += `lite=1&`; //Default to lite export - no thinking traces history in exports from webpage.
 
         // Add filters to the URL query parameters
         if (hideOfftopicCheckbox) {

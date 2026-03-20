@@ -724,15 +724,13 @@ def embed_fonts_in_css(static_dir):
 # Core Export Generation Functions
 def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to_value, min_page_count_value, is_lite_export=False):
     """Generates the full HTML content string for the static export."""
-        
-    if is_lite_export:
-        for paper in papers:
-            paper['abstract'] = ''
-            paper['llm_log_entries'] = ''
-    else:
-        # Prepare history log data for the FILTERED papers only (already passed in)
-        for paper in papers:
-            paper['llm_log_entries'] = prepare_history_log_data(paper)
+     
+    # Prepare history log data for the FILTERED papers only (already passed in)
+    for paper in papers:
+        paper['llm_log_entries'] = prepare_history_log_data(paper, set_num=None)
+        paper['set_1_llm_log_entries'] = prepare_history_log_data(paper, set_num=1)
+        paper['set_2_llm_log_entries'] = prepare_history_log_data(paper, set_num=2)
+        paper['set_3_llm_log_entries'] = prepare_history_log_data(paper, set_num=3)
 
     
     style_css_content = ""
@@ -790,6 +788,7 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
         year_from_value=str(year_from_value),
         year_to_value=str(year_to_value),
         min_page_count_value=str(min_page_count_value),
+        is_lite_export=is_lite_export,
     )
     full_html_content = render_template(
         'index_static_export.html',

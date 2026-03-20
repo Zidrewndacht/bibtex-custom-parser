@@ -404,7 +404,7 @@ form label {
     user-select: none
 }
 
-.editable-status:hover,.editable-verify:hover,.pdf-status:hover, td.highlight-status:not(.cell-changed):hover {
+.editable-status:hover, .editable-verify:hover, .pdf-status:hover, .editable-status.highlight-status:not(.cell-changed):hover {
     background-color: var(--light-colored-btn-color);
     transform: scale(1.1);
     box-shadow: 0 2px 4px rgba(0,0,0,.1)
