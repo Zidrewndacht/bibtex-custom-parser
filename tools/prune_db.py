@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# for v1.0
 """
 Prune ResearchParça database to keep only a random subset of papers.
 Used for performance testing and human quality validation.

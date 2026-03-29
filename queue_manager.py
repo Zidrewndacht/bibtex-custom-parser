@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+# queue_manager.py
 """
-Queue Manager - Standalone HTTP server for LLM classification/verification.
+Queue Manager - Flask HTTP server for LLM classification/verification.
 Single dispatcher thread, callback-driven state machines, no blocking.
 """
 
@@ -8,25 +8,27 @@ import sqlite3
 import json
 import threading
 import signal
-import socketserver
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timezone
 from collections import deque
 import os 
 import globals
+import time
+from flask import Flask, request, jsonify
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-QUEUE_MANAGER_HOST = "localhost"
-QUEUE_MANAGER_PORT = 5001
 DB_PATH = globals.DATABASE_FILE
 
 # Task types
 TASK_CLASSIFY = "classify"
 TASK_VERIFY = "verify"
 TASK_RECLASSIFY = "reclassify"
+
+# Flask app
+app = Flask(__name__)
+app.config['JSON_SORT_KEYS'] = False  # Preserve key order in responses
 
 # ============================================================================
 # LOGGING HELPERS
@@ -35,7 +37,7 @@ TASK_RECLASSIFY = "reclassify"
 def log(msg: str):
     """Print timestamped message to console."""
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {msg}")
+    print(f"[{timestamp}] {msg}", flush=True)  # ← Add flush=True
 
 def log_queue_status():
     """Log current queue and in-flight status."""
@@ -46,16 +48,15 @@ def log_queue_status():
     queue_size = len(state.task_queue)
     
     # Determine current mode
-    other_types = total_in_flight - classify_in_flight
-    if other_types == 0 and classify_in_flight > 0:
+    if classify_in_flight == total_in_flight and classify_in_flight > 0:
         mode = f"HOMOGENEOUS_CLASSIFY (limit={globals.MAX_CONCURRENT_WORKERS_CLASSIFY})"
-    elif other_types == 0 and verify_in_flight > 0:
+    elif verify_in_flight == total_in_flight and verify_in_flight > 0:
         mode = f"HOMOGENEOUS_VERIFY (limit={globals.MAX_CONCURRENT_WORKERS_VERIFY})"
-    elif other_types == 0 and reclassify_in_flight > 0:
+    elif reclassify_in_flight == total_in_flight and reclassify_in_flight > 0:
         mode = f"HOMOGENEOUS_RECLASSIFY (limit={globals.MAX_CONCURRENT_WORKERS_RECLASSIFY})"
     else:
         mode = f"MIXED (min_threshold={globals.MIN_CONCURRENT_WORKERS})"
-    
+        
     log(f"QUEUE STATUS: queue_size={queue_size} \t in_flight={total_in_flight} \t classify={classify_in_flight} \t verify={verify_in_flight} \t reclassify={reclassify_in_flight} \t mode={mode}")
     
 # ============================================================================
@@ -171,7 +172,7 @@ class ClassificationStateMachine:
                 'task_id': f"{self.paper_id}_set{set_num}_classify",
                 'paper_id': self.paper_id,
                 'set_num': set_num,
-                'model_alias': self.model_alias,  # ← Add this
+                'model_alias': self.model_alias,
                 'prompt': self.prompt_template.format(
                     title=paper.get('title', ''),
                     abstract=paper.get('abstract', ''),
@@ -323,6 +324,7 @@ class VerificationStateMachine:
                 'type': paper.get('type', ''),
                 'journal': paper.get('journal', ''),
                 'relevance': paper.get(f'{prefix}relevance'),
+                'research_area': paper.get('research_area', ''),
             }
             
             # Boolean classification fields
@@ -502,7 +504,7 @@ class ConsensusStateMachine:
             'task_id': f"{self.paper_id}_set{self.set_num}_consensus_classify_{self.iteration}",
             'paper_id': self.paper_id,
             'set_num': self.set_num,
-            'model_alias': self.model_alias,  # ← Add this
+            'model_alias': self.model_alias,
             'prompt': self.classify_template.format(
                 title=paper.get('title', ''),
                 abstract=paper.get('abstract', ''),
@@ -529,6 +531,7 @@ class ConsensusStateMachine:
             'type': paper.get('type', ''),
             'journal': paper.get('journal', ''),
             'relevance': paper.get(f'{prefix}relevance'),
+            'research_area': paper.get('research_area', ''),
         }
         
         # Boolean classification fields - convert DB integers to Python booleans
@@ -621,7 +624,8 @@ class ConsensusStateMachine:
             'reasoning_trace': latest_classifier_trace,
             'verifier_trace': latest_verifier_trace,
             'estimated_score': paper.get(f'{prefix}estimated_score', ''),
-            'user_trace': paper.get('user_trace', '') or ''
+            'user_trace': paper.get('user_trace', '') or '',
+            'research_area': paper.get('research_area', ''),
         }
         
         return {
@@ -638,7 +642,8 @@ class ConsensusStateMachine:
         """Callback when a consensus task completes."""
         if success and llm_data:
             if self.current_task_type == TASK_CLASSIFY or self.current_task_type == TASK_RECLASSIFY:
-                self._update_set_cache(llm_data, model_name, reasoning_trace, json_result, valid=True)
+                # FIX: Pass reset_verification=True to trigger verification on next iteration
+                self._update_set_cache(llm_data, model_name, reasoning_trace, json_result, valid=True, reset_verification=True)
                 globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"Consensus_Classify_{self.iteration}")
             elif self.current_task_type == TASK_VERIFY:
                 self._update_set_verifier(llm_data, model_name, reasoning_trace, json_result, valid=True)
@@ -652,35 +657,41 @@ class ConsensusStateMachine:
         elif self.completion_callback:
             self.completion_callback(self.paper_id, self.set_num, success)
     
-    def _update_set_cache(self, llm_data, model_name, reasoning_trace, json_result, valid):
-        """Update set cache columns."""
+    def _update_set_cache(self, llm_data, model_name, reasoning_trace, json_result, valid, reset_verification=False):
+        """Update set cache columns.
+        
+        Args:
+            reset_verification: If True, also reset verified/estimated_score fields
+                            (used after classify/reclassify to trigger verification)
+        """
         conn = sqlite3.connect(DB_PATH, timeout=30)
         conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.cursor()
-        
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         prefix = f'set_{self.set_num}_last_llm_'
-        
         update_fields = []
         update_values = []
-        
         for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
             if field in llm_data:
                 val = llm_data[field]
                 update_fields.append(f"{prefix}{field} = ?")
                 update_values.append(1 if val is True else 0 if val is False else None)
-        
         if 'relevance' in llm_data:
             update_fields.append(f"{prefix}relevance = ?")
             update_values.append(llm_data['relevance'])
-        
         if 'features' in llm_data:
             update_fields.append(f"{prefix}features = ?")
             update_values.append(json.dumps(llm_data['features']))
-        
         if 'technique' in llm_data:
             update_fields.append(f"{prefix}technique = ?")
             update_values.append(json.dumps(llm_data['technique']))
+        
+        # FIX: Reset verification fields if requested (after classify/reclassify)
+        if reset_verification:
+            update_fields.append(f"{prefix}verified = ?")
+            update_values.append(None)
+            update_fields.append(f"{prefix}estimated_score = ?")
+            update_values.append(None)
         
         cursor.execute(f"SELECT set_{self.set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
         row = cursor.fetchone()
@@ -688,7 +699,6 @@ class ConsensusStateMachine:
             existing_log = json.loads(row[0]) if row and row[0] else []
         except:
             existing_log = []
-        
         task_type = "consensus" if self.current_task_type == TASK_RECLASSIFY else "classifier"
         log_entry = {
             "timestamp": timestamp,
@@ -699,16 +709,13 @@ class ConsensusStateMachine:
             "valid": valid
         }
         existing_log.append(log_entry)
-        
         update_fields.append(f"set_{self.set_num}_llm_log = ?")
         update_values.append(json.dumps(existing_log))
-        
         if update_fields:
             update_values.append(self.paper_id)
             query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
             cursor.execute(query, update_values)
             conn.commit()
-        
         conn.close()
     
     def _update_set_verifier(self, llm_data, model_name, reasoning_trace, json_result, valid):
@@ -847,378 +854,390 @@ def _send_to_vllm_sync(task):
 # DISPATCHER
 # ============================================================================
 
+# def dispatcher_loop():
+#     """Single dispatcher thread - never blocks except on completion_event"""
+#     log(f"DISPATCHER: Starting dispatcher thread...")
+#     log_queue_status()
+    
+#     while not state.is_shutdown():
+#         task = state.peek_queue()
+        
+#         if task is None:
+#             # Queue empty - wait for new tasks
+#             state.completion_event.clear()
+#             state.completion_event.wait(timeout=1.0)
+#             continue
+        
+#         task_type = task.get('task_type')
+#         task_id = task.get('task_id', 'unknown')
+        
+#         if can_admit_task(task_type):
+#             task = state.dequeue()
+#             if task:
+#                 state.increment_in_flight(task_type)
+#                 log(f"DISPATCH: task={task_id} type={task_type}")
+#                 log_queue_status()
+#                 send_to_vllm(task)  # Fire-and-forget, doesn't block
+#         else:
+#             # Can't admit - wait for ANY completion
+#             state.completion_event.clear()
+#             state.completion_event.wait(timeout=0.5)
+    
+#     log(f"DISPATCHER: Shutdown complete.")
+
 def dispatcher_loop():
-    """Single dispatcher thread - never blocks except on completion_event"""
     log(f"DISPATCHER: Starting dispatcher thread...")
     log_queue_status()
     
     while not state.is_shutdown():
-        task = state.peek_queue()
+        admitted_any = False
         
-        if task is None:
-            # Queue empty - wait for new tasks
-            state.completion_event.clear()
-            state.completion_event.wait(timeout=1.0)
-            continue
-        
-        task_type = task.get('task_type')
-        task_id = task.get('task_id', 'unknown')
-        
-        if can_admit_task(task_type):
+        # Drain queue as much as admission control allows
+        while not state.is_shutdown():
+            task = state.peek_queue()
+            if task is None:
+                break
+            
+            task_type = task.get('task_type')
+            if not can_admit_task(task_type):
+                break
+            
             task = state.dequeue()
-            if task:
-                state.increment_in_flight(task_type)
-                log(f"DISPATCH: task={task_id} type={task_type}")
-                log_queue_status()
-                send_to_vllm(task)  # Fire-and-forget, doesn't block
-        else:
-            # Can't admit - wait for ANY completion
-            state.completion_event.clear()
-            state.completion_event.wait(timeout=0.5)
+            if not task:
+                break
+            
+            state.increment_in_flight(task_type)
+            log(f"DISPATCH: task={task.get('task_id')} type={task_type}")
+            log_queue_status()
+            send_to_vllm(task)
+            admitted_any = True
+        
+        if admitted_any:
+            continue  # Immediately try to admit more
+        
+        # No work admitted - wait briefly before re-checking
+        time.sleep(0.1)  # 100ms poll interval, lightweight yet fast enough.
     
     log(f"DISPATCHER: Shutdown complete.")
 
 # ============================================================================
-# HTTP SERVER
+# FLASK HTTP SERVER
 # ============================================================================
 
-class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
-    """Handle requests in separate threads."""
-    daemon_threads = True
-    allow_reuse_address = True
+# Disable Flask's default logging to match original behavior
+import logging
+werkzeug_log = logging.getLogger('werkzeug')
+werkzeug_log.setLevel(logging.ERROR)
 
-
-class QueueManagerHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass  # Suppress default HTTP logging
+@app.route('/classify', methods=['POST'])
+def handle_classify_route():
+    """Handle classification request (single paper or batch)."""
+    client = request.remote_addr
+    data = request.get_json(silent=True) or {}
     
-    def send_json_response(self, status_code, data):
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+    log(f"REQUEST from {client}: /classify mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
     
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length).decode('utf-8')
+    paper_id = data.get('paper_id')
+    mode = data.get('mode', 'id')
+    
+    try:
+        prompt_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
+        model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
+    except Exception as e:
+        return jsonify({'error': f'Failed to load prompt template: {e}'}), 500
+    
+    if mode == 'id' and paper_id:
+        # Single paper - create state machine and wait for completion
+        log(f"Single paper classification: {paper_id}")
+        sm = ClassificationStateMachine(paper_id, prompt_template, model_alias)
         
-        try:
-            data = json.loads(body) if body else {}
-        except:
-            log(f"ERROR: Invalid JSON in request")
-            self.send_json_response(400, {'error': 'Invalid JSON'})
-            return
+        completion_event = threading.Event()
+        def on_complete(pid, success):
+            log(f"COMPLETE: classify paper={pid} success={success}")
+            completion_event.set()
+        sm.completion_callback = on_complete
         
-        client = self.client_address[0]
+        # Enqueue 3 classification tasks
+        tasks = sm.get_prompts()
+        if not tasks:
+            log(f"ERROR: No tasks generated for paper {paper_id}")
+            return jsonify({'error': 'Failed to generate classification tasks'}), 500
         
-        if self.path == '/classify':
-            log(f"REQUEST from {client}: /classify mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
-            self.handle_classify(data)
-        elif self.path == '/verify':
-            log(f"REQUEST from {client}: /verify mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
-            self.handle_verify(data)
-        elif self.path == '/consensus':
-            log(f"REQUEST from {client}: /consensus mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
-            self.handle_consensus(data)
+        for task in tasks:
+            state.enqueue(task)
+        log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
+        log_queue_status()
+        
+        # Wait for completion (no timeout)
+        completion_event.wait()
+        
+        return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
+    
+    else:
+        # Batch mode - query DB and enqueue (EXACT SAME QUERIES AS v1.0)
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if mode == 'all':
+            cursor.execute("SELECT id FROM papers")
+        
+        elif mode == 'remaining':
+            cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = '' OR is_offtopic = '' OR is_offtopic IS NULL")
+        
+        elif mode == 'no_features':
+            # EXACT v1.0 query - check each boolean feature key
+            conditions = [
+                f"(JSON_EXTRACT(features, '$.{key}') IS NULL OR JSON_EXTRACT(features, '$.{key}') = 0)"
+                for key in globals.BOOLEAN_FEATURE_KEYS
+            ]
+            no_features_expr = f"""
+            (features IS NULL
+            OR features = ''
+            OR features = '{{}}'
+            OR ({' AND '.join(conditions)}))
+            """
+            where_clause = f"""
+            {no_features_expr}
+            AND (is_offtopic = 0 OR is_offtopic IS NULL)
+            """
+            cursor.execute(f"SELECT id FROM papers WHERE {where_clause}")
+        
+        elif mode == 'on_topic_implementation':
+            # EXACT v1.0 query - includes changed_by IS NOT 'user' check
+            cursor.execute("""
+                SELECT id FROM papers
+                WHERE (is_offtopic = 0)
+                AND (is_survey = 0 OR is_survey IS NULL)
+                AND (changed_by IS NOT 'user')
+            """)
+        
         else:
-            log(f"ERROR: Unknown endpoint {self.path}")
-            self.send_json_response(404, {'error': 'Not found'})
-            
-    def handle_classify(self, data):
-        """Handle classification request (single paper or batch)."""
-        paper_id = data.get('paper_id')
-        mode = data.get('mode', 'id')
+            conn.close()
+            log(f"ERROR: Invalid mode {mode}")
+            return jsonify({'error': f'Invalid mode: {mode}'}), 400
         
-        try:
-            prompt_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
-            model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-        except Exception as e:
-            self.send_json_response(500, {'error': f'Failed to load prompt template: {e}'})
-            return
+        paper_ids = [row[0] for row in cursor.fetchall()]
+        conn.close()
         
-        if mode == 'id' and paper_id:
-            # Single paper - create state machine and wait for completion
-            log(f"Single paper classification: {paper_id}")
-            sm = ClassificationStateMachine(paper_id, prompt_template, model_alias)
-            
-            completion_event = threading.Event()
-            def on_complete(pid, success):
-                log(f"COMPLETE: classify paper={pid} success={success}")
-                completion_event.set()
-            sm.completion_callback = on_complete
-            
-            # Enqueue 3 classification tasks
+        log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
+        
+        if not paper_ids:
+            log(f"WARNING: No papers found for mode={mode}")
+            return jsonify({'status': 'queued', 'papers_queued': 0}), 200
+        
+        # Enqueue all papers
+        total_tasks = 0
+        for pid in paper_ids:
+            sm = ClassificationStateMachine(pid, prompt_template, model_alias)
             tasks = sm.get_prompts()
-            if not tasks:
-                log(f"ERROR: No tasks generated for paper {paper_id}")
-                self.send_json_response(500, {'error': 'Failed to generate classification tasks'})
-                return
-            
             for task in tasks:
                 state.enqueue(task)
-            log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
-            log_queue_status()
-            
-            # Wait for completion (no timeout)
-            completion_event.wait()
-            
-            self.send_json_response(200, {'status': 'complete', 'paper_id': paper_id})
+                total_tasks += 1
         
+        log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
+        log_queue_status()
+        
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
+
+
+@app.route('/verify', methods=['POST'])
+def handle_verify_route():
+    """Handle verification request (single paper or batch)."""
+    client = request.remote_addr
+    data = request.get_json(silent=True) or {}
+    
+    paper_id = data.get('paper_id')
+    mode = data.get('mode', 'id')
+    
+    log(f"VERIFY REQUEST from {client}: mode={mode} paper_id={paper_id}")
+    
+    try:
+        prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
+        model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
+        log(f"Loaded verifier template: {globals.VERIFIER_TEMPLATE}")
+        log(f"Model alias: {model_alias}")
+    except Exception as e:
+        log(f"ERROR: Failed to load verifier template: {e}")
+        return jsonify({'error': f'Failed to load verifier template: {e}'}), 500
+    
+    if mode == 'id' and paper_id:
+        # Single paper - create state machine and wait for completion
+        log(f"Single paper verification: {paper_id}")
+        sm = VerificationStateMachine(paper_id, prompt_template, model_alias)
+        
+        completion_event = threading.Event()
+        def on_complete(pid, success):
+            log(f"COMPLETE: verify paper={pid} success={success}")
+            completion_event.set()
+        sm.completion_callback = on_complete
+        
+        tasks = sm.get_prompts()
+        if not tasks:
+            log(f"ERROR: No tasks generated for paper {paper_id}")
+            return jsonify({'error': 'Failed to generate verification tasks'}), 500
+        
+        for task in tasks:
+            state.enqueue(task)
+        log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
+        log_queue_status()
+        
+        completion_event.wait()
+        return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
+    
+    else:
+        # Batch mode - query DB and enqueue
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if mode == 'all':
+            cursor.execute("""
+                SELECT id FROM papers
+                WHERE changed_by IS NOT NULL AND changed_by != ''
+            """)
+        elif mode == 'remaining':
+            cursor.execute("""
+                SELECT id FROM papers
+                WHERE changed_by IS NOT NULL AND changed_by != ''
+                AND (set_1_last_llm_verified IS NULL OR set_2_last_llm_verified IS NULL OR set_3_last_llm_verified IS NULL)
+            """)
         else:
-            # Batch mode - query DB and enqueue (EXACT SAME QUERIES AS v1.0)
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            if mode == 'all':
-                cursor.execute("SELECT id FROM papers")
-            
-            elif mode == 'remaining':
-                cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = '' OR is_offtopic = '' OR is_offtopic IS NULL")
-            
-            elif mode == 'no_features':
-                # EXACT v1.0 query - check each boolean feature key
-                conditions = [
-                    f"(JSON_EXTRACT(features, '$.{key}') IS NULL OR JSON_EXTRACT(features, '$.{key}') = 0)"
-                    for key in globals.BOOLEAN_FEATURE_KEYS
-                ]
-                no_features_expr = f"""
-                (features IS NULL
-                OR features = ''
-                OR features = '{{}}'
-                OR ({' AND '.join(conditions)}))
-                """
-                where_clause = f"""
-                {no_features_expr}
-                AND (is_offtopic = 0 OR is_offtopic IS NULL)
-                """
-                cursor.execute(f"SELECT id FROM papers WHERE {where_clause}")
-            
-            elif mode == 'on_topic_implementation':
-                # EXACT v1.0 query - includes changed_by IS NOT 'user' check
-                cursor.execute("""
-                    SELECT id FROM papers
-                    WHERE (is_offtopic = 0)
-                    AND (is_survey = 0 OR is_survey IS NULL)
-                    AND (changed_by IS NOT 'user')
-                """)
-            
-            else:
-                conn.close()
-                log(f"ERROR: Invalid mode {mode}")
-                self.send_json_response(400, {'error': f'Invalid mode: {mode}'})
-                return
-            
-            paper_ids = [row[0] for row in cursor.fetchall()]
             conn.close()
-            
-            log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
-            
-            if not paper_ids:
-                log(f"WARNING: No papers found for mode={mode}")
-                self.send_json_response(200, {'status': 'queued', 'papers_queued': 0})
-                return
-            
-            # Enqueue all papers
-            total_tasks = 0
-            for pid in paper_ids:
-                sm = ClassificationStateMachine(pid, prompt_template, model_alias)
-                tasks = sm.get_prompts()
-                for task in tasks:
-                    state.enqueue(task)
-                    total_tasks += 1
-            
-            log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
-            log_queue_status()
-            
-            self.send_json_response(200, {'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks})
-            
-    def handle_verify(self, data):
-        """Handle verification request (single paper or batch)."""
-        paper_id = data.get('paper_id')
-        mode = data.get('mode', 'id')
+            log(f"ERROR: Invalid mode {mode}")
+            return jsonify({'error': f'Invalid mode: {mode}'}), 400
         
-        log(f"VERIFY REQUEST: mode={mode} paper_id={paper_id}")
+        paper_ids = [row[0] for row in cursor.fetchall()]
+        conn.close()
         
-        try:
-            prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
-            model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-            log(f"Loaded verifier template: {globals.VERIFIER_TEMPLATE}")
-            log(f"Model alias: {model_alias}")
-        except Exception as e:
-            log(f"ERROR: Failed to load verifier template: {e}")
-            self.send_json_response(500, {'error': f'Failed to load verifier template: {e}'})
-            return
+        log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
         
-        if mode == 'id' and paper_id:
-            # Single paper - create state machine and wait for completion
-            log(f"Single paper verification: {paper_id}")
-            sm = VerificationStateMachine(paper_id, prompt_template, model_alias)
-            
-            completion_event = threading.Event()
-            def on_complete(pid, success):
-                log(f"COMPLETE: verify paper={pid} success={success}")
-                completion_event.set()
-            sm.completion_callback = on_complete
-            
+        if not paper_ids:
+            log(f"WARNING: No papers found for mode={mode}")
+            return jsonify({'status': 'queued', 'papers_queued': 0}), 200
+        
+        # Enqueue all papers
+        total_tasks = 0
+        for pid in paper_ids:
+            sm = VerificationStateMachine(pid, prompt_template, model_alias)
             tasks = sm.get_prompts()
-            if not tasks:
-                log(f"ERROR: No tasks generated for paper {paper_id}")
-                self.send_json_response(500, {'error': 'Failed to generate verification tasks'})
-                return
-            
             for task in tasks:
                 state.enqueue(task)
-            log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
-            log_queue_status()
-            
-            completion_event.wait()
-            self.send_json_response(200, {'status': 'complete', 'paper_id': paper_id})
+                total_tasks += 1
         
-        else:
-            # Batch mode - query DB and enqueue
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            if mode == 'all':
-                cursor.execute("""
-                    SELECT id FROM papers
-                    WHERE changed_by IS NOT NULL AND changed_by != ''
-                """)
-            elif mode == 'remaining':
-                cursor.execute("""
-                    SELECT id FROM papers
-                    WHERE changed_by IS NOT NULL AND changed_by != ''
-                    AND (set_1_last_llm_verified IS NULL OR set_2_last_llm_verified IS NULL OR set_3_last_llm_verified IS NULL)
-                """)
-            else:
-                conn.close()
-                log(f"ERROR: Invalid mode {mode}")
-                self.send_json_response(400, {'error': f'Invalid mode: {mode}'})
-                return
-            
-            paper_ids = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            
-            log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
-            
-            if not paper_ids:
-                log(f"WARNING: No papers found for mode={mode}")
-                self.send_json_response(200, {'status': 'queued', 'papers_queued': 0})
-                return
-            
-            # Enqueue all papers
-            total_tasks = 0
-            for pid in paper_ids:
-                sm = VerificationStateMachine(pid, prompt_template, model_alias)
-                tasks = sm.get_prompts()
-                for task in tasks:
-                    state.enqueue(task)
-                    total_tasks += 1
-            
-            log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
-            log_queue_status()
-            
-            self.send_json_response(200, {'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks})
-                
-    def handle_consensus(self, data):
-        """Handle classify-until-consensus request."""
-        paper_id = data.get('paper_id')
-        mode = data.get('mode', 'id')
+        log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
+        log_queue_status()
         
-        log(f"CONSENSUS REQUEST: mode={mode} paper_id={paper_id}")
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
+
+
+@app.route('/consensus', methods=['POST'])
+def handle_consensus_route():
+    """Handle classify-until-consensus request."""
+    client = request.remote_addr
+    data = request.get_json(silent=True) or {}
+    
+    paper_id = data.get('paper_id')
+    mode = data.get('mode', 'id')
+    
+    log(f"CONSENSUS REQUEST from {client}: mode={mode} paper_id={paper_id}")
+    
+    try:
+        classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
+        verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
+        reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
+        model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
+        log(f"Loaded all 3 prompt templates")
+        log(f"Model alias: {model_alias}")
+    except Exception as e:
+        log(f"ERROR: Failed to load consensus templates: {e}")
+        return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
+    
+    if mode == 'id' and paper_id:
+        # Single paper - create 3 consensus state machines (one per set)
+        log(f"Single paper consensus: {paper_id}")
+        completion_events = [threading.Event() for _ in range(3)]
         
-        try:
-            classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
-            verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
-            reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
-            model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-            log(f"Loaded all 3 prompt templates")
-            log(f"Model alias: {model_alias}")
-        except Exception as e:
-            log(f"ERROR: Failed to load consensus templates: {e}")
-            self.send_json_response(500, {'error': f'Failed to load consensus templates: {e}'})
-            return
-        
-        if mode == 'id' and paper_id:
-            # Single paper - create 3 consensus state machines (one per set)
-            log(f"Single paper consensus: {paper_id}")
-            completion_events = [threading.Event() for _ in range(3)]
+        for set_num in [1, 2, 3]:
+            sm = ConsensusStateMachine(
+                paper_id, set_num,
+                classify_template, verify_template, reclassify_template,
+                model_alias
+            )
             
+            def make_callback(set_n, event):
+                def callback(pid, sn, success):
+                    log(f"[CONSENSUS] paper={pid} set={sn} complete success={success}")
+                    event.set()
+                return callback
+            
+            sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            
+            # Get first task and enqueue
+            task = sm.get_next_task()
+            if task:
+                state.enqueue(task)
+                log(f"Enqueued initial task for paper={paper_id} set={set_num} type={task['task_type']}")
+        
+        log_queue_status()
+        
+        # Wait for all 3 sets to complete
+        for event in completion_events:
+            event.wait()
+        
+        log(f"COMPLETE: consensus paper={paper_id}")
+        return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
+    
+    else:
+        # Batch consensus - query DB for papers needing consensus
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id FROM papers
+            WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
+            OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
+            OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+        """)
+        
+        paper_ids = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        log(f"DB QUERY: consensus found {len(paper_ids)} papers needing consensus")
+        
+        if not paper_ids:
+            log(f"WARNING: No papers need consensus")
+            return jsonify({'status': 'queued', 'papers_queued': 0}), 200
+        
+        # Create state machines for each paper×set
+        total_tasks = 0
+        for pid in paper_ids:
             for set_num in [1, 2, 3]:
                 sm = ConsensusStateMachine(
-                    paper_id, set_num,
+                    pid, set_num,
                     classify_template, verify_template, reclassify_template,
                     model_alias
                 )
-                
-                def make_callback(set_n, event):
-                    def callback(pid, sn, success):
-                        log(f"[CONSENSUS] paper={pid} set={sn} complete success={success}")
-                        event.set()
-                    return callback
-                
-                sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
-                
-                # Get first task and enqueue
                 task = sm.get_next_task()
                 if task:
                     state.enqueue(task)
-                    log(f"Enqueued initial task for paper={paper_id} set={set_num} type={task['task_type']}")
-            
-            log_queue_status()
-            
-            # Wait for all 3 sets to complete
-            for event in completion_events:
-                event.wait()
-            
-            log(f"COMPLETE: consensus paper={paper_id}")
-            self.send_json_response(200, {'status': 'complete', 'paper_id': paper_id})
+                    total_tasks += 1
         
-        else:
-            # Batch consensus - query DB for papers needing consensus
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT id FROM papers
-                WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
-                OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
-                OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
-            """)
-            
-            paper_ids = [row[0] for row in cursor.fetchall()]
-            conn.close()
-            
-            log(f"DB QUERY: consensus found {len(paper_ids)} papers needing consensus")
-            
-            if not paper_ids:
-                log(f"WARNING: No papers need consensus")
-                self.send_json_response(200, {'status': 'queued', 'papers_queued': 0})
-                return
-            
-            # Create state machines for each paper×set
-            total_tasks = 0
-            for pid in paper_ids:
-                for set_num in [1, 2, 3]:
-                    sm = ConsensusStateMachine(
-                        pid, set_num,
-                        classify_template, verify_template, reclassify_template,
-                        model_alias
-                    )
-                    task = sm.get_next_task()
-                    if task:
-                        state.enqueue(task)
-                        total_tasks += 1
-            
-            log(f"BATCH ENQUEUE: consensus papers={len(paper_ids)} initial_tasks={total_tasks}")
-            log_queue_status()
-            
-            self.send_json_response(200, {'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks})
-            
-def run_http_server():
-    server = ThreadedHTTPServer((QUEUE_MANAGER_HOST, QUEUE_MANAGER_PORT), QueueManagerHandler)
-    print(f"[HTTP] Queue manager listening on http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}")
-    server.serve_forever()
+        log(f"BATCH ENQUEUE: consensus papers={len(paper_ids)} initial_tasks={total_tasks}")
+        log_queue_status()
+        
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
+
+
+@app.errorhandler(404)
+def not_found(e):
+    log(f"ERROR: Unknown endpoint {request.path}")
+    return jsonify({'error': 'Not found'}), 404
+
+
+@app.errorhandler(400)
+def bad_request(e):
+    log(f"ERROR: Invalid JSON in request")
+    return jsonify({'error': 'Invalid JSON'}), 400
+
 
 # ============================================================================
 # MAIN
@@ -1226,7 +1245,16 @@ def run_http_server():
 
 def signal_handler(sig, frame):
     print("\n[SHUTDOWN] Received shutdown signal...")
-    os._exit(1) #no bullshit.
+    os._exit(1)  # no bullshit.
+
+def run_flask_server():
+    """Run Flask server with threading enabled."""
+    app.run(
+        host=globals.QUEUE_MANAGER_HOST,
+        port=globals.QUEUE_MANAGER_PORT,
+        threaded=True,
+        debug=False
+    )
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
@@ -1237,7 +1265,7 @@ def main():
     log("=" * 60)
     log(f"Database: {DB_PATH}")
     log(f"vLLM Server: {globals.LLM_SERVER_URL}")
-    log(f"HTTP API: http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}")
+    log(f"HTTP API: http://{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
     log(f"Concurrency Limits: classify={globals.MAX_CONCURRENT_WORKERS_CLASSIFY} verify={globals.MAX_CONCURRENT_WORKERS_VERIFY} reclassify={globals.MAX_CONCURRENT_WORKERS_RECLASSIFY} mixed_threshold={globals.MIN_CONCURRENT_WORKERS}")
     log("=" * 60)
     
@@ -1245,10 +1273,11 @@ def main():
     dispatcher_thread = threading.Thread(target=dispatcher_loop, daemon=True)
     dispatcher_thread.start()
     
-    # Start HTTP server (blocks)
+    # Start Flask HTTP server (blocks)
     try:
-        run_http_server()
+        run_flask_server()
     except KeyboardInterrupt:
         pass
+
 if __name__ == '__main__':
     main()

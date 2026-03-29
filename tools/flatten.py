@@ -314,6 +314,7 @@ def main():
         "globals.py",
         "browse_db.py",
         "import_bibtex.py",
+        "queue_manager.py",
         "automate_classification.py",
         "verify_classification.py",
         "prompt_template.txt",

@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#for v1.2 only
 """
 generate_fallback_db.py
 Generates a fallback.sqlite database with minimal valid schema and placeholder record.
-This ensures ResearchParça can launch even without existing data.
+This ensures ResearchParça v1.2 can launch even without existing data.
 """
 
 import sqlite3
@@ -10,7 +10,7 @@ import json
 import os
 from datetime import datetime
 
-# Default JSON structures (matching globals.py)
+# Default JSON structures (matching globals.py v1.2)
 DEFAULT_FEATURES = {
     "tracks": None,
     "holes": None,
@@ -41,8 +41,40 @@ DEFAULT_TECHNIQUE = {
     "available_dataset": None
 }
 
+DEFAULT_CERTAINTY_MAP = {
+    "is_offtopic": "solid",
+    "is_survey": "solid",
+    "is_through_hole": "solid",
+    "is_smt": "solid",
+    "is_x_ray": "solid",
+    "verified": "solid",
+    "features_tracks": "solid",
+    "features_holes": "solid",
+    "features_bare_pcb_other": "solid",
+    "features_solder_insufficient": "solid",
+    "features_solder_excess": "solid",
+    "features_solder_void": "solid",
+    "features_solder_crack": "solid",
+    "features_solder_other": "solid",
+    "features_orientation": "solid",
+    "features_wrong_component": "solid",
+    "features_missing_component": "solid",
+    "features_component_other": "solid",
+    "features_cosmetic": "solid",
+    "features_other_state": "solid",
+    "technique_classic_cv_based": "solid",
+    "technique_ml_traditional": "solid",
+    "technique_dl_cnn_classifier": "solid",
+    "technique_dl_cnn_detector": "solid",
+    "technique_dl_rcnn_detector": "solid",
+    "technique_dl_transformer": "solid",
+    "technique_dl_other": "solid",
+    "technique_hybrid": "solid",
+    "technique_available_dataset": "solid"
+}
+
 def create_fallback_database(db_path):
-    """Create SQLite database with the full schema and a placeholder record."""
+    """Create SQLite database with the full v1.2 schema and a placeholder record."""
     
     # Remove existing file if present
     if os.path.exists(db_path):
@@ -52,7 +84,7 @@ def create_fallback_database(db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # Create the papers table with full schema (matching import_bibtex.py)
+    # Create the papers table with full v1.2 schema (triple-classification system)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS papers (
         id TEXT PRIMARY KEY,
@@ -84,21 +116,68 @@ def create_fallback_database(db_path):
         estimated_score INTEGER,
         verified_by TEXT,
         user_trace TEXT,
-        pdf_filename TEXT DEFAULT NULL,
+        user_override_count INTEGER DEFAULT 0,
+        pdf_filename TEXT,
         pdf_state TEXT DEFAULT 'none',
         deannualized_conference TEXT,
-        llm_log TEXT,
+        
+        -- Set 1 Classification Fields
+        set_1_last_llm_features TEXT,
+        set_1_last_llm_technique TEXT,
+        set_1_last_llm_is_offtopic INTEGER,
+        set_1_last_llm_is_survey INTEGER,
+        set_1_last_llm_is_through_hole INTEGER,
+        set_1_last_llm_is_smt INTEGER,
+        set_1_last_llm_is_x_ray INTEGER,
+        set_1_last_llm_relevance INTEGER,
+        set_1_last_llm_verified INTEGER,
+        set_1_last_llm_estimated_score INTEGER,
+        set_1_llm_log TEXT,
+        set_1_last_llm_verified_by TEXT,
+        
+        -- Set 2 Classification Fields
+        set_2_last_llm_features TEXT,
+        set_2_last_llm_technique TEXT,
+        set_2_last_llm_is_offtopic INTEGER,
+        set_2_last_llm_is_survey INTEGER,
+        set_2_last_llm_is_through_hole INTEGER,
+        set_2_last_llm_is_smt INTEGER,
+        set_2_last_llm_is_x_ray INTEGER,
+        set_2_last_llm_relevance INTEGER,
+        set_2_last_llm_verified INTEGER,
+        set_2_last_llm_estimated_score INTEGER,
+        set_2_llm_log TEXT,
+        set_2_last_llm_verified_by TEXT,
+        
+        -- Set 3 Classification Fields
+        set_3_last_llm_features TEXT,
+        set_3_last_llm_technique TEXT,
+        set_3_last_llm_is_offtopic INTEGER,
+        set_3_last_llm_is_survey INTEGER,
+        set_3_last_llm_is_through_hole INTEGER,
+        set_3_last_llm_is_smt INTEGER,
+        set_3_last_llm_is_x_ray INTEGER,
+        set_3_last_llm_relevance INTEGER,
+        set_3_last_llm_verified INTEGER,
+        set_3_last_llm_estimated_score INTEGER,
+        set_3_llm_log TEXT,
+        set_3_last_llm_verified_by TEXT,
+        
+        -- Main Set Certainty
+        main_certainty TEXT,
+        
+        -- Metadata (copied from source 1)
         last_llm_features TEXT,
         last_llm_technique TEXT,
-        last_llm_is_survey INTEGER,
         last_llm_is_offtopic INTEGER,
+        last_llm_is_survey INTEGER,
         last_llm_is_through_hole INTEGER,
         last_llm_is_smt INTEGER,
         last_llm_is_x_ray INTEGER,
         last_llm_relevance INTEGER,
         last_llm_verified INTEGER,
         last_llm_estimated_score INTEGER,
-        user_override_count INTEGER
+        llm_log TEXT
     )
     ''')
     
@@ -113,7 +192,27 @@ def create_fallback_database(db_path):
     
     placeholder_technique = DEFAULT_TECHNIQUE.copy()
     
+    # Prepare set-specific data (all 3 sets identical for placeholder)
+    def prepare_set_data():
+        return {
+            'features': json.dumps(placeholder_features),
+            'technique': json.dumps(placeholder_technique),
+            'is_offtopic': 0,
+            'is_survey': None,
+            'is_through_hole': None,
+            'is_smt': None,
+            'is_x_ray': None,
+            'relevance': 10,
+            'verified': None,
+            'estimated_score': None,
+            'llm_log': '[]',
+            'verified_by': None
+        }
+    
+    set_data = prepare_set_data()
+    
     placeholder_data = {
+        # Basic fields
         'id': '1',
         'type': 'misc',
         'title': 'Database is missing or empty. Import BibTeX or restore from a backup to start working',
@@ -126,63 +225,100 @@ def create_fallback_database(db_path):
         'page_count': None,
         'doi': None,
         'issn': None,
-        'abstract': '',  # Empty, no abstract
+        'abstract': '',
         'keywords': None,
         'research_area': None,
-        'is_offtopic': 0,  # NOT off-topic (so not filtered out by default)
-        'relevance': 10,   # High relevance (on-topic)
+        
+        # Main classification fields (mirrors set_1)
+        'is_offtopic': 0,
+        'relevance': 10,
         'is_survey': None,
         'is_through_hole': None,
         'is_smt': None,
         'is_x_ray': None,
         'features': json.dumps(placeholder_features),
         'technique': json.dumps(placeholder_technique),
+        
+        # Audit fields
         'changed': None,
         'changed_by': None,
         'verified': None,
         'estimated_score': None,
         'verified_by': None,
         'user_trace': None,
+        'user_override_count': 0,
+        
+        # PDF fields
         'pdf_filename': None,
         'pdf_state': 'none',
         'deannualized_conference': None,
-        'llm_log': '[]',
-        'last_llm_features': json.dumps(placeholder_features),
-        'last_llm_technique': json.dumps(placeholder_technique),
-        'last_llm_is_survey': None,
-        'last_llm_is_offtopic': 0,
-        'last_llm_is_through_hole': None,
-        'last_llm_is_smt': None,
-        'last_llm_is_x_ray': None,
-        'last_llm_relevance': 10,
-        'last_llm_verified': None,
-        'last_llm_estimated_score': None,
-        'user_override_count': 0
+        
+        # Set 1 fields
+        'set_1_last_llm_features': set_data['features'],
+        'set_1_last_llm_technique': set_data['technique'],
+        'set_1_last_llm_is_offtopic': set_data['is_offtopic'],
+        'set_1_last_llm_is_survey': set_data['is_survey'],
+        'set_1_last_llm_is_through_hole': set_data['is_through_hole'],
+        'set_1_last_llm_is_smt': set_data['is_smt'],
+        'set_1_last_llm_is_x_ray': set_data['is_x_ray'],
+        'set_1_last_llm_relevance': set_data['relevance'],
+        'set_1_last_llm_verified': set_data['verified'],
+        'set_1_last_llm_estimated_score': set_data['estimated_score'],
+        'set_1_llm_log': set_data['llm_log'],
+        'set_1_last_llm_verified_by': set_data['verified_by'],
+        
+        # Set 2 fields
+        'set_2_last_llm_features': set_data['features'],
+        'set_2_last_llm_technique': set_data['technique'],
+        'set_2_last_llm_is_offtopic': set_data['is_offtopic'],
+        'set_2_last_llm_is_survey': set_data['is_survey'],
+        'set_2_last_llm_is_through_hole': set_data['is_through_hole'],
+        'set_2_last_llm_is_smt': set_data['is_smt'],
+        'set_2_last_llm_is_x_ray': set_data['is_x_ray'],
+        'set_2_last_llm_relevance': set_data['relevance'],
+        'set_2_last_llm_verified': set_data['verified'],
+        'set_2_last_llm_estimated_score': set_data['estimated_score'],
+        'set_2_llm_log': set_data['llm_log'],
+        'set_2_last_llm_verified_by': set_data['verified_by'],
+        
+        # Set 3 fields
+        'set_3_last_llm_features': set_data['features'],
+        'set_3_last_llm_technique': set_data['technique'],
+        'set_3_last_llm_is_offtopic': set_data['is_offtopic'],
+        'set_3_last_llm_is_survey': set_data['is_survey'],
+        'set_3_last_llm_is_through_hole': set_data['is_through_hole'],
+        'set_3_last_llm_is_smt': set_data['is_smt'],
+        'set_3_last_llm_is_x_ray': set_data['is_x_ray'],
+        'set_3_last_llm_relevance': set_data['relevance'],
+        'set_3_last_llm_verified': set_data['verified'],
+        'set_3_last_llm_estimated_score': set_data['estimated_score'],
+        'set_3_llm_log': set_data['llm_log'],
+        'set_3_last_llm_verified_by': set_data['verified_by'],
+        
+        # Main certainty
+        'main_certainty': json.dumps(DEFAULT_CERTAINTY_MAP),
+        
+        # Metadata (copied from set_1)
+        'last_llm_features': set_data['features'],
+        'last_llm_technique': set_data['technique'],
+        'last_llm_is_offtopic': set_data['is_offtopic'],
+        'last_llm_is_survey': set_data['is_survey'],
+        'last_llm_is_through_hole': set_data['is_through_hole'],
+        'last_llm_is_smt': set_data['is_smt'],
+        'last_llm_is_x_ray': set_data['is_x_ray'],
+        'last_llm_relevance': set_data['relevance'],
+        'last_llm_verified': set_data['verified'],
+        'last_llm_estimated_score': set_data['estimated_score'],
+        'llm_log': '[]'
     }
     
-    # Insert the placeholder record
-    cursor.execute('''
-    INSERT INTO papers (
-        id, type, title, authors, year, month, journal,
-        volume, pages, page_count, doi, issn, abstract, keywords,
-        research_area, is_offtopic, relevance, is_survey, is_through_hole,
-        is_smt, is_x_ray, features, technique, changed, changed_by, verified, 
-        estimated_score, verified_by, user_trace, pdf_filename, pdf_state,
-        deannualized_conference, llm_log, last_llm_features, last_llm_technique,
-        last_llm_is_survey, last_llm_is_offtopic, last_llm_is_through_hole,
-        last_llm_is_smt, last_llm_is_x_ray, last_llm_relevance, last_llm_verified,
-        last_llm_estimated_score, user_override_count
-    ) VALUES (
-        :id, :type, :title, :authors, :year, :month, :journal,
-        :volume, :pages, :page_count, :doi, :issn, :abstract, :keywords,
-        :research_area, :is_offtopic, :relevance, :is_survey, :is_through_hole,
-        :is_smt, :is_x_ray, :features, :technique, :changed, :changed_by, :verified,
-        :estimated_score, :verified_by, :user_trace, :pdf_filename, :pdf_state,
-        :deannualized_conference, :llm_log, :last_llm_features, :last_llm_technique,
-        :last_llm_is_survey, :last_llm_is_offtopic, :last_llm_is_through_hole,
-        :last_llm_is_smt, :last_llm_is_x_ray, :last_llm_relevance, :last_llm_verified,
-        :last_llm_estimated_score, :user_override_count
-    )
+    # Build the INSERT query dynamically to match all fields
+    fields = list(placeholder_data.keys())
+    placeholders = ', '.join([f':{f}' for f in fields])
+    field_names = ', '.join(fields)
+    
+    cursor.execute(f'''
+    INSERT INTO papers ({field_names}) VALUES ({placeholders})
     ''', placeholder_data)
     
     conn.commit()

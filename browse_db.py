@@ -26,8 +26,8 @@ import logging
 
 # Import globals, the classification and verification modules
 import globals
-import automate_classification
-import verify_classification
+#import automate_classification
+#import verify_classification
 
 # Define default year range - For this app:
 DEFAULT_YEAR_FROM = 2016
@@ -2051,14 +2051,19 @@ def classify_paper():
     mode = data.get('mode', 'id')
     paper_id = data.get('paper_id')
     
+    # Determine which queue_manager endpoint to use
+    if mode == 'consensus':
+        endpoint = '/consensus'
+    else:
+        endpoint = '/classify'
+    
     # Try to call queue manager
     try:
         response = requests.post(
-            f"{globals.QUEUE_MANAGER_URL}/classify",
+            f"{globals.QUEUE_MANAGER_URL}{endpoint}",
             json={'mode': mode, 'paper_id': paper_id},
             timeout=None  # No timeout for single-paper requests
         )
-        
         if response.status_code == 200:
             result = response.json()
             if mode == 'id':
@@ -2070,12 +2075,10 @@ def classify_paper():
                 return jsonify({'status': 'started', 'message': f'Batch classification ({mode}) initiated.'})
         else:
             return jsonify({'status': 'error', 'message': 'Queue manager returned error'}), 500
-    
     except requests.exceptions.RequestException as e:
         # Queue manager unavailable
         return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
-
-
+    
 @app.route('/verify', methods=['POST'])
 def verify_paper():
     """Endpoint to handle verification requests."""

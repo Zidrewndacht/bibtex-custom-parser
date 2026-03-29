@@ -1,5 +1,5 @@
 # globals.py
-# v1.2nightly13 - Configuration and shared utilities
+# v1.2nightly16 - Configuration and shared utilities
 import requests
 import json
 import sqlite3
@@ -9,13 +9,16 @@ import os
 from datetime import datetime
 
 LLM_SERVER_URL = "http://localhost:8086"
-QUEUE_MANAGER_URL = "http://localhost:5001"
+
+QUEUE_MANAGER_HOST = "localhost"
+QUEUE_MANAGER_PORT = 5001
+QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
-MAX_CONCURRENT_WORKERS_CLASSIFY = 256
-MAX_CONCURRENT_WORKERS_VERIFY = 480
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 96
-MIN_CONCURRENT_WORKERS = 32     # Minimum concurrent limit for mixed workloads
+MAX_CONCURRENT_WORKERS_CLASSIFY = 256 #256
+MAX_CONCURRENT_WORKERS_VERIFY = 480 #480
+MAX_CONCURRENT_WORKERS_RECLASSIFY = 96 
+MIN_CONCURRENT_WORKERS = 128     # Minimum concurrent limit for mixed workloads
 
 MAX_CONSENSUS_ITERATIONS = 12
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8
