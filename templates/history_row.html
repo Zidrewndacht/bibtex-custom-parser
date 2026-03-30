@@ -1,6 +1,8 @@
 <!-- templates/history_row.html -->
 {% macro render_history_tab(paper, set_num, tab_name, show_certainty) %}
-<div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" id="history-tab-{{ tab_name }}-{{ paper.id }}">
+<div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" 
+     data-tab-panel="{{ tab_name }}" 
+     data-paper-id="{{ paper.id }}">
     <!-- Trace Content -->
     <div class="trace-content">
         {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}

@@ -147,61 +147,52 @@ def can_admit_task(task_type):
 # ============================================================================
 # STATE MACHINES
 # ============================================================================
-
 class ClassificationStateMachine:
-    """State machine for classifying a single paper (3 sets in parallel)."""
-    
-    def __init__(self, paper_id, prompt_template, model_alias):
+    """State machine for classifying a SINGLE set of a single paper."""
+    def __init__(self, paper_id, set_num, prompt_template, model_alias):
         self.paper_id = paper_id
+        self.set_num = set_num  # Single set, not all 3
         self.prompt_template = prompt_template
         self.model_alias = model_alias
-        self.pending_sets = {1, 2, 3}
         self.completion_callback = None
         self.lock = threading.Lock()
     
     def get_prompts(self):
-        """Generate 3 classification tasks (one per set)."""
+        """Generate exactly 1 classification task for this specific paper×set."""
         paper = globals.get_paper_by_id(DB_PATH, self.paper_id)
         if not paper:
             return []
         
-        tasks = []
-        for set_num in [1, 2, 3]:
-            task = {
-                'task_type': TASK_CLASSIFY,
-                'task_id': f"{self.paper_id}_set{set_num}_classify",
-                'paper_id': self.paper_id,
-                'set_num': set_num,
-                'model_alias': self.model_alias,
-                'prompt': self.prompt_template.format(
-                    title=paper.get('title', ''),
-                    abstract=paper.get('abstract', ''),
-                    keywords=paper.get('keywords', ''),
-                    authors=paper.get('authors', ''),
-                    year=paper.get('year', ''),
-                    type=paper.get('type', ''),
-                    journal=paper.get('journal', '')
-                ),
-                'state_machine': self
-            }
-            tasks.append(task)
-        return tasks
+        prefix = f'set_{self.set_num}_last_llm_'
+        task = {
+            'task_type': TASK_CLASSIFY,
+            'task_id': f"{self.paper_id}_set{self.set_num}_classify",
+            'paper_id': self.paper_id,
+            'set_num': self.set_num,
+            'model_alias': self.model_alias,
+            'prompt': self.prompt_template.format(
+                title=paper.get('title', ''),
+                abstract=paper.get('abstract', ''),
+                keywords=paper.get('keywords', ''),
+                authors=paper.get('authors', ''),
+                year=paper.get('year', ''),
+                type=paper.get('type', ''),
+                journal=paper.get('journal', '')
+            ),
+            'state_machine': self
+        }
+        return [task]  # Single task
     
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
-        """Callback when a set classification completes."""
-        with self.lock:
-            self.pending_sets.discard(set_num)
-            remaining = len(self.pending_sets)
-        
+        """Callback when this single set classification completes."""
         if success and llm_data:
             self._update_set_cache(set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
             globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"LLM_Classify_Set{set_num}")
         else:
             self._update_set_log(set_num, model_name, reasoning_trace, json_result, valid=False)
         
-        # Check if all 3 sets completed
-        if remaining == 0 and self.completion_callback:
-            self.completion_callback(self.paper_id, success)
+        if self.completion_callback:
+            self.completion_callback(self.paper_id, set_num, success)
     
     def _update_set_cache(self, set_num, llm_data, model_name, reasoning_trace, json_result, valid):
         """Update set_*_last_llm_* columns and set log."""
@@ -251,7 +242,6 @@ class ClassificationStateMachine:
             "valid": valid
         }
         existing_log.append(log_entry)
-        
         update_fields.append(f"set_{set_num}_llm_log = ?")
         update_values.append(json.dumps(existing_log))
         
@@ -292,84 +282,71 @@ class ClassificationStateMachine:
         conn.commit()
         conn.close()
 
-
 class VerificationStateMachine:
-    """State machine for verifying a single paper (3 sets in parallel)."""
-    
-    def __init__(self, paper_id, prompt_template, model_alias):
+    """State machine for verifying a SINGLE set of a single paper."""
+    def __init__(self, paper_id, set_num, prompt_template, model_alias):
         self.paper_id = paper_id
+        self.set_num = set_num  # Single set
         self.prompt_template = prompt_template
         self.model_alias = model_alias
-        self.pending_sets = {1, 2, 3}
         self.completion_callback = None
         self.lock = threading.Lock()
     
     def get_prompts(self):
-        """Generate 3 verification tasks (one per set)."""
+        """Generate exactly 1 verification task for this specific paper×set."""
         paper = globals.get_paper_by_id(DB_PATH, self.paper_id)
         if not paper:
             return []
         
-        tasks = []
-        for set_num in [1, 2, 3]:
-            prefix = f'set_{set_num}_last_llm_'
-            
-            # Convert DB values to proper types for template
-            format_data = {
-                'title': paper.get('title', ''),
-                'abstract': paper.get('abstract', ''),
-                'keywords': paper.get('keywords', ''),
-                'authors': paper.get('authors', ''),
-                'year': paper.get('year', ''),
-                'type': paper.get('type', ''),
-                'journal': paper.get('journal', ''),
-                'relevance': paper.get(f'{prefix}relevance'),
-                'research_area': paper.get('research_area', ''),
-            }
-            
-            # Boolean classification fields
-            for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
-                db_val = paper.get(f'{prefix}{field}')
-                format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
-            
-            # JSON fields - parse from DB strings
-            features_str = paper.get(f'{prefix}features')
-            technique_str = paper.get(f'{prefix}technique')
-            try:
-                format_data['features'] = json.loads(features_str) if features_str else {}
-            except:
-                format_data['features'] = {}
-            try:
-                format_data['technique'] = json.loads(technique_str) if technique_str else {}
-            except:
-                format_data['technique'] = {}
-            
-            task = {
-                'task_type': TASK_VERIFY,
-                'task_id': f"{self.paper_id}_set{set_num}_verify",
-                'paper_id': self.paper_id,
-                'set_num': set_num,
-                'model_alias': self.model_alias,
-                'prompt': self.prompt_template.format(**format_data),
-                'state_machine': self
-            }
-            tasks.append(task)
-        return tasks
+        prefix = f'set_{self.set_num}_last_llm_'
+        format_data = {
+            'title': paper.get('title', ''),
+            'abstract': paper.get('abstract', ''),
+            'keywords': paper.get('keywords', ''),
+            'authors': paper.get('authors', ''),
+            'year': paper.get('year', ''),
+            'type': paper.get('type', ''),
+            'journal': paper.get('journal', ''),
+            'relevance': paper.get(f'{prefix}relevance'),
+            'research_area': paper.get('research_area', ''),
+        }
+        
+        for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
+            db_val = paper.get(f'{prefix}{field}')
+            format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
+        
+        features_str = paper.get(f'{prefix}features')
+        technique_str = paper.get(f'{prefix}technique')
+        try:
+            format_data['features'] = json.loads(features_str) if features_str else {}
+        except:
+            format_data['features'] = {}
+        try:
+            format_data['technique'] = json.loads(technique_str) if technique_str else {}
+        except:
+            format_data['technique'] = {}
+        
+        task = {
+            'task_type': TASK_VERIFY,
+            'task_id': f"{self.paper_id}_set{self.set_num}_verify",
+            'paper_id': self.paper_id,
+            'set_num': self.set_num,
+            'model_alias': self.model_alias,
+            'prompt': self.prompt_template.format(**format_data),
+            'state_machine': self
+        }
+        return [task]  # Single task
     
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
-        """Callback when a set verification completes."""
-        with self.lock:
-            self.pending_sets.discard(set_num)
-            remaining = len(self.pending_sets)
-        
+        """Callback when this single set verification completes."""
         if success and llm_data:
             self._update_set_verifier(set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
             globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"LLM_Verify_Set{set_num}")
         else:
             self._update_set_log(set_num, model_name, reasoning_trace, json_result, valid=False)
         
-        if remaining == 0 and self.completion_callback:
-            self.completion_callback(self.paper_id, success)
+        if self.completion_callback:
+            self.completion_callback(self.paper_id, set_num, success)
     
     def _update_set_verifier(self, set_num, llm_data, model_name, reasoning_trace, json_result, valid):
         """Update set verifier columns and log."""
@@ -392,7 +369,6 @@ class VerificationStateMachine:
             update_fields.append(f"{prefix}estimated_score = ?")
             update_values.append(int(llm_data['estimated_score']))
         
-        # Update log
         cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
         row = cursor.fetchone()
         try:
@@ -409,7 +385,6 @@ class VerificationStateMachine:
             "valid": valid
         }
         existing_log.append(log_entry)
-        
         update_fields.append(f"set_{set_num}_llm_log = ?")
         update_values.append(json.dumps(existing_log))
         
@@ -449,7 +424,6 @@ class VerificationStateMachine:
                       (json.dumps(existing_log), self.paper_id))
         conn.commit()
         conn.close()
-
 
 class ConsensusStateMachine:
     """State machine for classify-until-consensus on a single paper×set."""
@@ -934,7 +908,6 @@ def handle_classify_route():
     """Handle classification request (single paper or batch)."""
     client = request.remote_addr
     data = request.get_json(silent=True) or {}
-    
     log(f"REQUEST from {client}: /classify mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
     
     paper_id = data.get('paper_id')
@@ -946,69 +919,84 @@ def handle_classify_route():
     except Exception as e:
         return jsonify({'error': f'Failed to load prompt template: {e}'}), 500
     
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
     if mode == 'id' and paper_id:
-        # Single paper - create state machine and wait for completion
-        log(f"Single paper classification: {paper_id}")
-        sm = ClassificationStateMachine(paper_id, prompt_template, model_alias)
+        # Single paper - enqueue all 3 sets unconditionally (force reclassify)
+        log(f"Single paper classification: {paper_id} (3 sets)")
+        completion_events = [threading.Event() for _ in range(3)]
         
-        completion_event = threading.Event()
-        def on_complete(pid, success):
-            log(f"COMPLETE: classify paper={pid} success={success}")
-            completion_event.set()
-        sm.completion_callback = on_complete
+        for set_num in [1, 2, 3]:
+            sm = ClassificationStateMachine(paper_id, set_num, prompt_template, model_alias)
+            
+            def make_callback(set_n, event):
+                def callback(pid, sn, success):
+                    log(f"[CLASSIFY] paper={pid} set={sn} complete success={success}")
+                    event.set()
+                return callback
+            
+            sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            tasks = sm.get_prompts()
+            for task in tasks:
+                state.enqueue(task)
         
-        # Enqueue 3 classification tasks
-        tasks = sm.get_prompts()
-        if not tasks:
-            log(f"ERROR: No tasks generated for paper {paper_id}")
-            return jsonify({'error': 'Failed to generate classification tasks'}), 500
-        
-        for task in tasks:
-            state.enqueue(task)
-        log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
+        log(f"Enqueued 3 tasks for paper {paper_id}")
         log_queue_status()
         
-        # Wait for completion (no timeout)
-        completion_event.wait()
+        # Wait for all 3 sets to complete
+        for event in completion_events:
+            event.wait()
         
+        conn.close()
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
     
     else:
-        # Batch mode - query DB and enqueue (EXACT SAME QUERIES AS v1.0)
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
+        # Batch modes - ALL query set-specific columns ONLY
         if mode == 'all':
-            cursor.execute("SELECT id FROM papers")
+            # All papers × 3 sets (force reclassify everything)
+            cursor.execute("""
+                SELECT id, 1 as set_num FROM papers
+                UNION ALL SELECT id, 2 FROM papers
+                UNION ALL SELECT id, 3 FROM papers
+                ORDER BY id, set_num
+            """)
         
         elif mode == 'remaining':
-            cursor.execute("SELECT id FROM papers WHERE changed_by IS NULL OR changed_by = '' OR is_offtopic = '' OR is_offtopic IS NULL")
+            # Only incomplete sets (set-specific is_offtopic check)
+            cursor.execute("""
+                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NULL OR set_1_last_llm_is_offtopic = ''
+                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NULL OR set_2_last_llm_is_offtopic = ''
+                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NULL OR set_3_last_llm_is_offtopic = ''
+                ORDER BY id, set_num
+            """)
         
         elif mode == 'no_features':
-            # EXACT v1.0 query - check each boolean feature key
+            # Sets where all boolean features are NULL/0/empty (set-specific)
             conditions = [
-                f"(JSON_EXTRACT(features, '$.{key}') IS NULL OR JSON_EXTRACT(features, '$.{key}') = 0)"
-                for key in globals.BOOLEAN_FEATURE_KEYS
+                f"(set_{sn}_last_llm_features IS NULL OR set_{sn}_last_llm_features = '' OR set_{sn}_last_llm_features = '{{}}')"
+                for sn in [1, 2, 3]
             ]
-            no_features_expr = f"""
-            (features IS NULL
-            OR features = ''
-            OR features = '{{}}'
-            OR ({' AND '.join(conditions)}))
-            """
-            where_clause = f"""
-            {no_features_expr}
-            AND (is_offtopic = 0 OR is_offtopic IS NULL)
-            """
-            cursor.execute(f"SELECT id FROM papers WHERE {where_clause}")
+            for key in globals.BOOLEAN_FEATURE_KEYS:
+                for sn in [1, 2, 3]:
+                    conditions.append(
+                        f"(JSON_EXTRACT(set_{sn}_last_llm_features, '$.{key}') IS NULL OR JSON_EXTRACT(set_{sn}_last_llm_features, '$.{key}') = 0)"
+                    )
+            # Build UNION query for each set
+            cursor.execute(f"""
+                SELECT id, 1 as set_num FROM papers WHERE {' AND '.join([c for c in conditions if ', 1' in c or 'set_1' in c])}
+                UNION ALL SELECT id, 2 FROM papers WHERE {' AND '.join([c for c in conditions if ', 2' in c or 'set_2' in c])}
+                UNION ALL SELECT id, 3 FROM papers WHERE {' AND '.join([c for c in conditions if ', 3' in c or 'set_3' in c])}
+                ORDER BY id, set_num
+            """)
         
         elif mode == 'on_topic_implementation':
-            # EXACT v1.0 query - includes changed_by IS NOT 'user' check
+            # Sets where is_offtopic=0 AND is_survey=0 (set-specific)
             cursor.execute("""
-                SELECT id FROM papers
-                WHERE (is_offtopic = 0)
-                AND (is_survey = 0 OR is_survey IS NULL)
-                AND (changed_by IS NOT 'user')
+                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic = 0 AND (set_1_last_llm_is_survey = 0 OR set_1_last_llm_is_survey IS NULL)
+                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic = 0 AND (set_2_last_llm_is_survey = 0 OR set_2_last_llm_is_survey IS NULL)
+                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic = 0 AND (set_3_last_llm_is_survey = 0 OR set_3_last_llm_is_survey IS NULL)
+                ORDER BY id, set_num
             """)
         
         else:
@@ -1016,128 +1004,227 @@ def handle_classify_route():
             log(f"ERROR: Invalid mode {mode}")
             return jsonify({'error': f'Invalid mode: {mode}'}), 400
         
-        paper_ids = [row[0] for row in cursor.fetchall()]
+        paper_set_pairs = cursor.fetchall()  # [(id, 1), (id, 2), ...]
         conn.close()
         
-        log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
+        log(f"DB QUERY: mode={mode} found {len(paper_set_pairs)} paper×set pairs")
         
-        if not paper_ids:
-            log(f"WARNING: No papers found for mode={mode}")
+        if not paper_set_pairs:
+            log(f"WARNING: No paper×set pairs found for mode={mode}")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
         
-        # Enqueue all papers
+        # Enqueue all paper×set pairs
         total_tasks = 0
-        for pid in paper_ids:
-            sm = ClassificationStateMachine(pid, prompt_template, model_alias)
+        for pid, set_num in paper_set_pairs:
+            sm = ClassificationStateMachine(pid, set_num, prompt_template, model_alias)
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
                 total_tasks += 1
         
-        log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
+        log(f"BATCH ENQUEUE: papers={len(paper_set_pairs)} tasks={total_tasks}")
         log_queue_status()
         
-        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
-
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
 
 @app.route('/verify', methods=['POST'])
 def handle_verify_route():
     """Handle verification request (single paper or batch)."""
     client = request.remote_addr
     data = request.get_json(silent=True) or {}
-    
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
-    
     log(f"VERIFY REQUEST from {client}: mode={mode} paper_id={paper_id}")
     
     try:
         prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-        log(f"Loaded verifier template: {globals.VERIFIER_TEMPLATE}")
-        log(f"Model alias: {model_alias}")
     except Exception as e:
         log(f"ERROR: Failed to load verifier template: {e}")
         return jsonify({'error': f'Failed to load verifier template: {e}'}), 500
     
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
     if mode == 'id' and paper_id:
-        # Single paper - create state machine and wait for completion
-        log(f"Single paper verification: {paper_id}")
-        sm = VerificationStateMachine(paper_id, prompt_template, model_alias)
+        # Single paper - enqueue all 3 sets unconditionally
+        log(f"Single paper verification: {paper_id} (3 sets)")
+        completion_events = [threading.Event() for _ in range(3)]
         
-        completion_event = threading.Event()
-        def on_complete(pid, success):
-            log(f"COMPLETE: verify paper={pid} success={success}")
-            completion_event.set()
-        sm.completion_callback = on_complete
+        for set_num in [1, 2, 3]:
+            sm = VerificationStateMachine(paper_id, set_num, prompt_template, model_alias)
+            
+            def make_callback(set_n, event):
+                def callback(pid, sn, success):
+                    log(f"[VERIFY] paper={pid} set={sn} complete success={success}")
+                    event.set()
+                return callback
+            
+            sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            tasks = sm.get_prompts()
+            for task in tasks:
+                state.enqueue(task)
         
-        tasks = sm.get_prompts()
-        if not tasks:
-            log(f"ERROR: No tasks generated for paper {paper_id}")
-            return jsonify({'error': 'Failed to generate verification tasks'}), 500
-        
-        for task in tasks:
-            state.enqueue(task)
-        log(f"Enqueued {len(tasks)} tasks for paper {paper_id}")
+        log(f"Enqueued 3 tasks for paper {paper_id}")
         log_queue_status()
         
-        completion_event.wait()
+        for event in completion_events:
+            event.wait()
+        
+        conn.close()
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
     
     else:
-        # Batch mode - query DB and enqueue
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
+        # Batch modes - ALL query set-specific columns ONLY
         if mode == 'all':
+            # All papers × 3 sets where classification exists (set-specific is_offtopic check)
             cursor.execute("""
-                SELECT id FROM papers
-                WHERE changed_by IS NOT NULL AND changed_by != ''
+                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != ''
+                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != ''
+                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != ''
+                ORDER BY id, set_num
             """)
+        
         elif mode == 'remaining':
+            # Only unverified sets (set-specific verified check)
             cursor.execute("""
-                SELECT id FROM papers
-                WHERE changed_by IS NOT NULL AND changed_by != ''
-                AND (set_1_last_llm_verified IS NULL OR set_2_last_llm_verified IS NULL OR set_3_last_llm_verified IS NULL)
+                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != '' AND (set_1_last_llm_verified IS NULL OR set_1_last_llm_verified = '')
+                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != '' AND (set_2_last_llm_verified IS NULL OR set_2_last_llm_verified = '')
+                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != '' AND (set_3_last_llm_verified IS NULL OR set_3_last_llm_verified = '')
+                ORDER BY id, set_num
             """)
+        
         else:
             conn.close()
             log(f"ERROR: Invalid mode {mode}")
             return jsonify({'error': f'Invalid mode: {mode}'}), 400
         
-        paper_ids = [row[0] for row in cursor.fetchall()]
+        paper_set_pairs = cursor.fetchall()
         conn.close()
         
-        log(f"DB QUERY: mode={mode} found {len(paper_ids)} papers")
+        log(f"DB QUERY: mode={mode} found {len(paper_set_pairs)} paper×set pairs")
         
-        if not paper_ids:
-            log(f"WARNING: No papers found for mode={mode}")
+        if not paper_set_pairs:
+            log(f"WARNING: No paper×set pairs found for mode={mode}")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
         
-        # Enqueue all papers
         total_tasks = 0
-        for pid in paper_ids:
-            sm = VerificationStateMachine(pid, prompt_template, model_alias)
+        for pid, set_num in paper_set_pairs:
+            sm = VerificationStateMachine(pid, set_num, prompt_template, model_alias)
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
                 total_tasks += 1
         
-        log(f"BATCH ENQUEUE: papers={len(paper_ids)} tasks={total_tasks}")
+        log(f"BATCH ENQUEUE: papers={len(paper_set_pairs)} tasks={total_tasks}")
         log_queue_status()
         
-        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
-
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
+    
+# @app.route('/consensus', methods=['POST'])
+# def handle_consensus_route():
+#     """Handle classify-until-consensus request."""
+#     client = request.remote_addr
+#     data = request.get_json(silent=True) or {}
+    
+#     paper_id = data.get('paper_id')
+#     mode = data.get('mode', 'id')
+    
+#     log(f"CONSENSUS REQUEST from {client}: mode={mode} paper_id={paper_id}")
+    
+#     try:
+#         classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
+#         verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
+#         reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
+#         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
+#         log(f"Loaded all 3 prompt templates")
+#         log(f"Model alias: {model_alias}")
+#     except Exception as e:
+#         log(f"ERROR: Failed to load consensus templates: {e}")
+#         return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
+    
+#     if mode == 'id' and paper_id:
+#         # Single paper - create 3 consensus state machines (one per set)
+#         log(f"Single paper consensus: {paper_id}")
+#         completion_events = [threading.Event() for _ in range(3)]
+        
+#         for set_num in [1, 2, 3]:
+#             sm = ConsensusStateMachine(
+#                 paper_id, set_num,
+#                 classify_template, verify_template, reclassify_template,
+#                 model_alias
+#             )
+            
+#             def make_callback(set_n, event):
+#                 def callback(pid, sn, success):
+#                     log(f"[CONSENSUS] paper={pid} set={sn} complete success={success}")
+#                     event.set()
+#                 return callback
+            
+#             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            
+#             # Get first task and enqueue
+#             task = sm.get_next_task()
+#             if task:
+#                 state.enqueue(task)
+#                 log(f"Enqueued initial task for paper={paper_id} set={set_num} type={task['task_type']}")
+        
+#         log_queue_status()
+        
+#         # Wait for all 3 sets to complete
+#         for event in completion_events:
+#             event.wait()
+        
+#         log(f"COMPLETE: consensus paper={paper_id}")
+#         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
+    
+#     else:
+#         # Batch consensus - query DB for papers needing consensus
+#         conn = sqlite3.connect(DB_PATH)
+#         cursor = conn.cursor()
+        
+#         cursor.execute("""
+#             SELECT id FROM papers
+#             WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
+#             OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
+#             OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+#         """)
+        
+#         paper_ids = [row[0] for row in cursor.fetchall()]
+#         conn.close()
+        
+#         log(f"DB QUERY: consensus found {len(paper_ids)} papers needing consensus")
+        
+#         if not paper_ids:
+#             log(f"WARNING: No papers need consensus")
+#             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
+        
+#         # Create state machines for each paper×set
+#         total_tasks = 0
+#         for pid in paper_ids:
+#             for set_num in [1, 2, 3]:
+#                 sm = ConsensusStateMachine(
+#                     pid, set_num,
+#                     classify_template, verify_template, reclassify_template,
+#                     model_alias
+#                 )
+#                 task = sm.get_next_task()
+#                 if task:
+#                     state.enqueue(task)
+#                     total_tasks += 1
+        
+#         log(f"BATCH ENQUEUE: consensus papers={len(paper_ids)} initial_tasks={total_tasks}")
+#         log_queue_status()
+        
+#         return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
 
 @app.route('/consensus', methods=['POST'])
 def handle_consensus_route():
     """Handle classify-until-consensus request."""
     client = request.remote_addr
     data = request.get_json(silent=True) or {}
-    
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
-    
     log(f"CONSENSUS REQUEST from {client}: mode={mode} paper_id={paper_id}")
     
     try:
@@ -1145,15 +1232,16 @@ def handle_consensus_route():
         verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
         reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-        log(f"Loaded all 3 prompt templates")
-        log(f"Model alias: {model_alias}")
     except Exception as e:
         log(f"ERROR: Failed to load consensus templates: {e}")
         return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
     
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
     if mode == 'id' and paper_id:
         # Single paper - create 3 consensus state machines (one per set)
-        log(f"Single paper consensus: {paper_id}")
+        log(f"Single paper consensus: {paper_id} (3 sets)")
         completion_events = [threading.Event() for _ in range(3)]
         
         for set_num in [1, 2, 3]:
@@ -1170,8 +1258,6 @@ def handle_consensus_route():
                 return callback
             
             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
-            
-            # Get first task and enqueue
             task = sm.get_next_task()
             if task:
                 state.enqueue(task)
@@ -1179,53 +1265,47 @@ def handle_consensus_route():
         
         log_queue_status()
         
-        # Wait for all 3 sets to complete
         for event in completion_events:
             event.wait()
         
         log(f"COMPLETE: consensus paper={paper_id}")
+        conn.close()
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
     
     else:
-        # Batch consensus - query DB for papers needing consensus
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
+        # Batch consensus - query sets needing consensus (set-specific verified/score check)
         cursor.execute("""
-            SELECT id FROM papers
-            WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
-            OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
-            OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+            SELECT id, 1 as set_num FROM papers WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
+            UNION ALL SELECT id, 2 FROM papers WHERE (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
+            UNION ALL SELECT id, 3 FROM papers WHERE (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+            ORDER BY id, set_num
         """)
         
-        paper_ids = [row[0] for row in cursor.fetchall()]
+        paper_set_pairs = cursor.fetchall()
         conn.close()
         
-        log(f"DB QUERY: consensus found {len(paper_ids)} papers needing consensus")
+        log(f"DB QUERY: consensus found {len(paper_set_pairs)} paper×set pairs needing consensus")
         
-        if not paper_ids:
-            log(f"WARNING: No papers need consensus")
+        if not paper_set_pairs:
+            log(f"WARNING: No paper×set pairs need consensus")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
         
-        # Create state machines for each paper×set
         total_tasks = 0
-        for pid in paper_ids:
-            for set_num in [1, 2, 3]:
-                sm = ConsensusStateMachine(
-                    pid, set_num,
-                    classify_template, verify_template, reclassify_template,
-                    model_alias
-                )
-                task = sm.get_next_task()
-                if task:
-                    state.enqueue(task)
-                    total_tasks += 1
+        for pid, set_num in paper_set_pairs:
+            sm = ConsensusStateMachine(
+                pid, set_num,
+                classify_template, verify_template, reclassify_template,
+                model_alias
+            )
+            task = sm.get_next_task()
+            if task:
+                state.enqueue(task)
+                total_tasks += 1
         
-        log(f"BATCH ENQUEUE: consensus papers={len(paper_ids)} initial_tasks={total_tasks}")
+        log(f"BATCH ENQUEUE: consensus papers={len(paper_set_pairs)} initial_tasks={total_tasks}")
         log_queue_status()
         
-        return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
-
+        return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
 
 @app.errorhandler(404)
 def not_found(e):

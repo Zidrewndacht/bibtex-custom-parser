@@ -458,7 +458,7 @@
             <!-- Tab Content Container -->
             <div class="history-tabs-content">
                 <!-- Main Tab (with certainty) -->
-                <div class="history-tab-panel active" id="history-tab-main-{{ paper.id }}">
+                <div class="history-tab-panel active" data-tab-panel="main" data-paper-id="{{ paper.id }}">
                     <div class="trace-content">
                         {% if paper.llm_log_entries %}
                             {% for entry in paper.llm_log_entries %}
@@ -770,7 +770,7 @@
                 </div>
 
                 <!-- Set 1 Tab (no certainty) -->
-                <div class="history-tab-panel" id="history-tab-set1-{{ paper.id }}">
+                <div class="history-tab-panel active" data-tab-panel="set1" data-paper-id="{{ paper.id }}">
                     <div class="trace-content">
                         {% if paper.set_1_llm_log_entries %}
                             {% for entry in paper.set_1_llm_log_entries %}
@@ -867,7 +867,7 @@
                 </div>
 
                 <!-- Set 2 Tab (no certainty) -->
-                <div class="history-tab-panel" id="history-tab-set2-{{ paper.id }}">
+                <div class="history-tab-panel active" data-tab-panel="set2" data-paper-id="{{ paper.id }}">
                     <div class="trace-content">
                         {% if paper.set_2_llm_log_entries %}
                             {% for entry in paper.set_2_llm_log_entries %}
@@ -964,7 +964,7 @@
                 </div>
 
                 <!-- Set 3 Tab (no certainty) -->
-                <div class="history-tab-panel" id="history-tab-set3-{{ paper.id }}">
+                <div class="history-tab-panel active" data-tab-panel="set3" data-paper-id="{{ paper.id }}">
                     <div class="trace-content">
                         {% if paper.set_3_llm_log_entries %}
                             {% for entry in paper.set_3_llm_log_entries %}
