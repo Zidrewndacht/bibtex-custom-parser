@@ -201,59 +201,61 @@ function applyDuplicateShading(visibleRows) {
         }
     }
 }
-// --- Tri-State Survey Filter Logic (Add to globals.js) ---
-// Define the states for the survey filter
-const SURVEY_FILTER_STATES = {
-    ALL: 'all',           // Default: Show all papers
-    ONLY_SURVEYS: 'surveys', // Show only papers marked as surveys (✔️)
-    ONLY_NON_SURVEYS: 'non_surveys' // Show only papers NOT marked as surveys (❌ or ❔)
+
+// ============================================================================
+// GENERALIZED TRI-STATE FILTER MANAGER
+// ============================================================================
+const TRI_STATE_FILTERS = {
+    survey:  { checkboxId: 'only-survey-checkbox', field: 'is_survey', cacheKey: 'surveyStatus' },
+    tht:     { checkboxId: 'only-tht-checkbox', field: 'is_through_hole', cacheKey: 'thtStatus' },
+    smt:     { checkboxId: 'only-smt-checkbox', field: 'is_smt', cacheKey: 'smtStatus' },
+    dataset: { checkboxId: 'dataset-checkbox', field: 'technique_available_dataset', cacheKey: 'datasetStatus' }
 };
 
-// Store the current state of the survey filter
-let currentSurveyFilterState = SURVEY_FILTER_STATES.ONLY_NON_SURVEYS; 
+const TRI_STATE_TITLES = {
+    survey:  ['Currently showing all papers. Click to show only Surveys.', 'Currently showing only Surveys. Click to show only primary (non-survey) papers.', 'Currently showing only primary (non-survey) papers. Click to show All papers.'],
+    tht:     ['Currently showing all papers. Click to show only THT.', 'Currently showing only THT papers. Click to show only non-THT.', 'Currently showing only non-THT papers. Click to show all papers.'],
+    smt:     ['Currently showing all papers. Click to show only SMT.', 'Currently showing only SMT papers. Click to show only non-SMT.', 'Currently showing only non-SMT papers. Click to show all papers.'],
+    dataset: ['Currently showing all papers. Click to show papers with datasets.', 'Currently showing papers mentioning datasets. Click to show papers without datasets.', 'Currently showing papers without datasets. Click to show all papers.']
+};
 
-// Function to cycle the checkbox's visual state and update the title
-function updateSurveyCheckboxUI() {
-    const checkbox = onlySurveyCheckbox; // Reference from your globals
-    const state = currentSurveyFilterState;
+// State storage: 'all' | 'only_true' | 'only_false'
+const triStateFilterStates = { survey: 'only_false', tht: 'all', smt: 'all', dataset: 'all' };
 
-    // Remove any previous tri-state classes (if you add custom styling)
-    checkbox.classList.remove('tri-state-indeterminate'); // Example class
-
-    switch (state) {
-        case SURVEY_FILTER_STATES.ALL:
+function updateTriStateUI(filterKey) {
+    const config = TRI_STATE_FILTERS[filterKey];
+    const checkbox = document.getElementById(config.checkboxId);
+    if (!checkbox) return;
+    
+    const state = triStateFilterStates[filterKey];
+    checkbox.classList.remove('tri-state-indeterminate');
+    
+    switch(state) {
+        case 'all':
             checkbox.checked = false;
-            checkbox.indeterminate = false; // Ensure indeterminate is off
-            checkbox.title = 'Currently showing all papers. Click to show only Survey papers';
-            break;
-        case SURVEY_FILTER_STATES.ONLY_SURVEYS:
-            checkbox.checked = true; // Visually checked
             checkbox.indeterminate = false;
-            checkbox.title = 'Currently showing only Surveys. Click to show only primary (non-survey) papers';
+            checkbox.title = TRI_STATE_TITLES[filterKey][0];
             break;
-        case SURVEY_FILTER_STATES.ONLY_NON_SURVEYS:
-            checkbox.checked = false; // Visually unchecked
-            checkbox.indeterminate = true; // Use indeterminate to show the third state
-            checkbox.title = 'Currently showing only primary (non-survey) papers. Click to show All papers';
+        case 'only_true':
+            checkbox.checked = true;
+            checkbox.indeterminate = false;
+            checkbox.title = TRI_STATE_TITLES[filterKey][1];
+            break;
+        case 'only_false':
+            checkbox.checked = false;
+            checkbox.indeterminate = true;
+            checkbox.title = TRI_STATE_TITLES[filterKey][2];
             break;
     }
 }
 
-// Function to cycle the filter state on click
-function cycleSurveyFilterState() {
-    switch (currentSurveyFilterState) {
-        case SURVEY_FILTER_STATES.ALL:
-            currentSurveyFilterState = SURVEY_FILTER_STATES.ONLY_SURVEYS;
-            break;
-        case SURVEY_FILTER_STATES.ONLY_SURVEYS:
-            currentSurveyFilterState = SURVEY_FILTER_STATES.ONLY_NON_SURVEYS;
-            break;
-        case SURVEY_FILTER_STATES.ONLY_NON_SURVEYS:
-            currentSurveyFilterState = SURVEY_FILTER_STATES.ALL;
-            break;
-    }
-    updateSurveyCheckboxUI();
-    applyLocalFilters(); // Re-apply filters after state change
+function cycleTriStateFilter(filterKey) {
+    const states = ['all', 'only_true', 'only_false'];
+    const current = triStateFilterStates[filterKey];
+    triStateFilterStates[filterKey] = states[(states.indexOf(current) + 1) % 3];
+    
+    updateTriStateUI(filterKey);
+    applyLocalFilters();
 }
 
 // Pre-calculate feature groups for faster lookups
@@ -298,7 +300,10 @@ function getClientFilterState() {
         hide_xray: hideXrayCheckbox.checked ? 1 : 0,
         hide_approved: hideApprovedCheckbox.checked ? 1 : 0,
         hide_offtopic: hideOfftopicCheckbox.checked ? 1 : 0,
-        survey_filter: currentSurveyFilterState,
+        survey_filter: triStateFilterStates.survey,
+        tht_filter: triStateFilterStates.tht,
+        smt_filter: triStateFilterStates.smt,
+        dataset_filter: triStateFilterStates.dataset,
         show_pcb: showPCBcheckbox.checked ? 1 : 0,
         show_solder: showSolderCheckbox.checked ? 1 : 0,
         show_pcba: showPCBAcheckbox.checked ? 1 : 0,
@@ -379,6 +384,9 @@ function applyLocalFilters() {
             const xrayCell = row.querySelector('.editable-status[data-field="is_x_ray"]');
             const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
             const offtopicCell = row.querySelector('.editable-status[data-field="is_offtopic"]');
+            const thtCell = row.querySelector('.editable-status[data-field="is_through_hole"]');
+            const smtCell = row.querySelector('.editable-status[data-field="is_smt"]');
+            const datasetCell = row.querySelector('.editable-status[data-field="technique_available_dataset"]');
 
             // Cache feature cell values
             const featureValues = {};
@@ -469,6 +477,9 @@ function applyLocalFilters() {
             // Store all cached data in the WeakMap using the row element as the key
             rowCache.set(row, {
                 surveyStatus: surveyCell ? surveyCell.textContent.trim() : '❔',
+                thtStatus: thtCell ? thtCell.textContent.trim() : '❔',
+                smtStatus: smtCell ? smtCell.textContent.trim() : '❔',
+                datasetStatus: datasetCell ? datasetCell.textContent.trim() : '❔',
                 xrayStatus: xrayCell ? xrayCell.textContent.trim() : 'N/A',
                 verifiedStatus: verifiedCell ? verifiedCell.textContent.trim() : 'N/A',
                 offtopicStatus: offtopicCell ? offtopicCell.textContent.trim() : 'N/A',
@@ -544,20 +555,16 @@ function applyLocalFilters() {
 
             // Apply the tri-state survey filter logic
             if (showRow) {
-                const surveyStatus = cachedData.surveyStatus;
-
-                switch (currentSurveyFilterState) {
-                    case SURVEY_FILTER_STATES.ONLY_SURVEYS:
-                        if (surveyStatus !== '✔️') {
+                // Apply tri-state filters generically
+                for (const [key, config] of Object.entries(TRI_STATE_FILTERS)) {
+                    if (triStateFilterStates[key] !== 'all' && showRow) {
+                        const status = cachedData[config.cacheKey];
+                        if (triStateFilterStates[key] === 'only_true' && status !== '✔️') {
+                            showRow = false;
+                        } else if (triStateFilterStates[key] === 'only_false' && status === '✔️') {
                             showRow = false;
                         }
-                        break;
-                    case SURVEY_FILTER_STATES.ONLY_NON_SURVEYS:
-                        if (surveyStatus === '✔️') {
-                            showRow = false;
-                        }
-                        break;
-                    // For SURVEY_FILTER_STATES.ALL, showRow remains unchanged (default)
+                    }
                 }
             }
 
@@ -906,10 +913,13 @@ function initializeClientFilters() {
         openHistoryIds = new Set();
     }
 
-    // Handle survey filter state
-    const surveyFilterValue = urlParams.get('survey_filter');
-    if (surveyFilterValue) {
-        currentSurveyFilterState = surveyFilterValue;
+    // Handle tri-state filters from URL params
+    for (const [key] of Object.entries(TRI_STATE_FILTERS)) {
+        const paramVal = urlParams.get(`${key}_filter`);
+        if (['all', 'only_true', 'only_false'].includes(paramVal)) {
+            triStateFilterStates[key] = paramVal;
+        }
+        updateTriStateUI(key);
     }
     
     // Handle sort parameters - only set if they exist in URL
@@ -936,7 +946,7 @@ function initializeClientFilters() {
     }
     
     
-    updateSurveyCheckboxUI();
+    updateTriStateUI('survey');
     
     // Update URL to reflect initial state (this ensures the URL is clean and consistent)
     updateUrlWithClientFilters();
@@ -1299,37 +1309,32 @@ function copyLatexLongtable() {
  * Pure client-side - no server communication needed
  * @param {HTMLElement} tabButton - The clicked tab button element
  */
+
+// NEW (works with any ID):
 function switchHistoryTab(tabButton) {
     const paperId = tabButton.getAttribute('data-paper-id');
     const selectedTab = tabButton.getAttribute('data-tab');
-    
-    // Find the history row container
-    const historyRow = document.querySelector(`#history-tab-main-${paperId}`)?.closest('.history-flex-container');
+    const historyRow = tabButton.closest('.history-flex-container');
     if (!historyRow) {
         console.error(`History container not found for paper ${paperId}`);
         return;
     }
-    
     // Remove active class from all tabs
     historyRow.querySelectorAll('.history-tab-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    
     // Remove active class from all tab panels
     historyRow.querySelectorAll('.history-tab-panel').forEach(panel => {
         panel.classList.remove('active');
     });
-    
     // Add active class to selected tab
     tabButton.classList.add('active');
-    
-    // Add active class to selected tab panel
-    const selectedPanel = historyRow.querySelector(`#history-tab-${selectedTab}-${paperId}`);
+    // Add active class to selected tab panel using data attributes
+    const selectedPanel = historyRow.querySelector(`.history-tab-panel[data-tab-panel="${selectedTab}"][data-paper-id="${paperId}"]`);
     if (selectedPanel) {
         selectedPanel.classList.add('active');
     }
 }
-
 
 // Existing DOMContentLoaded listener and other code follows...
 document.addEventListener('DOMContentLoaded', function () {
@@ -1338,12 +1343,17 @@ document.addEventListener('DOMContentLoaded', function () {
     
     hideXrayCheckbox.addEventListener('change', applyLocalFilters);
     hideApprovedCheckbox.addEventListener('change', applyLocalFilters);
-    onlySurveyCheckbox.addEventListener('click', cycleSurveyFilterState);
     showPCBcheckbox.addEventListener('change', applyLocalFilters);
     showSolderCheckbox.addEventListener('change', applyLocalFilters);
     showPCBAcheckbox.addEventListener('change', applyLocalFilters);
     noFeaturesCheckbox.addEventListener('change', applyLocalFilters);
     showOtherCheckbox.addEventListener('change', applyLocalFilters);
+    
+    //tri-state filters:
+    for (const key of Object.keys(TRI_STATE_FILTERS)) {
+        const checkbox = document.getElementById(TRI_STATE_FILTERS[key].checkboxId);
+        if (checkbox) checkbox.addEventListener('click', () => cycleTriStateFilter(key));
+    }
 
     searchInput.addEventListener('input', () => {
         // For search specifically, we might want a shorter debounce time
@@ -1384,6 +1394,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     applyLocalFilters(); // Apply initial filtering
-    updateSurveyCheckboxUI();
+    updateTriStateUI('survey');
 }); 
 

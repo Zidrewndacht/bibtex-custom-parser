@@ -152,7 +152,16 @@
                         <input type="checkbox" title="Enable to only show Surveys" id="only-survey-checkbox">
                     </div>
                 </th>
-                <th class="inferred-header ontop-header" colspan="2"></th>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to only show THT" id="only-tht-checkbox">
+                    </div>
+                </th>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to only show SMD" id="only-smt-checkbox">
+                    </div>
+                </th>
                 <th class="inferred-header ontop-header" colspan="1">
                     <div>
                         <input type="checkbox" title="Enable to Hide X-Ray" id="hide-xray-checkbox" checked>    <!-- client-side, default enabled -->
@@ -167,7 +176,7 @@
                 <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
                     <div>
                         <span>Solder</span>
-                        <input type="checkbox" checked title="Enable to include (or limit to if it's the only checkbox enabled) papers about solder features" id="show-solder-checkbox">
+                        <input type="checkbox" title="Enable to include (or limit to if it's the only checkbox enabled) papers about solder features" id="show-solder-checkbox">
                     </div>
                 </th>
                 <th class="inferred-header inferred-header-2 ontop-header" colspan="5">
@@ -183,7 +192,11 @@
                 </th>
                 <th class="inferred-header inferred-header-3 ontop-header" colspan="8">Techniques</th>
                 <!-- <th class="inferred-header inferred-header-3 ontop-header" colspan="6">DL-based</th> -->
-                <th class="inferred-header inferred-header-3 ontop-header" colspan="1"></th>
+                <th class="inferred-header inferred-header-3 ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to only show papers mentioning available datasets" id="dataset-checkbox">
+                    </div>
+                </th>
                 <!-- Hidden metadata fields -->
                 <th style="display:none" colspan="5"></th>
             </tr>

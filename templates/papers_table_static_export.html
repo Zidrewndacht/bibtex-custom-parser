@@ -13,8 +13,8 @@
     </tr>
     {% for paper in papers %}
     <tr data-paper-id="{{ paper.id }}">
-        {% if paper.pdf_filename %}
         <td class="status-cell pdf-status emoji-column">
+        {% if paper.pdf_filename %}
             {% if paper.pdf_state == 'annotated' %}
             <a href="data/pdf_annotated/{{ paper.pdf_filename }}" target="_blank" class="pdf-link" title="Open PDF">
                 {{ pdf_emojis.get(paper.pdf_state) }}
@@ -24,17 +24,13 @@
                 {{ pdf_emojis.get(paper.pdf_state) }}
             </a>
             {% endif %}
-        </td>
-        {% else %}
-        <td class="status-cell pdf-status emoji-column">
-            {% if paper.pdf_state == 'paywalled' %}
+        {% elif paper.pdf_state == 'paywalled' %}
             <span title="This paper is paywalled">
                 {{ pdf_emojis.get(paper.pdf_state) }}
             </span>
-        </td>
-        {% endif %}
         {% endif %}
         </td>
+
 
         <!-- Title and other non-status cells remain unchanged -->
         <td class="title-cell">

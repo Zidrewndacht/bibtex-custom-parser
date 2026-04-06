@@ -1,6 +1,16 @@
 <!-- templates/papers_table.html -->
 <!-- Replace the status cell rendering section with this -->
-
+<tr>
+    <td style="padding:0;" colspan="44">
+        <div class="loading-overlay">
+            <div class="header-branding"><span>Research</span><span
+                    style="font-weight: 600; color: var(--primary-ui-color);">Parça</span></div>
+            <div class="loading-spinner"></div>
+            <div>Reprocessing table. Wait patiently. </div>
+        </div>
+    </td>
+    <td style="display:none" colspan="5"></td>
+</tr>
 {% for paper in papers %}
 <tr data-paper-id="{{ paper.id }}" >
     <td class="status-cell pdf-status emoji-column">
