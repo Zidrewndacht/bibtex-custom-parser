@@ -196,7 +196,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     features, technique,
     is_survey, is_offtopic, is_through_hole, is_smt, is_x_ray,
     relevance, verified, estimated_score,
-    user_trace, main_certainty, verified_by
+    user_trace, main_certainty, verified_by, pdf_filename, pdf_state
     FROM papers WHERE id = ?
     """, (paper_id,))
     row = cursor.fetchone()
@@ -213,7 +213,8 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     current_is_survey, current_is_offtopic,
     current_is_through_hole, current_is_smt, current_is_x_ray,
     current_relevance, current_verified, current_estimated_score,
-    current_user_trace, current_certainty_str, current_verified_by) = row
+    current_user_trace, current_certainty_str, current_verified_by,
+    current_pdf_filename, current_pdf_state) = row
     
     # === CRITICAL: Save original verified_by BEFORE any processing ===
     original_verified_by = current_verified_by
@@ -352,7 +353,22 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_values.append(data['user_trace'])
         current_user_trace = data['user_trace']
         data.pop('user_trace')
-    
+
+        # === Automated paywall detection (Bidirectional) ===
+        is_paywalled_present = 'paywalled' in str(current_user_trace).lower()
+        has_pdf = bool(current_pdf_filename)
+
+        if is_paywalled_present:
+            # Keyword exists: Set to paywalled ONLY if no PDF is attached and not already set
+            if not has_pdf and current_pdf_state != "paywalled":
+                update_fields.append("pdf_state = ?")
+                update_values.append("paywalled")
+        else:
+            # Keyword removed: Clear paywalled state if it was set and no PDF exists
+            if not has_pdf and current_pdf_state == "paywalled":
+                update_fields.append("pdf_state = ?")
+                update_values.append("none")
+
     # === Handle verified field ===
     if 'verified' in data:
         val = data['verified']
@@ -557,7 +573,9 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 'verified': updated_paper.get('verified'),
                 'verified_by': updated_paper.get('verified_by'),
                 'estimated_score': updated_paper.get('estimated_score'),
-                'main_certainty': certainty_map
+                'main_certainty': certainty_map,
+                'pdf_state': updated_paper.get('pdf_state'),
+                'pdf_filename': updated_paper.get('pdf_filename')
             }
             return return_data
         else:
@@ -1635,11 +1653,14 @@ def upload_pdf(paper_id):
 
         try:
             file.save(filepath)
-            # Update the database with the new filename and initial state 'PDF'
-            # Use the string paper_id for the database query
-            update_data = {'pdf_filename': unique_filename, 'pdf_state': 'PDF'}
-            result = update_paper_custom_fields(paper_id, update_data, changed_by="user") # Pass string ID
-
+            # Direct DB update to avoid verification reset & log pollution from update_paper_custom_fields
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE papers SET pdf_filename = ?, pdf_state = ? WHERE id = ?", (unique_filename, 'PDF', paper_id))
+            conn.commit()
+            conn.close()
+            
+            result = {'status': 'success'}
             if result['status'] == 'success':
                 # Fetch updated paper data including new PDF info
                 # Pass the string ID here too
@@ -1754,11 +1775,13 @@ def upload_annotated_pdf(paper_id):
 
     try:
         file.save(filepath)
-        
-        # Update the database to set the pdf_state to 'annotated'
-        update_data = {'pdf_state': 'annotated'}
-        result = update_paper_custom_fields(paper_id, update_data, changed_by="user") # [10, 11]
-        
+        # Direct DB update
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", ('annotated', paper_id))
+        conn.commit()
+        conn.close()
+        result = {'status': 'success'}
         if result.get('status') != 'success':
              # If DB update fails, you might want to remove the saved file to avoid inconsistency.
             if os.path.exists(filepath):

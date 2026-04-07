@@ -203,7 +203,7 @@ td.highlight-history:not(.cell-changed) {
 }
 
 #metricsTableStatsList :nth-child(odd),.alt-shade-2,li:nth-child(odd) {
-    background-color: var(--table-row-odd)
+    background-color: var(--table-row-odd);
 }
 
 .secondary-text-cell {
@@ -879,9 +879,9 @@ tr.filter-hidden {
 
 
 .modal-small-content {
-    width: 1400px;
-    grid-template-columns: 1fr 340px;
-    min-width: 1400px
+    width: calc(var(--min-width) - 100px);
+    grid-template-columns: 1fr 320px;
+    /*! min-width: calc(var(--min-width) - 0); */
 }
 
 .modal-small-section h4,.modal-small-section p,.modal-small-section ul {
@@ -965,6 +965,12 @@ tr.filter-hidden {
 
 .modal p {
     text-align: justify
+}
+
+#help-text{
+    column-count: 2;
+    column-gap: 0px;
+    padding: 0px 10px 20px 0px;
 }
 
 .modal.modal-active {

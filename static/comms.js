@@ -327,12 +327,43 @@ function saveChanges(paperId) {
                 if (relevanceCell) {
                      relevanceCell.textContent = data.relevance !== null && data.relevance !== undefined ? data.relevance : '';
                 }
+                            // Update PDF icon if state/filename changed via comment save
+                if (data.pdf_state !== undefined) {
+                    const pdfCell = row.cells[0]; // Column 0 is PDF
+                    if (pdfCell) {
+                        pdfCell.innerHTML = '';
+                        pdfCell.title = "PDF Status";
+                        if (data.pdf_filename) {
+                            const extRemoved = data.pdf_filename.replace(/\.pdf$/i, '');
+                            const pdfLink = document.createElement('a');
+                            pdfLink.href = `/static/pdfjs/web/viewer.html?file=/serve_pdf/${encodeURIComponent(extRemoved)}`;
+                            pdfLink.target = '_blank';
+                            pdfLink.className = 'pdf-link';
+                            pdfLink.textContent = data.pdf_state === 'annotated' ? '📗' : '📕';
+                            pdfLink.title = data.pdf_state === 'annotated' 
+                                ? 'Open this annotated PDF in the Annotator' 
+                                : 'Open this PDF in the Annotator';
+                            pdfCell.appendChild(pdfLink);
+                        } else {
+                            const uploadLink = document.createElement('a');
+                            uploadLink.href = '#';
+                            uploadLink.className = 'pdf-upload-link';
+                            uploadLink.setAttribute('data-paper-id', paperId);
+                            const isPaywalled = data.pdf_state === 'paywalled';
+                            uploadLink.title = isPaywalled 
+                                ? 'Article is paywalled. Click to upload if a copy is available' 
+                                : 'No PDF stored yet. Click to upload PDF for this article';
+                            uploadLink.textContent = isPaywalled ? '💰' : '❔';
+                            pdfCell.appendChild(uploadLink);
+                        }
+                    }
+                }
                 // Note: The UI fields (model_name, features_other, user_trace) are NOT updated here
                 // from the server response because update_paper_custom_fields doesn't return them.
                 // They retain the user-entered value after saving.
             }
             // Collapse details row after successful save
-            const toggleBtn = row ? row.querySelector('.toggle-btn') : null;
+            const toggleBtn = row ? row.querySelector('.toggle-btn:not(.history-btn)') : null;
             if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) {
                  toggleDetails(toggleBtn);
             }
