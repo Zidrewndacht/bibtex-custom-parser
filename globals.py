@@ -6,12 +6,12 @@ import sqlite3
 import re
 import threading
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 LLM_SERVER_URL = "http://localhost:8086"
 
 QUEUE_MANAGER_HOST = "localhost"
-QUEUE_MANAGER_PORT = 5001
+QUEUE_MANAGER_PORT = 6001
 QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
@@ -121,7 +121,7 @@ os.makedirs(os.path.dirname(PERFORMANCE_LOG_FILE), exist_ok=True)
 
 def log_performance_event(event_type, data):
     log_entry = {
-        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
         'event_type': event_type,
         **data
     }
@@ -183,7 +183,7 @@ def recalculate_main_set(paper_id, db_path=None, changed_by="LLM_Averaged", crea
             return None
         
         paper = dict(paper)
-        changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+        changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         
         boolean_fields = ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
         certainty_map = {}

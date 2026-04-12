@@ -21,13 +21,11 @@ import base64
 import zstandard as zstd
 import tarfile
 import shutil
-import subprocess
+# import subprocess
 import logging
-
-# Import globals, the classification and verification modules
+import requests
+from datetime import datetime, timezone
 import globals
-#import automate_classification
-#import verify_classification
 
 # Define default year range - For this app:
 DEFAULT_YEAR_FROM = 2016
@@ -37,13 +35,6 @@ DEFAULT_MIN_PAGE_COUNT = 4
 app = Flask(__name__)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 DATABASE = None # Will be set from command line argument
-
-
-# Add this function in browse_db.py, near the top after imports
-@app.context_processor
-def inject_globals():
-    import globals # Import globals module
-    return dict(globals=globals)
 
 def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None):
     """Fetches papers based on filters and renders the papers_table.html template. 
@@ -184,7 +175,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    changed_timestamp = datetime.utcnow().isoformat() + 'Z'
+    changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     
     # Fetch current state
     cursor.execute("""
@@ -216,7 +207,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     current_user_trace, current_certainty_str, current_verified_by,
     current_pdf_filename, current_pdf_state) = row
     
-    # === CRITICAL: Save original verified_by BEFORE any processing ===
+    # === Save original verified_by BEFORE any processing ===
     original_verified_by = current_verified_by
     
     # Parse existing log
@@ -379,7 +370,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_fields.append("verified = ?")
         update_values.append(db_val)
         current_verified = db_val
-        # === FIX: When user explicitly sets verified, set verified_by to 'user' ===
+        # === When user explicitly sets verified, set verified_by to 'user' ===
         current_verified_by = 'user'
         update_fields.append("verified_by = ?")
         update_values.append('user')
@@ -419,7 +410,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(None)
             update_fields.append("verified_by = ?")
             update_values.append("")
-            # === FIX: Update local variables for log entry ===
+            # === Update local variables for log entry ===
             current_verified = None
             current_estimated_score = None
             current_verified_by = ""
@@ -483,7 +474,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     update_fields.append("main_certainty = ?")
     update_values.append(json.dumps(certainty_map))
     
-    # === CRITICAL: Build user_log_output AFTER all field processing ===
+    # === Build user_log_output AFTER all field processing ===
     # This ensures we capture the FINAL state including verification changes
     def db_to_bool(val):
         if val == 1:
@@ -629,7 +620,6 @@ def fetch_updated_paper_data(paper_id):
     finally:
         conn.close()
 
-# Make sure this is the definition in your browse_db.py (or globals.py if imported from there)
 def format_changed_timestamp(changed_str):
     """Format the ISO timestamp string to dd/mm/yy hh:mm:ss"""
     if not changed_str:
@@ -638,8 +628,7 @@ def format_changed_timestamp(changed_str):
         dt = datetime.fromisoformat(changed_str.replace('Z', '+00:00'))
         return dt.strftime("%d/%m/%y %H:%M:%S")
     except ValueError:
-        # If parsing fails, return the original string or a placeholder
-        return changed_str
+        return changed_str  # If parsing fails, return the original string
 
 
 # Helpers used for HTML and XLSX exports: 
@@ -845,196 +834,197 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     )
     return loader_html_content
 
-def generate_xlsx_export_content(papers):
-    """Generates the Excel file content as bytes."""
-    output = io.BytesIO()
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "PCB Inspection Papers"
+def generate_xlsx_export_content(papers): #outdated, must be updated to be useful for v1.2:
+    # """Generates the Excel file content as bytes."""
+    # output = io.BytesIO()
+    # wb = Workbook()
+    # ws = wb.active
+    # ws.title = "PCB Inspection Papers"
 
-    # --- Define Headers (Updated Order - Corrected Boolean Features) ---
-    headers = [
-        "Type", "Title", "Year", "Journal/Conf name", "Pages count",
-        # Classification Summary
-        "Off-topic", "Relevance", "Survey", "THT", "SMT", "X-Ray",
-        # Features Summary (Updated Order - Corrected Boolean Features)
-        "Tracks", "Holes / Vias", "Bare PCB Other", # Boolean (e.g., bare_pcb_other)
-        "Solder Insufficient", "Solder Excess", "Solder Void", "Solder Crack", "Solder Other", # Boolean (e.g., solder_other)
-        "Missing Comp", "Wrong Comp", "Orientation", "Comp Other", # Boolean (e.g., component_other)
-        "Cosmetic", "Other State", # Boolean for state (based on 'other' text content)
-        "Other Defects Text", # Text for content (the 'other' field)
-        # Techniques Summary (Updated Order)
-        "Classic CV", "ML", "CNN Classifier", "CNN Detector",
-        "R-CNN Detector", "Transformers", "Other DL", "Hybrid", "Datasets", "Model name",
-        # Metadata
-        "Last Changed", "Changed By", "Verified", "Accr. Score", "Verified By",
-        "User Comment State", "User Comments" # Boolean for state, Text for content
-    ]
+    # # --- Define Headers (Updated Order - Corrected Boolean Features) ---
+    # headers = [
+    #     "Type", "Title", "Year", "Journal/Conf name", "Pages count",
+    #     # Classification Summary
+    #     "Off-topic", "Relevance", "Survey", "THT", "SMT", "X-Ray",
+    #     # Features Summary (Updated Order - Corrected Boolean Features)
+    #     "Tracks", "Holes / Vias", "Bare PCB Other", # Boolean (e.g., bare_pcb_other)
+    #     "Solder Insufficient", "Solder Excess", "Solder Void", "Solder Crack", "Solder Other", # Boolean (e.g., solder_other)
+    #     "Missing Comp", "Wrong Comp", "Orientation", "Comp Other", # Boolean (e.g., component_other)
+    #     "Cosmetic", "Other State", # Boolean for state (based on 'other' text content)
+    #     "Other Defects Text", # Text for content (the 'other' field)
+    #     # Techniques Summary (Updated Order)
+    #     "Classic CV", "ML", "CNN Classifier", "CNN Detector",
+    #     "R-CNN Detector", "Transformers", "Other DL", "Hybrid", "Datasets", "Model name",
+    #     # Metadata
+    #     "Last Changed", "Changed By", "Verified", "Accr. Score", "Verified By",
+    #     "User Comment State", "User Comments" # Boolean for state, Text for content
+    # ]
 
-    # --- Write Headers ---
-    for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num, value=header)
-        cell.font = Font(bold=True)
+    # # --- Write Headers ---
+    # for col_num, header in enumerate(headers, 1):
+    #     cell = ws.cell(row=1, column=col_num, value=header)
+    #     cell.font = Font(bold=True)
 
-    # --- Write Data Rows ---
-    for row_num, paper in enumerate(papers, 2): # Start from row 2
-        # --- Helper function for consistent Excel value conversion ---
-        def format_excel_value(val):
-            """
-            Converts Python/DB values to Excel-friendly values:
-            - True/1   -> TRUE (Excel boolean)
-            - False/0  -> FALSE (Excel boolean)
-            - None/''/etc. -> "" (Empty string for blank Excel cell)
-            - Other    -> str(val) (Text)
-            """
-            if val is True or (isinstance(val, (int, float)) and val == 1):
-                return True # Excel TRUE
-            elif val is False or (isinstance(val, (int, float)) and val == 0):
-                return False # Excel FALSE
-            elif val is None or val == "":
-                 return "" # Explicitly empty cell for NULL/empty
-            else:
-                # Handle potential string representations of booleans from inconsistent DB
-                if isinstance(val, str):
-                    lower_val = val.lower()
-                    if lower_val in ('true', '1'):
-                        return True
-                    elif lower_val in ('false', '0'):
-                        return False
-                # Default: Convert to string for text fields
-                return str(val)
+    # # --- Write Data Rows ---
+    # for row_num, paper in enumerate(papers, 2): # Start from row 2
+    #     # --- Helper function for consistent Excel value conversion ---
+    #     def format_excel_value(val):
+    #         """
+    #         Converts Python/DB values to Excel-friendly values:
+    #         - True/1   -> TRUE (Excel boolean)
+    #         - False/0  -> FALSE (Excel boolean)
+    #         - None/''/etc. -> "" (Empty string for blank Excel cell)
+    #         - Other    -> str(val) (Text)
+    #         """
+    #         if val is True or (isinstance(val, (int, float)) and val == 1):
+    #             return True # Excel TRUE
+    #         elif val is False or (isinstance(val, (int, float)) and val == 0):
+    #             return False # Excel FALSE
+    #         elif val is None or val == "":
+    #              return "" # Explicitly empty cell for NULL/empty
+    #         else:
+    #             # Handle potential string representations of booleans from inconsistent DB
+    #             if isinstance(val, str):
+    #                 lower_val = val.lower()
+    #                 if lower_val in ('true', '1'):
+    #                     return True
+    #                 elif lower_val in ('false', '0'):
+    #                     return False
+    #             # Default: Convert to string for text fields
+    #             return str(val)
 
-        # Extract and format data
-        features = paper.get('features', {})
-        technique = paper.get('technique', {})
+    #     # Extract and format data
+    #     features = paper.get('features', {})
+    #     technique = paper.get('technique', {})
 
-        # --- Format the 'Last Changed' date ---
-        changed_timestamp_str = paper.get('changed', '')
-        formatted_changed_date = ""
-        if changed_timestamp_str:
-            try:
-                # Parse the ISO format timestamp
-                dt = datetime.fromisoformat(changed_timestamp_str.replace('Z', '+00:00'))
-                # Format as 'YYYY-MM-DD HH:MM:SS' for Excel compatibility
-                formatted_changed_date = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                # If parsing fails, keep the original string or leave blank
-                formatted_changed_date = changed_timestamp_str # Or ""
+    #     # --- Format the 'Last Changed' date ---
+    #     changed_timestamp_str = paper.get('changed', '')
+    #     formatted_changed_date = ""
+    #     if changed_timestamp_str:
+    #         try:
+    #             # Parse the ISO format timestamp
+    #             dt = datetime.fromisoformat(changed_timestamp_str.replace('Z', '+00:00'))
+    #             # Format as 'YYYY-MM-DD HH:MM:SS' for Excel compatibility
+    #             formatted_changed_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+    #         except ValueError:
+    #             # If parsing fails, keep the original string or leave blank
+    #             formatted_changed_date = changed_timestamp_str # Or ""
 
-        row_data = [
-            paper.get('type', ''),                    # Type (text)
-            paper.get('title', ''),                   # Title (text)
-            paper.get('year'),                        # Year (integer)
-            paper.get('journal', ''),                 # Journal/Conf name (text)
-            paper.get('page_count'),                  # Pages count (integer)
-            # --- Classification Summary ---
-            format_excel_value(paper.get('is_offtopic')), # Off-topic (boolean/null)
-            paper.get('relevance'),                   # Relevance (integer)
-            format_excel_value(paper.get('is_survey')), # Survey (boolean/null)
-            format_excel_value(paper.get('is_through_hole')), # THT (boolean/null)
-            format_excel_value(paper.get('is_smt')),    # SMT (boolean/null)
-            format_excel_value(paper.get('is_x_ray')),  # X-Ray (boolean/null)
-            # --- Features Summary (Updated Order - Corrected Boolean Features) ---
-            format_excel_value(features.get('tracks')), # Tracks (boolean/null)
-            format_excel_value(features.get('holes')),  # Holes / Vias (boolean/null)
-            format_excel_value(features.get('bare_pcb_other')), # Bare PCB Other (boolean/null) - ADDED
-            format_excel_value(features.get('solder_insufficient')), # Solder Insufficient (boolean/null)
-            format_excel_value(features.get('solder_excess')), # Solder Excess (boolean/null)
-            format_excel_value(features.get('solder_void')), # Solder Void (boolean/null)
-            format_excel_value(features.get('solder_crack')), # Solder Crack (boolean/null)
-            format_excel_value(features.get('solder_other')), # Solder Other (boolean/null) - ADDED
-            format_excel_value(features.get('missing_component')), # Missing Comp (boolean/null)
-            format_excel_value(features.get('wrong_component')), # Wrong Comp (boolean/null)
-            format_excel_value(features.get('orientation')), # Orientation (boolean/null)
-            format_excel_value(features.get('component_other')), # Comp Other (boolean/null) - ADDED
-            format_excel_value(features.get('cosmetic')), # Cosmetic (boolean/null)
-            # Other State (boolean based on 'other' text content) - CORRECTED COMMENT
-            format_excel_value(features.get('other') is not None and str(features.get('other', '')).strip() != ""),
-            features.get('other', ''),               # Other Defects Text (text) - This one shows the text
-            # --- Techniques Summary (Updated Order) ---
-            format_excel_value(technique.get('classic_cv_based')), # Classic CV (boolean/null)
-            format_excel_value(technique.get('ml_traditional')), # ML (boolean/null)
-            format_excel_value(technique.get('dl_cnn_classifier')), # CNN Classifier (boolean/null)
-            format_excel_value(technique.get('dl_cnn_detector')), # CNN Detector (boolean/null)
-            format_excel_value(technique.get('dl_rcnn_detector')), # R-CNN Detector (boolean/null)
-            format_excel_value(technique.get('dl_transformer')), # Transformers (boolean/null)
-            format_excel_value(technique.get('dl_other')), # Other DL (boolean/null)
-            format_excel_value(technique.get('hybrid')), # Hybrid (boolean/null)
-            format_excel_value(technique.get('available_dataset')), # Datasets (boolean/null)
-            technique.get('model', ''),              # Model name (text)
-            # --- Metadata ---
-            formatted_changed_date,                 # Last Changed (formatted date string)
-            paper.get('changed_by', ''),            # Changed By (text)
-            format_excel_value(paper.get('verified')), # Verified (boolean/null)
-            paper.get('estimated_score'),           # Accr. Score (integer)
-            paper.get('verified_by', ''),           # Verified By (text)
-            # User comments state (boolean based on 'user_trace' text content) - CORRECTED COMMENT
-            format_excel_value(paper.get('user_trace') is not None and str(paper.get('user_trace', '')).strip() != ""),
-            paper.get('user_trace', '')             # User comments contents (text) - This one shows the text
-        ]
+    #     row_data = [
+    #         paper.get('type', ''),                    # Type (text)
+    #         paper.get('title', ''),                   # Title (text)
+    #         paper.get('year'),                        # Year (integer)
+    #         paper.get('journal', ''),                 # Journal/Conf name (text)
+    #         paper.get('page_count'),                  # Pages count (integer)
+    #         # --- Classification Summary ---
+    #         format_excel_value(paper.get('is_offtopic')), # Off-topic (boolean/null)
+    #         paper.get('relevance'),                   # Relevance (integer)
+    #         format_excel_value(paper.get('is_survey')), # Survey (boolean/null)
+    #         format_excel_value(paper.get('is_through_hole')), # THT (boolean/null)
+    #         format_excel_value(paper.get('is_smt')),    # SMT (boolean/null)
+    #         format_excel_value(paper.get('is_x_ray')),  # X-Ray (boolean/null)
+    #         # --- Features Summary (Updated Order - Corrected Boolean Features) ---
+    #         format_excel_value(features.get('tracks')), # Tracks (boolean/null)
+    #         format_excel_value(features.get('holes')),  # Holes / Vias (boolean/null)
+    #         format_excel_value(features.get('bare_pcb_other')), # Bare PCB Other (boolean/null) - ADDED
+    #         format_excel_value(features.get('solder_insufficient')), # Solder Insufficient (boolean/null)
+    #         format_excel_value(features.get('solder_excess')), # Solder Excess (boolean/null)
+    #         format_excel_value(features.get('solder_void')), # Solder Void (boolean/null)
+    #         format_excel_value(features.get('solder_crack')), # Solder Crack (boolean/null)
+    #         format_excel_value(features.get('solder_other')), # Solder Other (boolean/null) - ADDED
+    #         format_excel_value(features.get('missing_component')), # Missing Comp (boolean/null)
+    #         format_excel_value(features.get('wrong_component')), # Wrong Comp (boolean/null)
+    #         format_excel_value(features.get('orientation')), # Orientation (boolean/null)
+    #         format_excel_value(features.get('component_other')), # Comp Other (boolean/null) - ADDED
+    #         format_excel_value(features.get('cosmetic')), # Cosmetic (boolean/null)
+    #         # Other State (boolean based on 'other' text content) - CORRECTED COMMENT
+    #         format_excel_value(features.get('other') is not None and str(features.get('other', '')).strip() != ""),
+    #         features.get('other', ''),               # Other Defects Text (text) - This one shows the text
+    #         # --- Techniques Summary (Updated Order) ---
+    #         format_excel_value(technique.get('classic_cv_based')), # Classic CV (boolean/null)
+    #         format_excel_value(technique.get('ml_traditional')), # ML (boolean/null)
+    #         format_excel_value(technique.get('dl_cnn_classifier')), # CNN Classifier (boolean/null)
+    #         format_excel_value(technique.get('dl_cnn_detector')), # CNN Detector (boolean/null)
+    #         format_excel_value(technique.get('dl_rcnn_detector')), # R-CNN Detector (boolean/null)
+    #         format_excel_value(technique.get('dl_transformer')), # Transformers (boolean/null)
+    #         format_excel_value(technique.get('dl_other')), # Other DL (boolean/null)
+    #         format_excel_value(technique.get('hybrid')), # Hybrid (boolean/null)
+    #         format_excel_value(technique.get('available_dataset')), # Datasets (boolean/null)
+    #         technique.get('model', ''),              # Model name (text)
+    #         # --- Metadata ---
+    #         formatted_changed_date,                 # Last Changed (formatted date string)
+    #         paper.get('changed_by', ''),            # Changed By (text)
+    #         format_excel_value(paper.get('verified')), # Verified (boolean/null)
+    #         paper.get('estimated_score'),           # Accr. Score (integer)
+    #         paper.get('verified_by', ''),           # Verified By (text)
+    #         # User comments state (boolean based on 'user_trace' text content) - CORRECTED COMMENT
+    #         format_excel_value(paper.get('user_trace') is not None and str(paper.get('user_trace', '')).strip() != ""),
+    #         paper.get('user_trace', '')             # User comments contents (text) - This one shows the text
+    #     ]
 
-        # Write the row data to Excel
-        for col_num, cell_value in enumerate(row_data, 1):
-            ws.cell(row=row_num, column=col_num, value=cell_value)
+    #     # Write the row data to Excel
+    #     for col_num, cell_value in enumerate(row_data, 1):
+    #         ws.cell(row=row_num, column=col_num, value=cell_value)
 
-    # Optional: Auto-adjust column widths (basic attempt)
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter # Get the column name
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = (max_length + 2)
-        # Cap the width to prevent extremely wide columns
-        ws.column_dimensions[column_letter].width = min(adjusted_width, 50)
+    # # Optional: Auto-adjust column widths (basic attempt)
+    # for column in ws.columns:
+    #     max_length = 0
+    #     column_letter = column[0].column_letter # Get the column name
+    #     for cell in column:
+    #         try:
+    #             if len(str(cell.value)) > max_length:
+    #                 max_length = len(str(cell.value))
+    #         except:
+    #             pass
+    #     adjusted_width = (max_length + 2)
+    #     # Cap the width to prevent extremely wide columns
+    #     ws.column_dimensions[column_letter].width = min(adjusted_width, 50)
 
-    # Optional: Format the data as a table (requires openpyxl >= 2.5)
-    if len(papers) > 0:
-        # Adjust the column reference to 'AQ' (assuming 37 columns now: A through AQ)
-        # Headers are row 1, data starts row 2, so last row is len(papers) + 1
-        tab = Table(displayName="PCBPapersTable", ref=f"A1:AQ{len(papers) + 1}")
-        style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
-                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-        tab.tableStyleInfo = style
-        ws.add_table(tab)
+    # # Optional: Format the data as a table (requires openpyxl >= 2.5)
+    # if len(papers) > 0:
+    #     # Adjust the column reference to 'AQ' (assuming 37 columns now: A through AQ)
+    #     # Headers are row 1, data starts row 2, so last row is len(papers) + 1
+    #     tab = Table(displayName="PCBPapersTable", ref=f"A1:AQ{len(papers) + 1}")
+    #     style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+    #                             showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+    #     tab.tableStyleInfo = style
+    #     ws.add_table(tab)
 
-    # --- NEW: Apply Conditional Formatting for Boolean Cells ---
-    # Define fills for TRUE and FALSE
-    true_fill = PatternFill(start_color="CCFFCC", end_color="CCFFCC", fill_type="solid") # Light Green
-    false_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid") # Light Red
-    # Updated boolean column indices based on corrected new order (1-based indexing)
-    boolean_columns = [
-        # Classification Summary
-        6, 8, 9, 10, 11,
-        # Features Summary (Boolean Features)
-        12, 13, 14, # Tracks, Holes, Bare PCB Other
-        15, 16, 17, 18, 19, # Solder Insufficient, Excess, Void, Crack, Solder Other
-        20, 21, 22, 23, # Missing Comp, Wrong Comp, Orientation, Comp Other
-        24, 25, 27, # Cosmetic, Other State, User Comment State
-        # Techniques Summary
-        28, 29, 30, 31, 32, 33, 34, 35, 36,
-        # Metadata
-        39 # Verified (column 39)
-    ]
+    # # --- NEW: Apply Conditional Formatting for Boolean Cells ---
+    # # Define fills for TRUE and FALSE
+    # true_fill = PatternFill(start_color="CCFFCC", end_color="CCFFCC", fill_type="solid") # Light Green
+    # false_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid") # Light Red
+    # # Updated boolean column indices based on corrected new order (1-based indexing)
+    # boolean_columns = [
+    #     # Classification Summary
+    #     6, 8, 9, 10, 11,
+    #     # Features Summary (Boolean Features)
+    #     12, 13, 14, # Tracks, Holes, Bare PCB Other
+    #     15, 16, 17, 18, 19, # Solder Insufficient, Excess, Void, Crack, Solder Other
+    #     20, 21, 22, 23, # Missing Comp, Wrong Comp, Orientation, Comp Other
+    #     24, 25, 27, # Cosmetic, Other State, User Comment State
+    #     # Techniques Summary
+    #     28, 29, 30, 31, 32, 33, 34, 35, 36,
+    #     # Metadata
+    #     39 # Verified (column 39)
+    # ]
 
-    # Iterate through rows and specified boolean columns to apply formatting
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
-        for col_idx in boolean_columns:
-            # Adjust for 0-based indexing in the row list
-            cell = row[col_idx - 1] # col_idx is 1-based, list index is 0-based
-            if cell.value is True:
-                cell.fill = true_fill
-            elif cell.value is False:
-                cell.fill = false_fill
-            # If cell.value is None or "", it remains unformatted (blank cell)
+    # # Iterate through rows and specified boolean columns to apply formatting
+    # for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+    #     for col_idx in boolean_columns:
+    #         # Adjust for 0-based indexing in the row list
+    #         cell = row[col_idx - 1] # col_idx is 1-based, list index is 0-based
+    #         if cell.value is True:
+    #             cell.fill = true_fill
+    #         elif cell.value is False:
+    #             cell.fill = false_fill
+    #         # If cell.value is None or "", it remains unformatted (blank cell)
 
-    # --- Save Workbook to BytesIO object ---
-    wb.save(output)
-    output.seek(0)
-    return output.getvalue()
+    # # --- Save Workbook to BytesIO object ---
+    # wb.save(output)
+    # output.seek(0)
+    # return output.getvalue()
+    return
 
 def generate_filename(base_name, year_from, year_to, min_page_count, hide_offtopic, extra_suffix=""):
     """Generates a filename based on filters."""
@@ -1051,83 +1041,6 @@ def generate_filename(base_name, year_from, year_to, min_page_count, hide_offtop
         filename_parts.append(extra_suffix)
     return "_".join(filename_parts)
 
-# Standalone batch classification/verification
-def run_classification_subprocess(mode, paper_id, db_file):
-    """Launches automate_classification as a separate process."""
-    # Prepare the command
-    # Use sys.executable to ensure the same Python interpreter is used
-    cmd = [sys.executable, '-m', 'automate_classification'] # Assumes the script can be run as a module
-    # Or if it's designed to run as a script directly: cmd = [sys.executable, 'automate_classification.py']
-    
-    # Add arguments based on mode
-    if mode == 'id' and paper_id:
-        cmd.extend(['--mode', 'id', '--paper_id', str(paper_id)])
-    elif mode in ['all', 'remaining', 'no_features', 'on_topic_implementation', 'consensus']: # Add new modes here
-        cmd.extend(['--mode', mode])
-    else:
-        print(f"Warning: Invalid mode '{mode}' for subprocess classification.")
-        return # Or handle error appropriately
-
-    # Add the database file argument if needed by the script
-    # cmd.extend(['--db_file', db_file]) # Uncomment if needed
-
-    try:
-        print(f"Starting classification subprocess: {' '.join(cmd)}")
-        # Use subprocess.Popen to start the process independently
-        # On Windows, using 'start' command might be needed to detach the window
-        if sys.platform.startswith('win'):
-            # This creates a new console window and detaches the process
-            # The 'cmd /c' part runs the command, 'start' launches it detached
-            # The empty string "" is the title for the new window (can be a specific title)
-            subprocess.Popen(['cmd', '/c', 'start', 'Classification Process', '/D', os.getcwd(), 'python'] + cmd[1:], 
-                             close_fds=True, # Close file descriptors in child (good practice)
-                             creationflags=subprocess.CREATE_NEW_CONSOLE) # Create new console on Windows
-        else:
-            # On Unix-like systems, you might use os.setsid or preexec_fn to detach
-            # subprocess.Popen(cmd, close_fds=True, start_new_session=True) # POSIX
-            subprocess.Popen(cmd, close_fds=True) # Simple detach might work, start_new_session is better on POSIX
-        print(f"Classification subprocess initiated for mode={mode}, paper_id={paper_id}")
-    except FileNotFoundError:
-        print(f"Error: Python interpreter or script 'automate_classification.py' not found.")
-    except Exception as e:
-        print(f"Error starting classification subprocess: {e}")
-
-def run_verification_subprocess(mode, paper_id, db_file):
-    """Launches verify_classification as a separate process."""
-    # Prepare the command
-    cmd = [sys.executable, '-m', 'verify_classification'] # Assumes the script can be run as a module
-    # Or if it's designed to run as a script directly: cmd = [sys.executable, 'verify_classification.py']
-
-    # Add arguments based on mode
-    if mode == 'id' and paper_id:
-        cmd.extend(['--mode', 'id', '--paper_id', str(paper_id)])
-    elif mode == 'all':
-        cmd.extend(['--mode', 'all'])
-    elif mode == 'remaining':
-        cmd.extend(['--mode', 'remaining'])
-    else:
-        print(f"Warning: Invalid mode '{mode}' for subprocess verification.")
-        return # Or handle error appropriately
-
-    # Add the database file argument if needed by the script
-    # cmd.extend(['--db_file', db_file]) # Uncomment if needed
-
-    try:
-        print(f"Starting verification subprocess: {' '.join(cmd)}")
-        # Use subprocess.Popen to start the process independently
-        if sys.platform.startswith('win'):
-            subprocess.Popen(['cmd', '/c', 'start', 'Verification Process', '/D', os.getcwd(), 'python'] + cmd[1:], 
-                             close_fds=True, 
-                             creationflags=subprocess.CREATE_NEW_CONSOLE)
-        else:
-            # subprocess.Popen(cmd, close_fds=True, start_new_session=True) # POSIX
-            subprocess.Popen(cmd, close_fds=True) # Simple detach might work, start_new_session is better on POSIX
-        print(f"Verification subprocess initiated for mode={mode}, paper_id={paper_id}")
-    except FileNotFoundError:
-        print(f"Error: Python interpreter or script 'verify_classification.py' not found.")
-    except Exception as e:
-        print(f"Error starting verification subprocess: {e}")
-
 def prepare_history_log_data(paper_dict, set_num=None):
     """
     Prepares llm_log data for history row rendering.
@@ -1136,10 +1049,10 @@ def prepare_history_log_data(paper_dict, set_num=None):
     # Determine which log column to use
     if set_num and set_num in [1, 2, 3]:
         raw_log = paper_dict.get(f'set_{set_num}_llm_log', '[]')
-        has_certainty = False
+        # has_certainty = False
     else:
         raw_log = paper_dict.get('llm_log', '[]')
-        has_certainty = True
+        # has_certainty = True
     
     try:
         log_entries = json.loads(raw_log) if raw_log else []
@@ -1152,7 +1065,7 @@ def prepare_history_log_data(paper_dict, set_num=None):
         'relevance', 'features', 'technique'
     ]
     
-    # SINGLE parsing pass - parse output JSON and validate
+    # parse output JSON and validate
     for entry in log_entries:
         try:
             output_raw = entry.get('output', '{}')
@@ -1251,6 +1164,8 @@ def prepare_history_log_data(paper_dict, set_num=None):
     
     return processed_entries
 
+
+
 # --- Jinja2-like filters ---
 def render_status(value):
     """Render status value as emoji/symbol"""
@@ -1260,6 +1175,12 @@ def render_status(value):
         return '❌' # Cross for False
     else: # None or unknown
         return '❔' # Question mark for Unknown/Null
+
+@app.template_filter('render_status')
+def render_status_filter(value):
+    return render_status(value)
+
+
 
 def render_verified_by(value):
     """
@@ -1277,6 +1198,13 @@ def render_verified_by(value):
         escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")
         return f'<span title="{escaped_model_name}">🖥️</span>'
 
+@app.template_filter('render_verified_by')
+def render_verified_by_filter(value):
+    # Use Markup to tell Jinja2 that the output is safe HTML
+    return Markup(render_verified_by(value)) 
+
+
+
 def render_changed_by(value):
     """
     Render changed_by value as emoji.
@@ -1291,6 +1219,13 @@ def render_changed_by(value):
         # For any other string, value is a model name, show computer emoji with tooltip
         escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")
         return f'<span title="{escaped_model_name}">🖥️</span>'
+    
+@app.template_filter('render_changed_by')
+def render_changed_by_filter(value):
+    # Use Markup to tell Jinja2 that the output is safe HTML
+    return Markup(render_changed_by(value))
+
+
 
 # --- BibTeX Generation Function ---
 def generate_bibtex_string(paper):
@@ -1408,20 +1343,6 @@ def generate_bibtex_string(paper):
 def bibtex_filter(paper):
     """Jinja2 filter to generate a BibTeX string for a paper dictionary."""
     return generate_bibtex_string(paper)
-
-@app.template_filter('render_changed_by')
-def render_changed_by_filter(value):
-    # Use Markup to tell Jinja2 that the output is safe HTML
-    return Markup(render_changed_by(value))
-
-@app.template_filter('render_status')
-def render_status_filter(value):
-    return render_status(value)
-
-@app.template_filter('render_verified_by')
-def render_verified_by_filter(value):
-    # Use Markup to tell Jinja2 that the output is safe HTML
-    return Markup(render_verified_by(value)) 
 
 
 
@@ -1915,7 +1836,6 @@ def get_detail_row():
         print(f"Error fetching detail row for paper {paper_id}: {e}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
 
-
 app.jinja_env.filters['format_changed_timestamp'] = format_changed_timestamp
 
 
@@ -2003,69 +1923,6 @@ def update_paper():
         print(f"Error updating paper {paper_id}: {e}") # Log error
         return jsonify({'status': 'error', 'message': 'Failed to update database'}), 500
 
-# In browse_db.py, add these imports and functions:
-
-import subprocess
-import requests
-import time
-
-QUEUE_MANAGER_PORT = 8087
-QUEUE_MANAGER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'llm_queue_manager.py')
-
-def is_queue_manager_running():
-    try:
-        response = requests.get(f'http://127.0.0.1:{QUEUE_MANAGER_PORT}/health', timeout=2)
-        return response.status_code == 200
-    except:
-        return False
-
-def start_queue_manager():
-    if is_queue_manager_running():
-        return True
-    
-    print("[Flask] Starting queue manager...")
-    
-    if sys.platform.startswith('win'):
-        subprocess.Popen(
-            [sys.executable, QUEUE_MANAGER_SCRIPT],
-            cwd=os.getcwd(),
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
-            close_fds=True
-        )
-    else:
-        subprocess.Popen(
-            [sys.executable, QUEUE_MANAGER_SCRIPT],
-            cwd=os.getcwd(),
-            start_new_session=True,
-            close_fds=True,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    
-    for _ in range(20):
-        time.sleep(0.5)
-        if is_queue_manager_running():
-            return True
-    
-    return False
-
-def call_queue_manager(endpoint: str, data: dict, wait_timeout: int = None):
-    if not is_queue_manager_running():
-        if not start_queue_manager():
-            return None
-    
-    try:
-        response = requests.post(
-            f'http://127.0.0.1:{QUEUE_MANAGER_PORT}{endpoint}',
-            json=data,
-            timeout=wait_timeout if wait_timeout else 600
-        )
-        return response.json()
-    except Exception as e:
-        print(f"[Flask] Queue manager error: {e}")
-        return None
-import requests
 
 @app.route('/classify', methods=['POST'])
 def classify_paper():
@@ -2129,6 +1986,7 @@ def verify_paper():
     except requests.exceptions.RequestException as e:
         return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
     
+## Outdated, must be updated to be useful for v1.2:
 @app.route('/upload_bibtex', methods=['POST'])
 def upload_bibtex():
     """Endpoint to handle BibTeX/CSV file upload and import."""
@@ -2205,8 +2063,8 @@ if __name__ == '__main__':
         DATABASE = globals.DATABASE_FILE
         print(f"Attempting to use database file from globals.DATABASE_FILE: {DATABASE}")
 
-    # 3. If DATABASE is still None (neither arg nor globals provided), or if the specified file doesn't exist,
-    #    fall back to 'fallback.sqlite' by copying it to globals.DATABASE_FILE location
+    # If DATABASE is still None (neither arg nor globals provided), or if the specified file doesn't exist,
+    # fall back to 'fallback.sqlite' by copying it to globals.DATABASE_FILE location
     fallback_needed = False
     if DATABASE is None:
         fallback_needed = True
@@ -2237,19 +2095,6 @@ if __name__ == '__main__':
         print(f"Error: Final database file not found: {DATABASE} \nPlease provide a valid database file via command line argument, set globals.DATABASE_FILE correctly, or ensure 'fallback.sqlite' exists in the script's directory.")
         sys.exit(1) # Exit if even the fallback doesn't exist
 
-    # Verify the database has the required tables
-    try:
-        conn = sqlite3.connect(DATABASE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='papers'")
-        if not cursor.fetchone():
-            print(f"Error: Database '{DATABASE}' does not contain required 'papers' table")
-            sys.exit(1)
-        conn.close()
-    except sqlite3.Error as e:
-        print(f"Error verifying database: {e}")
-        sys.exit(1)
-
     print(f"Starting server, database: {DATABASE}")
 
     # --- Open browser only once ---
@@ -2268,9 +2113,4 @@ if __name__ == '__main__':
         threading.Thread(target=open_browser, daemon=True).start()
         print(" * Visit http://127.0.0.1:5000 to view the table.")
     
-    # Ensure the templates and static folders exist
-    if not os.path.exists('templates'):
-        os.makedirs('templates')
-    if not os.path.exists('static'):
-        os.makedirs('static')
     app.run(host='0.0.0.0', port=5000, debug=True)

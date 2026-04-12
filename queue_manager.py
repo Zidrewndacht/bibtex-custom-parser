@@ -14,6 +14,86 @@ import os
 import globals
 import time
 from flask import Flask, request, jsonify
+# Add after: from flask import Flask, request, jsonify
+from colorama import init, Fore, Style
+init(autoreset=True)
+
+# ============================================================================
+# COLOR CONSTANTS FOR LOGGING (black-background friendly - LIGHT COLORS ONLY)
+# ============================================================================
+class Colors:
+    """Semantic colors for log prefixes and mode words only.
+    
+    ALL colors use LIGHT*_EX variants for visibility on black backgrounds.
+    No deep/dark/saturated colors (e.g., Fore.BLUE, Fore.RED) are used.
+    """
+    # Prefix labels - bright/light colors only
+    DISPATCHER = Fore.LIGHTCYAN_EX
+    REQUEST = Fore.LIGHTYELLOW_EX
+    VLLM_SEND = Fore.LIGHTGREEN_EX
+    VLLM_COMPLETE = Fore.LIGHTGREEN_EX
+    ERROR = Fore.LIGHTRED_EX          # Light red, not deep red
+    QUEUE_STATUS = Fore.LIGHTBLUE_EX  # Light blue, NOT Fore.BLUE
+    CLASSIFY = Fore.LIGHTGREEN_EX
+    VERIFY = Fore.LIGHTMAGENTA_EX     # Light magenta, not deep
+    CONSENSUS = Fore.LIGHTCYAN_EX
+    BATCH = Fore.LIGHTYELLOW_EX
+    DB = Fore.LIGHTBLUE_EX
+    
+    # Mode words - light colors only
+    MODE_CLASSIFY = Fore.LIGHTGREEN_EX
+    MODE_VERIFY = Fore.LIGHTMAGENTA_EX
+    MODE_RECLASSIFY = Fore.LIGHTCYAN_EX
+    MODE_CONSENSUS = Fore.LIGHTCYAN_EX
+    MODE_ID = Fore.LIGHTWHITE_EX
+    MODE_ALL = Fore.LIGHTWHITE_EX
+    MODE_REMAINING = Fore.LIGHTWHITE_EX
+    MODE_NO_FEATURES = Fore.LIGHTWHITE_EX
+    MODE_ON_TOPIC = Fore.LIGHTWHITE_EX
+    
+    # Queue status mode keywords - color only the mode word itself
+    MODE_QUEUE_MIXED = Fore.LIGHTWHITE_EX
+    MODE_QUEUE_HOMOGENEOUS_CLASSIFY = Fore.LIGHTGREEN_EX
+    MODE_QUEUE_HOMOGENEOUS_VERIFY = Fore.LIGHTMAGENTA_EX
+    MODE_QUEUE_HOMOGENEOUS_RECLASSIFY = Fore.LIGHTCYAN_EX
+    # Timestamp - subtle but still readable: white at lower intensity
+    TIMESTAMP = Fore.LIGHTBLACK_EX  # Or keep LIGHTBLACK_EX if your terminal renders it well
+
+
+def _color_prefix(prefix: str, color: str) -> str:
+    """Color only the prefix word (e.g., 'DISPATCH:') not the whole line."""
+    return f"{color}{prefix}{Style.RESET_ALL}"
+
+def _color_queue_mode(status_line: str) -> str:
+    """Color only the queue mode keyword in status lines like:
+    'HOMOGENEOUS_CLASSIFY (limit=256)' or 'MIXED (min_threshold=160)'
+    """
+    if status_line.startswith("HOMOGENEOUS_CLASSIFY"):
+        return f"{Colors.MODE_QUEUE_HOMOGENEOUS_CLASSIFY}HOMOGENEOUS_CLASSIFY{Style.RESET_ALL}" + status_line[len("HOMOGENEOUS_CLASSIFY"):]
+    elif status_line.startswith("HOMOGENEOUS_VERIFY"):
+        return f"{Colors.MODE_QUEUE_HOMOGENEOUS_VERIFY}HOMOGENEOUS_VERIFY{Style.RESET_ALL}" + status_line[len("HOMOGENEOUS_VERIFY"):]
+    elif status_line.startswith("HOMOGENEOUS_RECLASSIFY"):
+        return f"{Colors.MODE_QUEUE_HOMOGENEOUS_RECLASSIFY}HOMOGENEOUS_RECLASSIFY{Style.RESET_ALL}" + status_line[len("HOMOGENEOUS_RECLASSIFY"):]
+    elif status_line.startswith("MIXED"):
+        return f"{Colors.MODE_QUEUE_MIXED}MIXED{Style.RESET_ALL}" + status_line[len("MIXED"):]
+    else:
+        return status_line  # Fallback: return unchanged
+    
+def _color_mode(mode: str) -> str:
+    """Color the mode word value itself based on semantic meaning."""
+    mode_map = {
+        'classify': Colors.MODE_CLASSIFY,
+        'verify': Colors.MODE_VERIFY,
+        'reclassify': Colors.MODE_RECLASSIFY,
+        'consensus': Colors.MODE_CONSENSUS,
+        'id': Colors.MODE_ID,
+        'all': Colors.MODE_ALL,
+        'remaining': Colors.MODE_REMAINING,
+        'no_features': Colors.MODE_NO_FEATURES,
+        'on_topic_implementation': Colors.MODE_ON_TOPIC,
+    }
+    color = mode_map.get(mode, Fore.LIGHTWHITE_EX)
+    return f"{color}{mode}{Style.RESET_ALL}"
 
 # ============================================================================
 # CONFIGURATION
@@ -35,9 +115,12 @@ app.config['JSON_SORT_KEYS'] = False  # Preserve key order in responses
 # ============================================================================
 
 def log(msg: str):
-    """Print timestamped message to console."""
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {msg}", flush=True)  # ← Add flush=True
+    """Print timestamped message to console. Message may contain pre-colored segments."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # Timestamp darker but still readable on black
+    timestamp_part = f"{Colors.TIMESTAMP}[{timestamp}]{Style.RESET_ALL}"
+    print(f"{timestamp_part} {msg}", flush=True)
+
 
 def log_queue_status():
     """Log current queue and in-flight status."""
@@ -57,8 +140,9 @@ def log_queue_status():
     else:
         mode = f"MIXED (min_threshold={globals.MIN_CONCURRENT_WORKERS})"
         
-    log(f"QUEUE STATUS: queue_size={queue_size} \t in_flight={total_in_flight} \t classify={classify_in_flight} \t verify={verify_in_flight} \t reclassify={reclassify_in_flight} \t mode={mode}")
-    
+    # Color only the mode keyword, not the whole line
+    log(f"{_color_prefix('QUEUE STATUS:', Colors.QUEUE_STATUS)} queue_size={queue_size} \t in_flight={total_in_flight} \t classify={classify_in_flight} \t verify={verify_in_flight} \t reclassify={reclassify_in_flight} \t mode={_color_queue_mode(mode)}")
+
 # ============================================================================
 # QUEUE STATE (Thread-Safe)
 # ============================================================================
@@ -110,39 +194,6 @@ class QueueState:
         return self.shutdown
 
 state = QueueState()
-
-# ============================================================================
-# ADMISSION CONTROL
-# ============================================================================
-
-def can_admit_task(task_type):
-    """
-    Homogeneous/mixed concurrency logic.
-    If 255 classifications in-flight:
-      → 256th classification: ADMIT immediately
-      → Incoming verification: WAIT until total ≤ 32
-    """
-    total = state.get_total_in_flight()
-    task_in_flight = state.get_in_flight(task_type)
-    
-    if task_type == TASK_CLASSIFY:
-        limit = globals.MAX_CONCURRENT_WORKERS_CLASSIFY
-    elif task_type == TASK_VERIFY:
-        limit = globals.MAX_CONCURRENT_WORKERS_VERIFY
-    elif task_type == TASK_RECLASSIFY:
-        limit = globals.MAX_CONCURRENT_WORKERS_RECLASSIFY
-    else:
-        return False
-    
-    # Check if we're in homogeneous mode for this task type
-    other_types_running = total - task_in_flight
-    
-    if other_types_running == 0:
-        # Homogeneous mode - admit up to type-specific limit
-        return task_in_flight < limit
-    else:
-        # Mixed mode - only admit if we're at or below minimum threshold
-        return total < globals.MIN_CONCURRENT_WORKERS
 
 # ============================================================================
 # STATE MACHINES
@@ -771,14 +822,8 @@ class ConsensusStateMachine:
         conn.close()
 
 # ============================================================================
-# VLLM COMMUNICATION
+# vLLM COMMUNICATION
 # ============================================================================
-
-def send_to_vllm(task):
-    """Send task to vLLM asynchronously (fire-and-forget)."""
-    thread = threading.Thread(target=_send_to_vllm_sync, args=(task,))
-    thread.daemon = True
-    thread.start()
 
 def _send_to_vllm_sync(task):
     """Synchronous vLLM call (runs in background thread)."""
@@ -790,7 +835,7 @@ def _send_to_vllm_sync(task):
     model_alias = task.get('model_alias', 'default')
     state_machine = task.get('state_machine')
     
-    log(f"SENDING: task={task_id} type={task_type} paper={paper_id} set={set_num}")
+    log(f"{_color_prefix('SENDING:', Colors.VLLM_SEND)} task={task_id} type={task_type} paper={paper_id} set={set_num}")
     
     try:
         content, model_name, reasoning_trace = globals.send_prompt_to_llm(
@@ -804,7 +849,7 @@ def _send_to_vllm_sync(task):
         llm_data = json.loads(content) if success and content else None
         
     except Exception as e:
-        log(f"ERROR: task={task_id} error={e}")
+        log(f"{_color_prefix('ERROR:', Colors.ERROR)} task={task_id} error={e}")
         success = False
         llm_data = None
         model_name = "error"
@@ -821,46 +866,46 @@ def _send_to_vllm_sync(task):
         elif hasattr(state_machine, 'on_task_complete'):
             state_machine.on_task_complete(success, llm_data, model_name, reasoning_trace or "", content or "")
     
-    log(f"COMPLETE: task={task_id} success={success}")
+    log(f"{_color_prefix('COMPLETE:', Colors.VLLM_COMPLETE)} task={task_id} success={success}")
     log_queue_status()
 
-# ============================================================================
-# DISPATCHER
-# ============================================================================
+def send_to_vllm(task):
+    """Send task to vLLM asynchronously (fire-and-forget)."""
+    thread = threading.Thread(target=_send_to_vllm_sync, args=(task,))
+    thread.daemon = True
+    thread.start()
 
-# def dispatcher_loop():
-#     """Single dispatcher thread - never blocks except on completion_event"""
-#     log(f"DISPATCHER: Starting dispatcher thread...")
-#     log_queue_status()
+def can_admit_task(task_type):
+    """
+    Homogeneous/mixed concurrency logic.
+    If 255 classifications in-flight:
+      → 256th classification: ADMIT immediately
+      → Incoming verification: WAIT until total ≤ 32
+    """
+    total = state.get_total_in_flight()
+    task_in_flight = state.get_in_flight(task_type)
     
-#     while not state.is_shutdown():
-#         task = state.peek_queue()
-        
-#         if task is None:
-#             # Queue empty - wait for new tasks
-#             state.completion_event.clear()
-#             state.completion_event.wait(timeout=1.0)
-#             continue
-        
-#         task_type = task.get('task_type')
-#         task_id = task.get('task_id', 'unknown')
-        
-#         if can_admit_task(task_type):
-#             task = state.dequeue()
-#             if task:
-#                 state.increment_in_flight(task_type)
-#                 log(f"DISPATCH: task={task_id} type={task_type}")
-#                 log_queue_status()
-#                 send_to_vllm(task)  # Fire-and-forget, doesn't block
-#         else:
-#             # Can't admit - wait for ANY completion
-#             state.completion_event.clear()
-#             state.completion_event.wait(timeout=0.5)
+    if task_type == TASK_CLASSIFY:
+        limit = globals.MAX_CONCURRENT_WORKERS_CLASSIFY
+    elif task_type == TASK_VERIFY:
+        limit = globals.MAX_CONCURRENT_WORKERS_VERIFY
+    elif task_type == TASK_RECLASSIFY:
+        limit = globals.MAX_CONCURRENT_WORKERS_RECLASSIFY
+    else:
+        return False
     
-#     log(f"DISPATCHER: Shutdown complete.")
+    # Check if we're in homogeneous mode for this task type
+    other_types_running = total - task_in_flight
+    
+    if other_types_running == 0:
+        # Homogeneous mode - admit up to type-specific limit
+        return task_in_flight < limit
+    else:
+        # Mixed mode - only admit if we're at or below minimum threshold
+        return total < globals.MIN_CONCURRENT_WORKERS
 
 def dispatcher_loop():
-    log(f"DISPATCHER: Starting dispatcher thread...")
+    log(f"{_color_prefix('DISPATCHER:', Colors.DISPATCHER)} Starting dispatcher thread...")
     log_queue_status()
     
     while not state.is_shutdown():
@@ -881,7 +926,7 @@ def dispatcher_loop():
                 break
             
             state.increment_in_flight(task_type)
-            log(f"DISPATCH: task={task.get('task_id')} type={task_type}")
+            log(f"{_color_prefix('DISPATCH:', Colors.DISPATCHER)} task={task.get('task_id')} type={task_type}")
             log_queue_status()
             send_to_vllm(task)
             admitted_any = True
@@ -892,7 +937,8 @@ def dispatcher_loop():
         # No work admitted - wait briefly before re-checking
         time.sleep(0.1)  # 100ms poll interval, lightweight yet fast enough.
     
-    log(f"DISPATCHER: Shutdown complete.")
+    log(f"{_color_prefix('DISPATCHER:', Colors.DISPATCHER)} Shutdown complete.")
+
 
 # ============================================================================
 # FLASK HTTP SERVER
@@ -908,10 +954,9 @@ def handle_classify_route():
     """Handle classification request (single paper or batch)."""
     client = request.remote_addr
     data = request.get_json(silent=True) or {}
-    log(f"REQUEST from {client}: /classify mode={data.get('mode', 'id')} paper_id={data.get('paper_id', 'N/A')}")
-    
     paper_id = data.get('paper_id')
-    mode = data.get('mode', 'id')
+    mode = data.get('mode', 'id')  # ← Define mode BEFORE using it
+    log(f"{_color_prefix('REQUEST:', Colors.REQUEST)} from {client}: /classify mode={_color_mode(mode)} paper_id={paper_id}")
     
     try:
         prompt_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
@@ -924,7 +969,7 @@ def handle_classify_route():
     
     if mode == 'id' and paper_id:
         # Single paper - enqueue all 3 sets unconditionally (force reclassify)
-        log(f"Single paper classification: {paper_id} (3 sets)")
+        log(f"{_color_prefix('[CLASSIFY]', Colors.CLASSIFY)} Single paper: {paper_id} (3 sets)")
         completion_events = [threading.Event() for _ in range(3)]
         
         for set_num in [1, 2, 3]:
@@ -932,7 +977,7 @@ def handle_classify_route():
             
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
-                    log(f"[CLASSIFY] paper={pid} set={sn} complete success={success}")
+                    log(f"{_color_prefix('[CLASSIFY]', Colors.CLASSIFY)} paper={pid} set={sn} complete success={success}") # callback
                     event.set()
                 return callback
             
@@ -972,23 +1017,32 @@ def handle_classify_route():
             """)
         
         elif mode == 'no_features':
-            # Sets where all boolean features are NULL/0/empty (set-specific)
-            conditions = [
-                f"(set_{sn}_last_llm_features IS NULL OR set_{sn}_last_llm_features = '' OR set_{sn}_last_llm_features = '{{}}')"
-                for sn in [1, 2, 3]
-            ]
-            for key in globals.BOOLEAN_FEATURE_KEYS:
-                for sn in [1, 2, 3]:
-                    conditions.append(
-                        f"(JSON_EXTRACT(set_{sn}_last_llm_features, '$.{key}') IS NULL OR JSON_EXTRACT(set_{sn}_last_llm_features, '$.{key}') = 0)"
-                    )
-            # Build UNION query for each set
-            cursor.execute(f"""
-                SELECT id, 1 as set_num FROM papers WHERE {' AND '.join([c for c in conditions if ', 1' in c or 'set_1' in c])}
-                UNION ALL SELECT id, 2 FROM papers WHERE {' AND '.join([c for c in conditions if ', 2' in c or 'set_2' in c])}
-                UNION ALL SELECT id, 3 FROM papers WHERE {' AND '.join([c for c in conditions if ', 3' in c or 'set_3' in c])}
-                ORDER BY id, set_num
-            """)
+            # Sets where the paper is explicitly ON-TOPIC but ALL boolean features are NULL/0/empty
+            set_queries = []
+            for sn in [1, 2, 3]:
+                col_name = f'set_{sn}_last_llm_features'
+                
+                # 1. Must be classified as on-topic (is_offtopic = 0)
+                conditions = [f"set_{sn}_last_llm_is_offtopic = 0"]
+                
+                # 2. All boolean features must be NULL or 0
+                # Using CASE WHEN to safely skip json_extract on empty/NULL strings (prevents 'malformed JSON')
+                for key in globals.BOOLEAN_FEATURE_KEYS:
+                    conditions.append(f"""(
+                        CASE 
+                            WHEN {col_name} IS NULL OR {col_name} = '' THEN 1
+                            WHEN json_extract({col_name}, '$.{key}') IS NULL THEN 1
+                            WHEN json_extract({col_name}, '$.{key}') = 0 THEN 1
+                            ELSE 0
+                        END = 1
+                    )""")
+                    
+                set_queries.append(f"""
+                    SELECT id, {sn} as set_num FROM papers 
+                    WHERE {' AND '.join(conditions)}
+                """)
+                
+            cursor.execute(f" {' UNION ALL '.join(set_queries)} ORDER BY id, set_num")
         
         elif mode == 'on_topic_implementation':
             # Sets where is_offtopic=0 AND is_survey=0 (set-specific)
@@ -1007,7 +1061,7 @@ def handle_classify_route():
         paper_set_pairs = cursor.fetchall()  # [(id, 1), (id, 2), ...]
         conn.close()
         
-        log(f"DB QUERY: mode={mode} found {len(paper_set_pairs)} paper×set pairs")
+        log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
         
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs found for mode={mode}")
@@ -1022,7 +1076,9 @@ def handle_classify_route():
                 state.enqueue(task)
                 total_tasks += 1
         
-        log(f"BATCH ENQUEUE: papers={len(paper_set_pairs)} tasks={total_tasks}")
+        # FIX: Calculate unique paper count instead of raw pair count
+        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
@@ -1034,7 +1090,7 @@ def handle_verify_route():
     data = request.get_json(silent=True) or {}
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
-    log(f"VERIFY REQUEST from {client}: mode={mode} paper_id={paper_id}")
+    log(f"{_color_prefix('VERIFY REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
     
     try:
         prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
@@ -1056,7 +1112,7 @@ def handle_verify_route():
             
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
-                    log(f"[VERIFY] paper={pid} set={sn} complete success={success}")
+                    log(f"{_color_prefix('[VERIFY]', Colors.VERIFY)} paper={pid} set={sn} complete success={success}")
                     event.set()
                 return callback
             
@@ -1102,7 +1158,7 @@ def handle_verify_route():
         paper_set_pairs = cursor.fetchall()
         conn.close()
         
-        log(f"DB QUERY: mode={mode} found {len(paper_set_pairs)} paper×set pairs")
+        log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
         
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs found for mode={mode}")
@@ -1115,109 +1171,13 @@ def handle_verify_route():
             for task in tasks:
                 state.enqueue(task)
                 total_tasks += 1
-        
-        log(f"BATCH ENQUEUE: papers={len(paper_set_pairs)} tasks={total_tasks}")
+
+        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
     
-# @app.route('/consensus', methods=['POST'])
-# def handle_consensus_route():
-#     """Handle classify-until-consensus request."""
-#     client = request.remote_addr
-#     data = request.get_json(silent=True) or {}
-    
-#     paper_id = data.get('paper_id')
-#     mode = data.get('mode', 'id')
-    
-#     log(f"CONSENSUS REQUEST from {client}: mode={mode} paper_id={paper_id}")
-    
-#     try:
-#         classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
-#         verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
-#         reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
-#         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
-#         log(f"Loaded all 3 prompt templates")
-#         log(f"Model alias: {model_alias}")
-#     except Exception as e:
-#         log(f"ERROR: Failed to load consensus templates: {e}")
-#         return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
-    
-#     if mode == 'id' and paper_id:
-#         # Single paper - create 3 consensus state machines (one per set)
-#         log(f"Single paper consensus: {paper_id}")
-#         completion_events = [threading.Event() for _ in range(3)]
-        
-#         for set_num in [1, 2, 3]:
-#             sm = ConsensusStateMachine(
-#                 paper_id, set_num,
-#                 classify_template, verify_template, reclassify_template,
-#                 model_alias
-#             )
-            
-#             def make_callback(set_n, event):
-#                 def callback(pid, sn, success):
-#                     log(f"[CONSENSUS] paper={pid} set={sn} complete success={success}")
-#                     event.set()
-#                 return callback
-            
-#             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
-            
-#             # Get first task and enqueue
-#             task = sm.get_next_task()
-#             if task:
-#                 state.enqueue(task)
-#                 log(f"Enqueued initial task for paper={paper_id} set={set_num} type={task['task_type']}")
-        
-#         log_queue_status()
-        
-#         # Wait for all 3 sets to complete
-#         for event in completion_events:
-#             event.wait()
-        
-#         log(f"COMPLETE: consensus paper={paper_id}")
-#         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
-    
-#     else:
-#         # Batch consensus - query DB for papers needing consensus
-#         conn = sqlite3.connect(DB_PATH)
-#         cursor = conn.cursor()
-        
-#         cursor.execute("""
-#             SELECT id FROM papers
-#             WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
-#             OR (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
-#             OR (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
-#         """)
-        
-#         paper_ids = [row[0] for row in cursor.fetchall()]
-#         conn.close()
-        
-#         log(f"DB QUERY: consensus found {len(paper_ids)} papers needing consensus")
-        
-#         if not paper_ids:
-#             log(f"WARNING: No papers need consensus")
-#             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
-        
-#         # Create state machines for each paper×set
-#         total_tasks = 0
-#         for pid in paper_ids:
-#             for set_num in [1, 2, 3]:
-#                 sm = ConsensusStateMachine(
-#                     pid, set_num,
-#                     classify_template, verify_template, reclassify_template,
-#                     model_alias
-#                 )
-#                 task = sm.get_next_task()
-#                 if task:
-#                     state.enqueue(task)
-#                     total_tasks += 1
-        
-#         log(f"BATCH ENQUEUE: consensus papers={len(paper_ids)} initial_tasks={total_tasks}")
-#         log_queue_status()
-        
-#         return jsonify({'status': 'queued', 'papers_queued': len(paper_ids), 'tasks_queued': total_tasks}), 200
-
 @app.route('/consensus', methods=['POST'])
 def handle_consensus_route():
     """Handle classify-until-consensus request."""
@@ -1225,7 +1185,7 @@ def handle_consensus_route():
     data = request.get_json(silent=True) or {}
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
-    log(f"CONSENSUS REQUEST from {client}: mode={mode} paper_id={paper_id}")
+    log(f"{_color_prefix('CONSENSUS REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
     
     try:
         classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
@@ -1233,7 +1193,7 @@ def handle_consensus_route():
         reclassify_template = globals.load_prompt_template(globals.RECLASSIFY_PROMPT_TEMPLATE)
         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
     except Exception as e:
-        log(f"ERROR: Failed to load consensus templates: {e}")
+        log(f"ERROR: Failed to load consensus templates: {e}", Colors.ERROR)
         return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
     
     conn = sqlite3.connect(DB_PATH)
@@ -1253,7 +1213,7 @@ def handle_consensus_route():
             
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
-                    log(f"[CONSENSUS] paper={pid} set={sn} complete success={success}")
+                    log(f"{_color_prefix('[CONSENSUS]', Colors.CONSENSUS)} paper={pid} set={sn} complete success={success}")
                     event.set()
                 return callback
             
@@ -1284,7 +1244,7 @@ def handle_consensus_route():
         paper_set_pairs = cursor.fetchall()
         conn.close()
         
-        log(f"DB QUERY: consensus found {len(paper_set_pairs)} paper×set pairs needing consensus")
+        log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
         
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs need consensus")
@@ -1302,20 +1262,21 @@ def handle_consensus_route():
                 state.enqueue(task)
                 total_tasks += 1
         
-        log(f"BATCH ENQUEUE: consensus papers={len(paper_set_pairs)} initial_tasks={total_tasks}")
+        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
 
 @app.errorhandler(404)
 def not_found(e):
-    log(f"ERROR: Unknown endpoint {request.path}")
+    log(f"{_color_prefix('ERROR:', Colors.ERROR)} Unknown endpoint {request.path}")
     return jsonify({'error': 'Not found'}), 404
 
 
 @app.errorhandler(400)
 def bad_request(e):
-    log(f"ERROR: Invalid JSON in request")
+    log(f"{_color_prefix('ERROR:', Colors.ERROR)} Invalid JSON in request")
     return jsonify({'error': 'Invalid JSON'}), 400
 
 
@@ -1340,9 +1301,9 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    log("=" * 60)
-    log("ResearchParça Queue Manager Starting")
-    log("=" * 60)
+    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
+    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParça Queue Manager Starting")
+    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"Database: {DB_PATH}")
     log(f"vLLM Server: {globals.LLM_SERVER_URL}")
     log(f"HTTP API: http://{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
