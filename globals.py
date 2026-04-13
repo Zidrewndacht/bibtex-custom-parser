@@ -17,10 +17,10 @@ QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
 MAX_CONCURRENT_WORKERS_CLASSIFY = 256 #256
 MAX_CONCURRENT_WORKERS_VERIFY = 480 #480
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 96 
-MIN_CONCURRENT_WORKERS = 160     # Minimum concurrent limit for mixed workloads
+MAX_CONCURRENT_WORKERS_RECLASSIFY = 180 
+MIN_CONCURRENT_WORKERS = 256     # Minimum concurrent limit for mixed workloads
 
-MAX_CONSENSUS_ITERATIONS = 12
+MAX_CONSENSUS_ITERATIONS = 15
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -17,6 +17,38 @@ from flask import Flask, request, jsonify
 # Add after: from flask import Flask, request, jsonify
 from colorama import init, Fore, Style
 init(autoreset=True)
+# ============================================================================
+# FILE LOGGING (Append-only JSON lines, separate files by category)
+# ============================================================================
+
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+def _log_to_file(filename: str, **fields):
+    """Append a single-line JSON log entry. Thread-safe for append-only writes."""
+    try:
+        filepath = os.path.join(LOG_DIR, filename)
+        entry = {"_ts": datetime.now(timezone.utc).isoformat(), **fields}
+        with open(filepath, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+    except Exception:
+        pass  # Never let logging failures crash the app
+
+# Category-specific wrappers for clarity
+def log_file_dispatch(task_id, task_type, paper_id, set_num):
+    _log_to_file('dispatcher.log', event='dispatch', task_id=task_id, task_type=task_type, paper_id=paper_id, set_num=set_num)
+
+def log_file_complete(task_id, task_type, success, model_name=None, error=None):
+    _log_to_file('tasks.log', event='complete', task_id=task_id, task_type=task_type, success=success, model_name=model_name, error=error)
+
+def log_file_error(context, error, task_id=None, paper_id=None, set_num=None):
+    _log_to_file('errors.log', event='error', context=context, error=str(error), task_id=task_id, paper_id=paper_id, set_num=set_num)
+
+def log_file_request(endpoint, client, mode, paper_id=None):
+    _log_to_file('requests.log', event='request', endpoint=endpoint, client=client, mode=mode, paper_id=paper_id)
+
+def log_file_queue_status(queue_size, total_in_flight, classify, verify, reclassify, mode):
+    _log_to_file('dispatcher.log', event='queue_status', queue_size=queue_size, in_flight_total=total_in_flight, in_flight_classify=classify, in_flight_verify=verify, in_flight_reclassify=reclassify, mode=mode)
 
 # ============================================================================
 # COLOR CONSTANTS FOR LOGGING (black-background friendly - LIGHT COLORS ONLY)
@@ -142,7 +174,7 @@ def log_queue_status():
         
     # Color only the mode keyword, not the whole line
     log(f"{_color_prefix('QUEUE STATUS:', Colors.QUEUE_STATUS)} queue_size={queue_size} \t in_flight={total_in_flight} \t classify={classify_in_flight} \t verify={verify_in_flight} \t reclassify={reclassify_in_flight} \t mode={_color_queue_mode(mode)}")
-
+    log_file_queue_status(queue_size, total_in_flight, classify_in_flight, verify_in_flight, reclassify_in_flight, mode)
 # ============================================================================
 # QUEUE STATE (Thread-Safe)
 # ============================================================================
@@ -836,7 +868,8 @@ def _send_to_vllm_sync(task):
     state_machine = task.get('state_machine')
     
     log(f"{_color_prefix('SENDING:', Colors.VLLM_SEND)} task={task_id} type={task_type} paper={paper_id} set={set_num}")
-    
+    log_file_dispatch(task['task_id'], task['task_type'], task['paper_id'], task.get('set_num'))
+        
     try:
         content, model_name, reasoning_trace = globals.send_prompt_to_llm(
             prompt,
@@ -850,6 +883,7 @@ def _send_to_vllm_sync(task):
         
     except Exception as e:
         log(f"{_color_prefix('ERROR:', Colors.ERROR)} task={task_id} error={e}")
+        log_file_error('vllm_call', e, task_id=task_id, paper_id=paper_id, set_num=set_num)
         success = False
         llm_data = None
         model_name = "error"
@@ -867,6 +901,8 @@ def _send_to_vllm_sync(task):
             state_machine.on_task_complete(success, llm_data, model_name, reasoning_trace or "", content or "")
     
     log(f"{_color_prefix('COMPLETE:', Colors.VLLM_COMPLETE)} task={task_id} success={success}")
+    log_file_complete(task_id, task_type, success, model_name if success else None, reasoning_trace if not success else None)
+
     log_queue_status()
 
 def send_to_vllm(task):
@@ -957,6 +993,7 @@ def handle_classify_route():
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')  # ← Define mode BEFORE using it
     log(f"{_color_prefix('REQUEST:', Colors.REQUEST)} from {client}: /classify mode={_color_mode(mode)} paper_id={paper_id}")
+    log_file_request('/classify', client, mode, paper_id)
     
     try:
         prompt_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
@@ -1091,6 +1128,7 @@ def handle_verify_route():
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
     log(f"{_color_prefix('VERIFY REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
+    log_file_request('/verify', client, mode, paper_id)
     
     try:
         prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
@@ -1186,6 +1224,7 @@ def handle_consensus_route():
     paper_id = data.get('paper_id')
     mode = data.get('mode', 'id')
     log(f"{_color_prefix('CONSENSUS REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
+    log_file_request('/consensus', client, mode, paper_id)
     
     try:
         classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
@@ -1285,6 +1324,7 @@ def bad_request(e):
 # ============================================================================
 
 def signal_handler(sig, frame):
+    _log_to_file('dispatcher.log', event='shutdown', signal=sig)
     print("\n[SHUTDOWN] Received shutdown signal...")
     os._exit(1)  # no bullshit.
 
@@ -1300,7 +1340,8 @@ def run_flask_server():
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
+    _log_to_file('dispatcher.log', event='startup', db_path=DB_PATH, llm_server=globals.LLM_SERVER_URL, http_api=f"{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParça Queue Manager Starting")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
@@ -1309,7 +1350,7 @@ def main():
     log(f"HTTP API: http://{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
     log(f"Concurrency Limits: classify={globals.MAX_CONCURRENT_WORKERS_CLASSIFY} verify={globals.MAX_CONCURRENT_WORKERS_VERIFY} reclassify={globals.MAX_CONCURRENT_WORKERS_RECLASSIFY} mixed_threshold={globals.MIN_CONCURRENT_WORKERS}")
     log("=" * 60)
-    
+
     # Start dispatcher thread
     dispatcher_thread = threading.Thread(target=dispatcher_loop, daemon=True)
     dispatcher_thread.start()
