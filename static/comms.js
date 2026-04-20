@@ -323,9 +323,11 @@ function saveChanges(paperId) {
                 }
                 // --- NEW: Update displayed relevance if returned ---
                 // Find the relevance cell in the main row (adjust selector if needed)
-                const relevanceCell = row.cells[relevanceCellIndex]; // Or better, add a class like .relevance-cell to the <td> and use '.relevance-cell'
+                const relevanceCell = row.cells[relevanceCellIndex];
                 if (relevanceCell) {
-                     relevanceCell.textContent = data.relevance !== null && data.relevance !== undefined ? data.relevance : '';
+                    const rel = data.relevance;
+                    // Match Jinja2 template rounding: round to 1 decimal, strip trailing zeros
+                    relevanceCell.textContent = (rel !== null && rel !== undefined) ? parseFloat(parseFloat(rel).toFixed(1)) : '';
                 }
                             // Update PDF icon if state/filename changed via comment save
                 if (data.pdf_state !== undefined) {

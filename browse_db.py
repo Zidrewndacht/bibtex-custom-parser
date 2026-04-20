@@ -1415,16 +1415,16 @@ def backup_database():
                 f.write(html_content)
 
             # Generate XLSX export
-            xlsx_content = generate_xlsx_export_content(papers)
-            xlsx_path = os.path.join(temp_dir, 'export.xlsx')
-            with open(xlsx_path, 'wb') as f:
-                f.write(xlsx_content)
+            # xlsx_content = generate_xlsx_export_content(papers)
+            # xlsx_path = os.path.join(temp_dir, 'export.xlsx')
+            # with open(xlsx_path, 'wb') as f:
+            #     f.write(xlsx_content)
 
             # Create in-memory buffer for the backup
             buffer = io.BytesIO()
             
             # Create a Zstandard compressor
-            cctx = zstd.ZstdCompressor(level=1)  # Fastest compression level
+            cctx = zstd.ZstdCompressor(level=1, threads=-1)  # Fastest compression level
             
             # Compress the tar directly to the buffer
             with tarfile.open(fileobj=buffer, mode='w') as tar:
@@ -1441,7 +1441,7 @@ def backup_database():
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
-                tar.add(xlsx_path, arcname='export.xlsx')
+                # tar.add(xlsx_path, arcname='export.xlsx')
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()
