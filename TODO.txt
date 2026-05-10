@@ -291,3 +291,6 @@ OK      Hide history row when a parent is filtered out
                 Change the main set to be the average result of the 3 sets:
                         For display, make it proportionally translucent when it's a mix like YYU, NNU, YUU, NUU; show a solid warning sign instead if it's YYN, YNN, YUN
                         Change history row to have 4 tabs: main (for final averaged/warnings results and user results), set 1, set 2, set 3.
+
+Fix regressions:
+        Model Name, Other Defects don't update when saved by user.
