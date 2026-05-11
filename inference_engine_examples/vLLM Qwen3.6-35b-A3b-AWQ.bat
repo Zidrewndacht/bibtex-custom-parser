@@ -5,7 +5,7 @@
 :: Keep machine mostly unnattended during vLLM inference via WSL, or have a separate GPU/iGPU for display on the host, otherwise performance will go straight down to zero during interaction due to context shift between VM and host.
 :: This is set up for headless (or iGPU display). Reduce --gpu-memory-utilization if the same GPU runs vLLM and a display.
 
-:: tested with vLLM 0.16 nightly
+:: tested with vLLM 0.11.0
 
 :: 1.  Start Docker Desktop if it isn’t running yet
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" 2>NUL | find /I "Docker Desktop.exe" >NUL
@@ -23,46 +23,27 @@ if errorlevel 1 (
     goto :wait_engine
 )
 
-:: 3.  Run the container
-:: --enforce-eager mode is required for at least v0.15.1 and newer in the tested hardware
-:: -e VLLM_ATTENTION_BACKEND=FLASHINFER is deprecated, but it uses flashinfer by default in v0.16 anyway.
-
-:: v0.11 code:
-:: docker run --rm -it --gpus all ^
-::   -e VLLM_ATTENTION_BACKEND=FLASHINFER ^
-::   -e VLLM_SLEEP_WHEN_IDLE=1 ^
-::   -e HF_HUB_OFFLINE=1 ^
-::   -v /mnt/host/d/AI/weights/vLLM/HuggingFaceCache:/root/.cache/huggingface ^
-::   -p 127.0.0.1:8086:8086 --ipc=host ^
-::   vllm/vllm-openai:latest ^
-::   --host 0.0.0.0 --port 8086 ^
-::   --max-num-seqs 512 ^
-::   --model cpatonn/Qwen3-30B-A3B-Thinking-2507-AWQ-4bit ^
-::   --tensor-parallel-size 2 ^
-::   --gpu-memory-utilization 0.9 ^
-::   --reasoning-parser deepseek_r1 ^
-::   --max_model_len 65536 ^
-::   --dtype float16 ^
-::   --disable-custom-all-reduce ^
-::   --kv_cache_dtype fp8_e4m3
-  
 docker run --rm -it --gpus all ^
   -e VLLM_SLEEP_WHEN_IDLE=1 ^
+  -e ENABLE_PREFIX_CACHING=1 ^
   -e HF_HUB_OFFLINE=1 ^
   -v /mnt/host/d/AI/weights/vLLM/HuggingFaceCache:/root/.cache/huggingface ^
   -p 127.0.0.1:8086:8086 --ipc=host ^
-  vllm/vllm-openai:nightly ^
-  cpatonn/Qwen3-30B-A3B-Thinking-2507-AWQ-4bit ^
+  vllm/vllm-openai:v0.20.2-x86_64 ^
+  cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit ^
   --host 0.0.0.0 --port 8086 ^
   --max-num-seqs 512 ^
+  --max-num-batched-tokens 4096 ^
+  --enable-prefix-caching ^
+  --enable-expert-parallel ^
+  --language-model-only ^
   --tensor-parallel-size 2 ^
-  --enforce-eager ^
-  --gpu-memory-utilization 0.92 ^
-  --reasoning-parser deepseek_r1 ^
-  --max_model_len 65536 ^
-  --dtype float16 ^
-  --disable-custom-all-reduce ^
-  --kv_cache_dtype fp8_e4m3
-  
+  --gpu-memory-utilization 0.91 ^
+  --reasoning-parser qwen3 ^
+  --max_model_len 81920 ^
+  --disable_custom_all_reduce ^
+  --kv_cache_dtype fp8_e4m3 ^
+  --no-ray ^
+  --compilation-config "{\"cudagraph_mode\":\"FULL_DECODE_ONLY\"}"
 pause
 

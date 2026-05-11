@@ -250,12 +250,14 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             feature_key = key.split('features_', 1)[1]
             value = data[key]
             if isinstance(value, str):
-                if value == 'true':
+                if value.lower() == 'true':
                     feature_updates[feature_key] = True
-                elif value == 'false':
+                elif value.lower() == 'false':
                     feature_updates[feature_key] = False
+                elif value == '':
+                    feature_updates[feature_key] = None  # Empty string becomes None
                 else:
-                    feature_updates[feature_key] = None
+                    feature_updates[feature_key] = value # <-- FIX: Preserve text strings (e.g., 'other')
             else:
                 feature_updates[feature_key] = value
             data.pop(key)
@@ -274,16 +276,18 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             tech_key = key.split('technique_', 1)[1]
             value = data[key]
             if isinstance(value, str):
-                if value == 'true':
+                if value.lower() == 'true':
                     technique_updates[tech_key] = True
-                elif value == 'false':
+                elif value.lower() == 'false':
                     technique_updates[tech_key] = False
+                elif value == '':
+                    technique_updates[tech_key] = None  # Empty string becomes None
                 else:
-                    technique_updates[tech_key] = None
+                    technique_updates[tech_key] = value  # <-- FIX: Preserve text strings (e.g., 'model')
             else:
                 technique_updates[tech_key] = value
             data.pop(key)
-    
+            
     if technique_updates:
         current_technique.update(technique_updates)
         update_fields.append("technique = ?")
@@ -1415,16 +1419,16 @@ def backup_database():
                 f.write(html_content)
 
             # Generate XLSX export
-            # xlsx_content = generate_xlsx_export_content(papers)
-            # xlsx_path = os.path.join(temp_dir, 'export.xlsx')
-            # with open(xlsx_path, 'wb') as f:
-            #     f.write(xlsx_content)
+            xlsx_content = generate_xlsx_export_content(papers)
+            xlsx_path = os.path.join(temp_dir, 'export.xlsx')
+            with open(xlsx_path, 'wb') as f:
+                f.write(xlsx_content)
 
             # Create in-memory buffer for the backup
             buffer = io.BytesIO()
             
             # Create a Zstandard compressor
-            cctx = zstd.ZstdCompressor(level=1, threads=-1)  # Fastest compression level
+            cctx = zstd.ZstdCompressor(level=1)  # Fastest compression level
             
             # Compress the tar directly to the buffer
             with tarfile.open(fileobj=buffer, mode='w') as tar:
@@ -1441,7 +1445,7 @@ def backup_database():
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
-                # tar.add(xlsx_path, arcname='export.xlsx')
+                tar.add(xlsx_path, arcname='export.xlsx')
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()

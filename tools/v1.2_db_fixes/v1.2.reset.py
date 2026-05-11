@@ -23,7 +23,7 @@ import shutil
 from datetime import datetime
 
 # Configuration
-DEFAULT_DB_PATH = os.path.join(os.getcwd(), 'data', 'db.sqlite')
+DEFAULT_DB_PATH = os.path.join(os.getcwd(), 'data', 'db.human.strat.sqlite')
 BACKUP_DIR = os.path.join(os.getcwd(), 'data', 'backups')
 
 def create_backup(db_path):

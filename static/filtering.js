@@ -15,7 +15,7 @@ const userOverrideCountCellIndex = 39; // Adjust based on final column position
 
 const searchInput = document.getElementById('search-input');
 const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
-const hideXrayCheckbox = document.getElementById('hide-xray-checkbox');
+//const hideXrayCheckbox = document.getElementById('hide-xray-checkbox');
 const hideApprovedCheckbox = document.getElementById('hide-approved-checkbox');
 const onlySurveyCheckbox = document.getElementById('only-survey-checkbox');
 const showPCBcheckbox = document.getElementById('show-pcb-checkbox');
@@ -209,6 +209,7 @@ const TRI_STATE_FILTERS = {
     survey:  { checkboxId: 'only-survey-checkbox', field: 'is_survey', cacheKey: 'surveyStatus' },
     tht:     { checkboxId: 'only-tht-checkbox', field: 'is_through_hole', cacheKey: 'thtStatus' },
     smt:     { checkboxId: 'only-smt-checkbox', field: 'is_smt', cacheKey: 'smtStatus' },
+    xray:    { checkboxId: 'only-xray-checkbox', field: 'is_x_ray', cacheKey: 'xrayStatus' },
     dataset: { checkboxId: 'dataset-checkbox', field: 'technique_available_dataset', cacheKey: 'datasetStatus' }
 };
 
@@ -216,11 +217,12 @@ const TRI_STATE_TITLES = {
     survey:  ['Currently showing all papers. Click to show only Surveys.', 'Currently showing only Surveys. Click to show only primary (non-survey) papers.', 'Currently showing only primary (non-survey) papers. Click to show All papers.'],
     tht:     ['Currently showing all papers. Click to show only THT.', 'Currently showing only THT papers. Click to show only non-THT.', 'Currently showing only non-THT papers. Click to show all papers.'],
     smt:     ['Currently showing all papers. Click to show only SMT.', 'Currently showing only SMT papers. Click to show only non-SMT.', 'Currently showing only non-SMT papers. Click to show all papers.'],
+    xray:    ['Currently showing all papers. Click to show only X-Ray.', 'Currently showing only X-Ray papers. Click to show only non-X-Ray.', 'Currently showing only non-X-Ray papers. Click to show all papers.'],
     dataset: ['Currently showing all papers. Click to show papers with datasets.', 'Currently showing papers mentioning datasets. Click to show papers without datasets.', 'Currently showing papers without datasets. Click to show all papers.']
 };
 
 // State storage: 'all' | 'only_true' | 'only_false'
-const triStateFilterStates = { survey: 'only_false', tht: 'all', smt: 'all', dataset: 'all' };
+const triStateFilterStates = { survey: 'all', tht: 'all', smt: 'all', xray: 'all', dataset: 'all' };
 
 function updateTriStateUI(filterKey) {
     const config = TRI_STATE_FILTERS[filterKey];
@@ -297,7 +299,7 @@ function compileSearchRegex(searchTerm) {
 // Update getClientFilterState to include sort parameters
 function getClientFilterState() {
     return {
-        hide_xray: hideXrayCheckbox.checked ? 1 : 0,
+        // hide_xray: hideXrayCheckbox.checked ? 1 : 0,
         hide_approved: hideApprovedCheckbox.checked ? 1 : 0,
         hide_offtopic: hideOfftopicCheckbox.checked ? 1 : 0,
         survey_filter: triStateFilterStates.survey,
@@ -359,7 +361,7 @@ function applyLocalFilters() {
         const rows = tbody.querySelectorAll('tr[data-paper-id]');
         
         // Pre-calculate filter values outside the loop
-        const hideXrayChecked = hideXrayCheckbox.checked;
+        // const hideXrayChecked = hideXrayCheckbox.checked;
         const hideApprovedChecked = hideApprovedCheckbox.checked;
         const showPCBChecked = showPCBcheckbox.checked;
         const showSolderChecked = showSolderCheckbox.checked;
@@ -569,11 +571,11 @@ function applyLocalFilters() {
             }
 
             // Existing filters (X-Ray, Survey, Approved)
-            if (showRow && hideXrayChecked) {
-                if (cachedData.xrayStatus === '✔️') {
-                    showRow = false;
-                }
-            }
+            // if (showRow && hideXrayChecked) {
+            //     if (cachedData.xrayStatus === '✔️') {
+            //         showRow = false;
+            //     }
+            // }
             if (showRow && hideApprovedChecked) {
                 if (cachedData.verifiedStatus === '✔️') {
                     showRow = false;
@@ -868,7 +870,7 @@ function initializeClientFilters() {
     // For each checkbox, if there's a URL parameter, use it to set the state
     // Otherwise, keep the existing DOM state
     const checkboxParams = {
-        'hide_xray': hideXrayCheckbox,
+        // 'hide_xray': hideXrayCheckbox,
         'hide_approved': hideApprovedCheckbox,
         'hide_offtopic': hideOfftopicCheckbox,
         'show_pcb': showPCBcheckbox,
@@ -1341,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Apply client filters from URL first
     initializeClientFilters();
     
-    hideXrayCheckbox.addEventListener('change', applyLocalFilters);
+    // hideXrayCheckbox.addEventListener('change', applyLocalFilters);
     hideApprovedCheckbox.addEventListener('change', applyLocalFilters);
     showPCBcheckbox.addEventListener('change', applyLocalFilters);
     showSolderCheckbox.addEventListener('change', applyLocalFilters);

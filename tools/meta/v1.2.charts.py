@@ -2,26 +2,33 @@
 """
 Power Usage vs. Paper Consensus Progress Visualization
 - MINIMAL VERSION: Uses 'changed' field only, CSV first row as start time
+- UPDATED: DB path selectable, power CSV optional
 """
 
 import csv
 import sqlite3
+import argparse
 from datetime import datetime
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, MultipleLocator
+from matplotlib.ticker import MultipleLocator
 from pathlib import Path
 
 # ============================================================================
 # CONFIGURATION - Paths relative to THIS script
 # ============================================================================
-SCRIPT_DIR = Path(__file__).parent.resolve()
-CSV_PATH = SCRIPT_DIR / "sensor_log.CSV"   # Match exact case
-DB_PATH = SCRIPT_DIR / "db.sqlite"
-OUTPUT_PATH = SCRIPT_DIR / "consensus_progress.png"
+# Handle __file__ for both script execution and interactive use
+try:
+    SCRIPT_DIR = Path(__file__).parent.resolve()
+except NameError:
+    SCRIPT_DIR = Path.cwd()
+
+DEFAULT_CSV_PATH = SCRIPT_DIR / "sensor_log.CSV"
+DEFAULT_DB_PATH = SCRIPT_DIR / "db.sqlite"
+DEFAULT_OUTPUT_PATH = SCRIPT_DIR / "consensus_progress.png"
 
 POWER_SMOOTHING_WINDOW = 24
 PAPER_TICK_INTERVAL = 100
-TIME_MAJOR_INTERVAL = 20
+TIME_MAJOR_INTERVAL = 30
 TIME_MINOR_INTERVAL = 10
 
 # ============================================================================
@@ -35,7 +42,6 @@ def parse_power_log(csv_path):
         reader = csv.reader(f, delimiter=';')
         header = next(reader)
         
-        # Find columns by name (case-insensitive)
         col_ts = next(i for i, h in enumerate(header) if 'date/time' in h.lower())
         col_power = next(i for i, h in enumerate(header) if 'psu power in' in h.lower() and '[w]' in h.lower())
         
@@ -71,8 +77,6 @@ def get_paper_timestamps(db_path):
     """Get list of 'changed' timestamps for papers that have one."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
-    # Simple query: just get the 'changed' field, filter empty/null
     cursor.execute("SELECT changed FROM papers WHERE changed IS NOT NULL AND changed != ''")
     
     timestamps = []
@@ -93,7 +97,13 @@ def get_paper_timestamps(db_path):
 def build_remaining_line(power_data, paper_timestamps):
     """Start at total papers, decrement by 1 at each paper's 'changed' time."""
     if not power_data:
-        return []
+        if not paper_timestamps:
+            return []
+        total = len(paper_timestamps)
+        return [
+            {'timestamp': ts, 'remaining': total - i - 1}
+            for i, ts in enumerate(paper_timestamps)
+        ]
     
     total = len(paper_timestamps)
     remaining_line = []
@@ -122,56 +132,52 @@ def to_elapsed(data, start):
 # ============================================================================
 # CREATE PLOT
 # ============================================================================
-def plot(power_data, remaining_data, output_path):
-    if not power_data or not remaining_data:
-        print("❌ No data to plot")
+def plot(power_data, remaining_data, output_path, has_power=True):
+    if not remaining_data:
+        print("❌ No paper data to plot")
         return
     
-    start = power_data[0]['timestamp']
+    if has_power and power_data:
+        start = power_data[0]['timestamp']
+        power_elapsed = to_elapsed(power_data, start)
+        times = [d['elapsed'] for d in power_elapsed]
+        power_raw = [d['power'] for d in power_elapsed]
+        power_smooth = smooth_series(power_raw, POWER_SMOOTHING_WINDOW)
+    else:
+        start = remaining_data[0]['timestamp']
+        times = [(e['timestamp'] - start).total_seconds() / 60 for e in remaining_data]
+        power_smooth = None
     
-    # Convert to elapsed minutes
-    power_elapsed = to_elapsed(power_data, start)
-    remaining_elapsed = to_elapsed(remaining_data, start)
+    rem_elapsed = to_elapsed(remaining_data, start)
+    rem_times = [d['elapsed'] for d in rem_elapsed]
+    rem_count = [d['remaining'] for d in rem_elapsed]
     
-    # Extract series
-    times = [d['elapsed'] for d in power_elapsed]
-    power_raw = [d['power'] for d in power_elapsed]
-    power_smooth = smooth_series(power_raw, POWER_SMOOTHING_WINDOW)
-    
-    rem_times = [d['elapsed'] for d in remaining_elapsed]
-    rem_count = [d['remaining'] for d in remaining_elapsed]
-    
-    # Colors
-    C_REM = '#1f77b4'   # Blue
-    C_PWR = '#ff7f0e'   # Orange
+    C_REM = '#1f77b4'
+    C_PWR = "#c7290d"
     
     fig, ax1 = plt.subplots(figsize=(7, 5))
     
-    # LEFT AXIS: Remaining Papers
-    ax1.set_xlabel('Elapsed Time (minutes)', fontsize=14, fontweight='bold', color='black')
-    ax1.set_ylabel('Remaining Papers', fontsize=14, fontweight='bold', color='black')
+    ax1.set_xlabel('Elapsed Time (minutes)', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Remaining Papers', fontsize=14, fontweight='bold', color=C_REM)
     ax1.plot(rem_times, rem_count, color=C_REM, linewidth=2.5, label='Remaining Papers', drawstyle='steps-post')
     
     max_rem = max(rem_count) if rem_count else 1
-    ax1.set_ylim(0, max(max_rem * 1.05, 1))  # Avoid singular transform
+    ax1.set_ylim(0, max(max_rem * 1.05, 1))
     ax1.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL))
     ax1.tick_params(axis='y', labelcolor=C_REM, labelsize=11)
     
-    # RIGHT AXIS: Wall Power
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color='black')
-    ax2.plot(times, power_smooth, color=C_PWR, linewidth=2.5, label='Wall Power', alpha=0.95)
+    if has_power and power_smooth:
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color=C_PWR)
+        ax2.plot(times, power_smooth, color=C_PWR, linewidth=2.5, label='Wall Power', alpha=0.95)
+        paper_max = ax1.get_ylim()[1]
+        ax2.set_ylim(0, paper_max / 2.0)
+        ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL / 2.0))
+        ax2.tick_params(axis='y', labelcolor=C_PWR, labelsize=11)
+    else:
+        ax2 = None
     
-    # Scale power axis to 50% of paper axis (as requested)
-    paper_max = ax1.get_ylim()[1]
-    ax2.set_ylim(0, paper_max / 2.0)
-    ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL / 2.0))
-    ax2.tick_params(axis='y', labelcolor=C_PWR, labelsize=11)
-    
-    # Grid
     ax1.grid(True, axis='y', alpha=0.3, linestyle='--', linewidth=0.5)
-    
-    # Time axis: 20-min major (labeled), 10-min minor (grid only)
     ax1.set_xlim(0, times[-1] if times else 0)
     ax1.xaxis.set_major_locator(MultipleLocator(TIME_MAJOR_INTERVAL))
     ax1.xaxis.set_minor_locator(MultipleLocator(TIME_MINOR_INTERVAL))
@@ -179,42 +185,86 @@ def plot(power_data, remaining_data, output_path):
     ax1.grid(True, axis='x', which='minor', alpha=0.15, linestyle=':')
     ax1.tick_params(axis='x', labelsize=11)
     
-    # Legend
     lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=10, framealpha=0.95)
+    lines2, labels2 = ax2.get_legend_handles_labels() if ax2 else ([], [])
+    if lines1 + lines2:
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=10, framealpha=0.95)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"✅ Saved: {output_path}")
     
-    # Summary
     print(f"\n📊 Summary:")
-    print(f"   Papers processed: {len(rem_count) and rem_count[0] or 0}")
-    print(f"   Duration: {times[-1]:.1f} min")
-    print(f"   Avg Power: {sum(power_smooth)/len(power_smooth):.1f} W")
+    print(f"   Papers processed: {rem_count[0] if rem_count else 0}")
+    if times:
+        print(f"   Duration: {times[-1]:.1f} min")
+    if has_power and power_smooth:
+        print(f"   Avg Power: {sum(power_smooth)/len(power_smooth):.1f} W")
 
 # ============================================================================
 # MAIN
 # ============================================================================
 def main():
-    print("🔌 Loading power data...")
-    power_data = parse_power_log(CSV_PATH)
-    print(f"   → {len(power_data)} samples")
+    parser = argparse.ArgumentParser(
+        description='Visualize power usage vs. paper consensus progress',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  %(prog)s                              # Use default paths
+  %(prog)s --db /path/to/other.db       # Custom database, default power CSV
+  %(prog)s --no-power                   # Skip power data, plot papers only
+  %(prog)s --db custom.db --power log.CSV --out result.png
+        '''
+    )
+    parser.add_argument('--db', '--database', type=Path, default=DEFAULT_DB_PATH,
+                        help=f'Path to SQLite database (default: {DEFAULT_DB_PATH})')
+    parser.add_argument('--power', '--csv', type=Path, default=None,
+                        help=f'Path to power CSV log (default: {DEFAULT_CSV_PATH})')
+    parser.add_argument('--no-power', action='store_true',
+                        help='Skip power data; plot paper progress only')
+    parser.add_argument('--out', '--output', type=Path, default=DEFAULT_OUTPUT_PATH,
+                        help=f'Output image path (default: {DEFAULT_OUTPUT_PATH})')
+    
+    args = parser.parse_args()
+    
+    # Resolve power path logic
+    if args.no_power:
+        power_path = None
+        has_power = False
+    elif args.power is not None:
+        power_path = args.power
+        has_power = True
+    else:
+        power_path = DEFAULT_CSV_PATH
+        has_power = True
+    
+    if not args.db.exists():
+        print(f"❌ Database not found: {args.db}")
+        return
+    if has_power and power_path and not power_path.exists():
+        print(f"❌ Power CSV not found: {power_path}")
+        print("💡 Use --no-power to plot without power data, or check the path.")
+        return
     
     print("📄 Loading paper timestamps from 'changed' field...")
-    paper_ts = get_paper_timestamps(DB_PATH)
+    paper_ts = get_paper_timestamps(args.db)
     print(f"   → {len(paper_ts)} papers with 'changed' timestamp")
     
     if not paper_ts:
         print("⚠️  No papers found with 'changed' timestamps. Check DB schema/values.")
         return
     
+    power_data = []
+    if has_power and power_path:
+        print("🔌 Loading power data...")
+        power_data = parse_power_log(power_path)
+        print(f"   → {len(power_data)} samples")
+    
     print("📉 Building remaining papers series...")
-    remaining = build_remaining_line(power_data, paper_ts)
+    remaining = build_remaining_line(power_data if has_power else [], paper_ts)
     
     print("🎨 Generating plot...")
-    plot(power_data, remaining, OUTPUT_PATH)
+    plot(power_data if has_power else None, remaining, args.out, has_power=has_power)
 
 if __name__ == "__main__":
     main()

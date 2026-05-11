@@ -1,6 +1,5 @@
 #!/bin/bash
-# Tested in Crostini (Chromebook Linux container) and native Ubuntu 24 LTS
-# Requires exsiting Python installation
+# For Crostini (Chromebook Linux container)
 # Check if .venv exists
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
@@ -24,8 +23,8 @@ else
 fi
 
 # Activate the virtual environment and run the script
-echo "Activating virtual environment and running browse_db.py..."
+echo "Activating virtual environment and running queue_manager.py..."
 source ./.venv/bin/activate
-./.venv/bin/python3 browse_db.py
+./.venv/bin/python3 queue_manager.py
 
 read -p "Press any key to continue..." -n1 -s

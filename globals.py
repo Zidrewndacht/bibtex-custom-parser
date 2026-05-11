@@ -15,10 +15,11 @@ QUEUE_MANAGER_PORT = 6001
 QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
-MAX_CONCURRENT_WORKERS_CLASSIFY = 256 #256
-MAX_CONCURRENT_WORKERS_VERIFY = 480 #480
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 180 
-MIN_CONCURRENT_WORKERS = 256     # Minimum concurrent limit for mixed workloads
+MAX_CONCURRENT_WORKERS_CLASSIFY = 160 #256 #70
+MAX_CONCURRENT_WORKERS_VERIFY = 256  #480 #120
+MAX_CONCURRENT_WORKERS_RECLASSIFY = 128 #180 #60
+MIN_CONCURRENT_WORKERS = 128     # Minimum concurrent limit for mixed workloads
+
 
 MAX_CONSENSUS_ITERATIONS = 15
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8
@@ -451,7 +452,7 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
         "top_p": 0.95,
         "top_k": 20,
         "min_p": 0,
-        "max_tokens": 32768,
+        "max_tokens": 8192,
         "stream": False,
         "chat_template_kwargs": {"enable_thinking": True}
     }
