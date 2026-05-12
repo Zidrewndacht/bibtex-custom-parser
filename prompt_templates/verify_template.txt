@@ -17,34 +17,43 @@ Example Response Format (only output the JSON):
 The plaintext below shows the requirements for the original classification you'll be verifying against:
 
 ```plaintext
-Given the data from the specific paper at the end (mainly, Title, Abstract and Keywords), fill in the following YAML structure exactly and convert it to JSON. Do not add, remove or move any fields.
+We are classifying PCB AOI papers. Given the data from the specific paper at the end, fill in the following structure exactly and answer with JSON. Do not add, remove or move any fields.
 
-If the contents given explicitly states or strongly implies the fact, set true/false; otherwise set null. 
-
-Read the paper data once, fill research_area and relevance first.
+Read all the paper data once, and:
 1. Assign relevance (0-10):
-   0-1: Unrelated domain, no vision/inspection, or completely off-topic.
+   0-1: Unrelated domain, no vision/inspection, or completely off-topic. Papers with zero semantic overlap to PCB/inspection domains (e.g., finance, biology) should receive relevance 0.
    2-3: Mentions PCBs/defects but wrong modality (e.g., electrical testing only) or overly tangential.
    4-6: General PCB/AOI context but lacks specific defect types (features), implementation details (techniques), or clear optical focus.
    7-8: Directly addresses optical defect detection on PCBs/PCBAs with clear implementation or focused survey. Explicitly specifies relevant features and/or techniques.
    9-10: State-of-the-art optical AOI for PCBs, comprehensive coverage, or highly specific to the target domain. Explicitly specifies multiple relevant features and/or techniques.
    Use the range inside each relevance bin: if a paper just barely matches the 4-6 bin requirements, set to 4. If a paper almost reaches 7-8, but not quite, set to 6. 
+   
 2. Evaluate is_offtopic:
    - If relevance ≤ 3 → true. Set all downstream fields to null.
    - If relevance ≥ 4 → false. Proceed to fill downstream fields.
 
-For tri-state (true / false / null) fields:
-  - true: Explicitly stated OR unambiguously implied by technical context.
-  - false: Explicitly excluded or clearly incompatible with modality/scope (logically outside the defined task, e.g., a method trained solely for "missing components in PCB Assembly" implies false for all "bare PCB" and "solder" classes).
-  - null: Ambiguous, insufficient information, or scope is too broad/vague to decide.
-DO NOT default to false unless the field is clearly out of scope or incompatible. Use null whenever the paper's provided data is insufficient to ensure a true/false according to requirements above.
+3. For each field, ask:
+   - Is there a direct keyword match? (e.g., 'solder bridge' → solder_excess: true)
+   - Is there a direct keyword exclusion? (e.g., 'fully template matching-based pipeline' → classic_cv_based: true, ml_traditional: false, dl_*: false)
+   - Is there a semantic match: synonym or unambiguous paraphrase? (e.g., 'cold weld' → solder_crack: true)
+   - Is the modality logically incompatible? (e.g., 'for BGA only' → is_tht: false, is_smt: true)
+   - If none of the above apply → set null. When in doubt, prefer null.
 
-research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents.
+In other words, for each tri-state (true / false / null) fields, set:
+   - true: Explicitly stated OR unambiguously implied by technical context.
+   - false: Explicitly excluded or clearly incompatible with modality/scope (logically outside the defined task, e.g., a method trained solely for "missing components in PCB Assembly" unambiguously implies false for all "bare PCB" and "solder" classes).
+   - null: Ambiguous, insufficient information, or scope is too broad/vague to decide. Remember, we are classifying metadata (abstracts, keywords, title, year, etc.), not the full paper's contents. We do not know for sure what the full paper contains (beyond what the abstract describes), so do not default to false unless rules above ensure it's fair.
+
+You should review your choices for all fields before giving your final answer. Do not let relevance bias your true/false/null decisions for individual fields, low relevance should be a consequence of lack of decisive answers, not a cause.
+
+Here's the template you'll be answering to: 
+
+research_area: null   # broad area: electrical engineering, computer sciences, medical, finances, etc, can be inferred by journal or conference name as well as abstract contents. If paper focuses on e.g. AI model specifics, set it as computer sciences, if it's focused on the final industrial tool and/or the targeted defect types, set as electrical engineering.
 is_offtopic: null     # We are looking for PCB automated optical defect detection papers (be it implementations or surveys on this specific field). Set this field to true if paper seems unrelated to *implementations of automated optical inspection / defect detection on electronic printed circuit boards*. If the paper talks about anything else entirely, set as offtopic. If the paper talks about defect detection in other areas instead of electronics manufacturing, it's also offtopic. When offtopic, answer null for all classification fields following this one (other than the research area and relevance, which should still be filled accordingly to the actual contents).
 relevance: 6          # An integer from 0 to 10 estimating how relevant the paper is for the topic according to the description above. 0 for completely irrelevant, 10 for completely relevant.
 is_survey: null       # true for survey/review/etc., false for implementations, new research, etc.
 is_through_hole: null # true for papers that specify PTH, THT, etc., through-hole component mounting, false for papers that clearly do NOT relate to this type of component mounting, null if unclear. 
-is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT), false for papers that clearly do NOT relate to this type of component mounting, null if unclear. Both is_through_hole and is_smt may be set simultaneously when applicable.
+is_smt: null          # true for papers that specify surface-mount component mounting (SMD, SMT, BGA), false for papers that clearly do NOT relate to this type of component mounting, null if unclear. Both is_through_hole and is_smt may be set simultaneously when applicable.
 is_x_ray: null        # true for X-ray inspection (including multimodal), false for standard optical (visible light only) inspection. Our focus is visible-light inspection so pure X-ray lowers the relevance score of a paper towards the 4-6 bin at best.
 features:             # true, false, null for unknown/unclear. 
 	# Bare PCB issues:
@@ -82,14 +91,14 @@ technique:                  # true, false, null for unknown/unclear. Identify al
 
     hybrid: null            # true if the paper explicitly combines *different* sub-categories (classic_, ml_, dl_) above (classic CV + DL, classic CV + traditional ML, traditional ML + DL, *but not DL + DL as those are all from the same sub-category*).  When hybrid is true, also set each constituent technique to true. For papers with an implementation that only mixes multiple DL techniques, just set all relevant DL techniques as true and keep this one as false.
     model: "name"			      # model name or comma-separated list of model names if multiple models are mentioned (YOLO, ResNet, DETR, etc.), "in-house" if unnamed ML/DL model is developed in the paper itself, null if no model applies.
-    available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is not provided to the public.
+    available_dataset: null # true if authors explicitly mention they're providing related datasets for the public, false if there's no dataset usage (e.g. for techniques not depending on a dataset) or if the dataset used is explicitly private/not provided to the public, null if not mentioned.
 
 # TECHNIQUE/YEAR HARD RULES:
-Publication year acts as a strict filter for architecture classes. Apply ONLY when the abstract/keywords are vague:
-- <2012: dl_cnn_*: null, dl_transformer: false, ml_traditional or classic_cv_based may apply.
+Publication year acts as a strict limiter for architecture classes. Never guess architectures not supported by the publication era:
+- <2012: dl_cnn_*: false, dl_transformer: false, ml_traditional or classic_cv_based may apply.
 - 2012-2016: ml_traditional, classic_cv_based, dl_cnn_classifier, dl_cnn_detector may apply. dl_transformer: false.
-- ≥2017: All DL classes possible. dl_transformer: true only if attention/ViT/DETR/YOLOv8+ is named or clearly described.
-If a technique is explicitly named, year rules are overridden. Never guess architectures not supported by the publication era.
+- ≥2017: All DL classes possible. dl_transformer: true only if transformer/attention/ViT/DETR/etc. is named or clearly described.
+
 ```
 Please notice that the null may also have been recorded as None. Both are correct and have the same meaning for the parser.
 

@@ -1626,7 +1626,10 @@ li {
 
 
 
-
+#history-table-wrapper {
+    max-height: 540px;
+    overflow: scroll;
+}
 
 
 /* In static/style.css */

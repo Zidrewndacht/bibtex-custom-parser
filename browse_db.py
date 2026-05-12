@@ -287,7 +287,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             else:
                 technique_updates[tech_key] = value
             data.pop(key)
-            
+
     if technique_updates:
         current_technique.update(technique_updates)
         update_fields.append("technique = ?")
@@ -1418,18 +1418,20 @@ def backup_database():
             with open(html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
+            # disabling deprecated version of XLSX exports for now
+
             # Generate XLSX export
-            xlsx_content = generate_xlsx_export_content(papers)
-            xlsx_path = os.path.join(temp_dir, 'export.xlsx')
-            with open(xlsx_path, 'wb') as f:
-                f.write(xlsx_content)
+            # xlsx_content = generate_xlsx_export_content(papers)
+            # xlsx_path = os.path.join(temp_dir, 'export.xlsx')
+            # with open(xlsx_path, 'wb') as f:
+            #     f.write(xlsx_content)
 
             # Create in-memory buffer for the backup
             buffer = io.BytesIO()
             
             # Create a Zstandard compressor
-            cctx = zstd.ZstdCompressor(level=1)  # Fastest compression level
-            
+            cctx = zstd.ZstdCompressor(level=1, threads=-1)  # Fastest compression level    
+
             # Compress the tar directly to the buffer
             with tarfile.open(fileobj=buffer, mode='w') as tar:
                 # Add database file
@@ -1445,7 +1447,7 @@ def backup_database():
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
-                tar.add(xlsx_path, arcname='export.xlsx')
+                # tar.add(xlsx_path, arcname='export.xlsx') #disabling deprecated version of XLSX exports for now
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()
