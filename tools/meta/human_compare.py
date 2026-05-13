@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # compare_user_vs_ai.py
-# v1.2 - Human vs AI Main Set Comparison Script
+# v1.3 - Human vs AI Main Set Comparison Script (Stratified)
 # Compares a user-annotated DB against an AI-averaged DB.
+# v1.3 Updates: Global summary preserved; explicit on/off-topic stratification 
+#               using HUMAN annotations; field-level analysis restricted to on-topic.
 
 import argparse
 import sqlite3
@@ -35,7 +37,7 @@ JSON_TECHNIQUE_FIELDS = [
 
 ALL_COMPARISON_FIELDS = BOOLEAN_FIELDS + JSON_FEATURE_FIELDS + JSON_TECHNIQUE_FIELDS
 
-MIN_N_FOR_CI = 100
+MIN_N_FOR_CI = 10
 
 # ============================================================================
 # STATISTICAL HELPERS
@@ -63,7 +65,6 @@ def cohen_kappa_known_only(user_vals: List[int], ai_vals: List[int]) -> float:
     
     if len(u_known) < 2: return 0.0
     
-    # Build confusion matrix
     matrix = np.zeros((2, 2))
     for u, a in zip(u_known, a_known):
         matrix[int(u)][int(a)] += 1
@@ -89,24 +90,20 @@ def load_main_set(db_path: str) -> Dict[int, Dict[str, Tuple]]:
     
     papers = {}
     for row in rows:
-        r = dict(row)  # FIX: Convert Row to standard dict for safe .get() usage
+        r = dict(row)
         pid = r['id']
         data = {}
         
-        # Load certainty map
         try:
             cert_map = json.loads(r.get('main_certainty')) if r.get('main_certainty') else {}
             if not isinstance(cert_map, dict): cert_map = {}
         except (json.JSONDecodeError, TypeError):
             cert_map = {}
             
-        # Direct boolean fields
         for field in BOOLEAN_FIELDS:
             val = r.get(field)
-            # Normalize: 1->1, 0->0, None->None
             data[field] = (val if val in (0, 1) else None, cert_map.get(field, 'solid'))
             
-        # JSON fields (features & technique)
         for json_col, fields in [('features', JSON_FEATURE_FIELDS), ('technique', JSON_TECHNIQUE_FIELDS)]:
             try:
                 j_str = r.get(json_col)
@@ -117,11 +114,10 @@ def load_main_set(db_path: str) -> Dict[int, Dict[str, Tuple]]:
                 
             for field in fields:
                 val = j_data.get(field)
-                # Normalize JSON booleans/integers to 1, 0, or None
                 norm_val = 1 if val in (1, True, '1', 'true') else (0 if val in (0, False, '0', 'false') else None)
                 data[field] = (norm_val, cert_map.get(f'{json_col}_{field}', 'solid'))
                 
-        # Metadata for stratification
+        # Store raw values for stratification
         data['_relevance'] = r.get('relevance')
         data['_is_offtopic'] = r.get('is_offtopic')
         
@@ -134,12 +130,6 @@ def load_main_set(db_path: str) -> Dict[int, Dict[str, Tuple]]:
 # ============================================================================
 
 def classify_comparison(user_val, ai_val, ai_cert):
-    """
-    Returns semantic comparison category.
-    user_val, ai_val: 1 (Y), 0 (N), None (U)
-    ai_cert: 'solid', '80', '60', 'conflict'
-    """
-    # 1. AI Internal Conflict (Fatal, overrides everything)
     if ai_cert == 'conflict':
         return 'ai_conflict_fatal'
         
@@ -156,54 +146,22 @@ def classify_comparison(user_val, ai_val, ai_cert):
     elif u_known and not a_known:
         return 'ai_underconfident'
     else:
-        # Both Unknown
         return 'exact_match_solid' if ai_cert == 'solid' else 'partial_match'
 
-def run_comparison(user_db_path: str, ai_db_path: str, output_prefix: str):
-    print(f"📥 Loading Human DB: {user_db_path}")
-    user_data = load_main_set(user_db_path)
-    print(f"📥 Loading AI DB:    {ai_db_path}")
-    ai_data = load_main_set(ai_db_path)
-    
-    # Align papers
-    common_ids = sorted(set(user_data.keys()) & set(ai_data.keys()))
-    if not common_ids:
-        print("❌ No common paper IDs found between databases.")
-        return
-        
-    print(f"🔍 Comparing {len(common_ids)} papers across {len(ALL_COMPARISON_FIELDS)} fields...")
-    
-    # Aggregation structures
+def compute_stratum_stats(ids: List[int], user_data: Dict, ai_data: Dict) -> Dict:
+    """Compute comparison statistics for a specific list of paper IDs."""
     global_stats = defaultdict(int)
     field_stats = {f: defaultdict(int) for f in ALL_COMPARISON_FIELDS}
-    field_kappa = {}
     field_known_counts = {f: 0 for f in ALL_COMPARISON_FIELDS}
     
-    # Stratification lists
-    rel_bins = {
-        'Very Low (0-1)': [], 'Low (2-3)': [], 'Medium (4-5)': [], 
-        'High (6-7)': [], 'Very High (8-10)': []
-    }
-    off_topic_papers, on_topic_papers = [], []
+    # Collect values for Kappa
+    field_u_vals = {f: [] for f in ALL_COMPARISON_FIELDS}
+    field_a_vals = {f: [] for f in ALL_COMPARISON_FIELDS}
     
-    for pid in common_ids:
+    for pid in ids:
         u_row = user_data[pid]
         a_row = ai_data[pid]
         
-        # Stratify paper
-        is_ot = u_row.get('_is_offtopic')
-        if is_ot == 1: off_topic_papers.append(pid)
-        else: on_topic_papers.append(pid)
-        
-        rel = u_row.get('_relevance')
-        if rel is not None:
-            if 0 <= rel <= 1: rel_bins['Very Low (0-1)'].append(pid)
-            elif 2 <= rel <= 3: rel_bins['Low (2-3)'].append(pid)
-            elif 4 <= rel <= 5: rel_bins['Medium (4-5)'].append(pid)
-            elif 6 <= rel <= 7: rel_bins['High (6-7)'].append(pid)
-            elif 8 <= rel <= 10: rel_bins['Very High (8-10)'].append(pid)
-            
-        # Compare fields
         for field in ALL_COMPARISON_FIELDS:
             u_val, _ = u_row.get(field, (None, 'solid'))
             a_val, a_cert = a_row.get(field, (None, 'solid'))
@@ -212,43 +170,73 @@ def run_comparison(user_db_path: str, ai_db_path: str, output_prefix: str):
             field_stats[field][cat] += 1
             global_stats[cat] += 1
             
+            field_u_vals[field].append(u_val)
+            field_a_vals[field].append(a_val)
             if u_val is not None and a_val is not None:
                 field_known_counts[field] += 1
 
-    # Compute Kappa per field
+    field_kappa = {}
     for field in ALL_COMPARISON_FIELDS:
-        u_list, a_list = [], []
-        for pid in common_ids:
-            u_val, _ = user_data[pid].get(field, (None, 'solid'))
-            a_val, _ = ai_data[pid].get(field, (None, 'solid'))
-            u_list.append(u_val)
-            a_list.append(a_val)
-        field_kappa[field] = cohen_kappa_known_only(u_list, a_list)
+        field_kappa[field] = cohen_kappa_known_only(field_u_vals[field], field_a_vals[field])
 
     return {
         'global': global_stats,
         'field': field_stats,
         'kappa': field_kappa,
         'known_counts': field_known_counts,
+        'n_papers': len(ids)
+    }
+
+def run_comparison(user_db_path: str, ai_db_path: str, output_prefix: str):
+    print(f"📥 Loading Human DB: {user_db_path}")
+    user_data = load_main_set(user_db_path)
+    print(f"📥 Loading AI DB:    {ai_db_path}")
+    ai_data = load_main_set(ai_db_path)
+    
+    common_ids = sorted(set(user_data.keys()) & set(ai_data.keys()))
+    if not common_ids:
+        print("❌ No common paper IDs found between databases.")
+        return
+        
+    print(f"🔍 Comparing {len(common_ids)} papers across {len(ALL_COMPARISON_FIELDS)} fields...")
+    
+    # Stratify based EXPLICITLY on HUMAN annotation
+    on_topic_ids = []
+    off_topic_ids = []
+    for pid in common_ids:
+        # _is_offtopic comes directly from the Human DB
+        if user_data[pid].get('_is_offtopic') == 1:
+            off_topic_ids.append(pid)
+        else:
+            on_topic_ids.append(pid)
+            
+    print(f"📊 Stratification (Human): {len(on_topic_ids)} on-topic, {len(off_topic_ids)} off-topic")
+    
+    # Compute stats for all three views
+    return {
+        'overall': compute_stratum_stats(common_ids, user_data, ai_data),
+        'on_topic': compute_stratum_stats(on_topic_ids, user_data, ai_data),
+        'off_topic': compute_stratum_stats(off_topic_ids, user_data, ai_data),
         'common_ids': common_ids,
-        'strata': {
-            'off_topic': off_topic_papers,
-            'on_topic': on_topic_papers,
-            'relevance': rel_bins
-        }
+        'n_on_topic': len(on_topic_ids),
+        'n_off_topic': len(off_topic_ids)
     }
 
 # ============================================================================
 # OUTPUT GENERATION
 # ============================================================================
 
-def print_results(results: Dict, output_prefix: str):
-    g = results['global']
+def print_stratum_results(res: Dict, stratum_name: str, show_field_level: bool = True) -> Optional[pd.DataFrame]:
+    """Print results for a single stratum. Optionally shows field-level breakdown."""
+    g = res['global']
     total = sum(g.values())
-    print("\n" + "="*90)
-    print("HUMAN vs AI MAIN SET COMPARISON (ResearchParça v1.2)")
-    print(f"Total Cells Compared: {total:,} | Papers: {len(results['common_ids']):,}")
-    print("="*90)
+    if total == 0:
+        print(f"\n📊 {stratum_name.upper()} (No data to display)")
+        return None
+
+    print(f"\n{'='*90}")
+    print(f"📊 {stratum_name.upper()} (Papers: {res['n_papers']:,} | Cells: {total:,})")
+    print(f"{'='*90}")
     
     categories = [
         ('exact_match_solid', '✅ Exact Match (Solid AI Certainty)'),
@@ -259,63 +247,107 @@ def print_results(results: Dict, output_prefix: str):
         ('ai_conflict_fatal', '💥 AI Internal Conflict (Fatal AI Error)')
     ]
     
-    print("\n📊 OVERALL BREAKDOWN:")
+    print("\n  📊 OVERALL BREAKDOWN:")
     print("-"*90)
     for key, label in categories:
         count = g.get(key, 0)
         pct = (count / total * 100) if total > 0 else 0
         fmt = format_with_ci(pct, count, total)
-        print(f"  {label:<45} {fmt}")
+        print(f"    {label:<45} {fmt}")
         
-    print("\n📋 FIELD-LEVEL PERFORMANCE (Sorted by Exact Match %):")
-    print("-"*90)
-    field_rows = []
-    for f in ALL_COMPARISON_FIELDS:
-        fs = results['field'][f]
-        f_total = sum(fs.values())
-        if f_total == 0: continue
-        exact = fs.get('exact_match_solid', 0) + fs.get('partial_match', 0)
-        exact_pct = exact / f_total * 100
-        field_rows.append({
-            'Field': f,
-            'Exact+Partial%': exact_pct,
-            'Conflict%': fs.get('direct_conflict', 0)/f_total*100,
-            'Overconf%': fs.get('ai_overconfident', 0)/f_total*100,
-            'Underconf%': fs.get('ai_underconfident', 0)/f_total*100,
-            'AI_Fatal%': fs.get('ai_conflict_fatal', 0)/f_total*100,
-            'Kappa': results['kappa'].get(f, 0.0)
-        })
+    df = None
+    if show_field_level:
+        print(f"\n  📋 FIELD-LEVEL PERFORMANCE (Sorted by Exact+Partial Match %):")
+        print("-"*90)
+        field_rows = []
+        for f in ALL_COMPARISON_FIELDS:
+            fs = res['field'][f]
+            f_total = sum(fs.values())
+            if f_total == 0: continue
+            exact = fs.get('exact_match_solid', 0) + fs.get('partial_match', 0)
+            exact_pct = exact / f_total * 100
+            field_rows.append({
+                'Field': f,
+                'Exact+Partial%': exact_pct,
+                'Conflict%': fs.get('direct_conflict', 0)/f_total*100,
+                'Overconf%': fs.get('ai_overconfident', 0)/f_total*100,
+                'Underconf%': fs.get('ai_underconfident', 0)/f_total*100,
+                'AI_Fatal%': fs.get('ai_conflict_fatal', 0)/f_total*100,
+                'Kappa': res['kappa'].get(f, 0.0)
+            })
+            
+        df = pd.DataFrame(field_rows).sort_values('Exact+Partial%', ascending=False)
+        for _, r in df.iterrows():
+            bar = '█' * int(r['Exact+Partial%']/5) + '░' * (20 - int(r['Exact+Partial%']/5))
+            print(f"    {r['Field']:<25} {bar} Exact: {r['Exact+Partial%']:.1f}% | Conflict: {r['Conflict%']:.1f}% | Kappa: {r['Kappa']:.3f}")
         
-    df = pd.DataFrame(field_rows).sort_values('Exact+Partial%', ascending=False)
-    for _, r in df.iterrows():
-        bar = '█' * int(r['Exact+Partial%']/5) + '░' * (20 - int(r['Exact+Partial%']/5))
-        print(f"  {r['Field']:<25} {bar} Exact: {r['Exact+Partial%']:.1f}% | Conflict: {r['Conflict%']:.1f}% | Kappa: {r['Kappa']:.3f}")
+    return df
+
+def print_results(results: Dict, output_prefix: str):
+    # 1. OVERALL (Combines everything, as requested)
+    df_overall = print_stratum_results(results['overall'], "Overall (All Papers)", show_field_level=True)
+    if df_overall is not None:
+        csv_path = f"{output_prefix}_overall_comparison.csv"
+        print(f"\n💾 Saving Overall CSV to {csv_path}")
+        df_overall.to_csv(csv_path, index=False)
         
-    print(f"\n💾 Saving CSV to {output_prefix}_comparison.csv")
-    df.to_csv(f"{output_prefix}_comparison.csv", index=False)
-    print("✅ Done.")
+    # 2. ON-TOPIC (Primary focus, full field breakdown)
+    df_on = print_stratum_results(results['on_topic'], "On-Topic Only (Primary Metric)", show_field_level=True)
+    if df_on is not None:
+        csv_path = f"{output_prefix}_on_topic_comparison.csv"
+        print(f"\n💾 Saving On-Topic CSV to {csv_path}")
+        df_on.to_csv(csv_path, index=False)
+        
+    # 3. OFF-TOPIC (Global only, field-level skipped as fields are null by design)
+    print_stratum_results(results['off_topic'], "Off-Topic Only (Global Summary Only)", show_field_level=False)
+        
+    print("\n✅ Done.")
 
 def generate_latex_table(results: Dict, latex_path: str):
-    df_rows = []
-    g = results['global']
-    total = sum(g.values())
+    """Generate LaTeX tables for Overall and On-Topic strata."""
     categories = ['exact_match_solid', 'partial_match', 'direct_conflict', 
                   'ai_overconfident', 'ai_underconfident', 'ai_conflict_fatal']
-    labels = {'exact_match_solid': 'Exact Match', 'partial_match': 'Partial Match',
+    labels = {'exact_match_solid': 'Exact Match (Solid)', 'partial_match': 'Partial Match',
               'direct_conflict': 'Direct Conflict', 'ai_overconfident': 'Overconfident',
               'ai_underconfident': 'Underconfident', 'ai_conflict_fatal': 'AI Internal Conflict'}
-              
-    for cat in categories:
-        count = g.get(cat, 0)
-        pct = count / total * 100 if total else 0
-        df_rows.append({'Category': labels[cat], 'Count': count, 'Percentage': f"{pct:.2f}\\%"})
+
+    tables = []
+    # Generate tables for Overall and On-Topic
+    for stratum_key, stratum_label in [('overall', 'Overall'), ('on_topic', 'On-Topic')]:
+        res = results[stratum_key]
+        g = res['global']
+        total = sum(g.values())
+        if total == 0: continue
         
-    df = pd.DataFrame(df_rows)
-    latex_str = df.to_latex(index=False, escape=True, float_format="%.2f")
-    with open(latex_path, 'w') as f:
-        f.write("% Human vs AI Comparison Results\n")
-        f.write(latex_str)
-    print(f"📄 LaTeX table saved to {latex_path}")
+        rows = []
+        for cat in categories:
+            count = g.get(cat, 0)
+            pct = count / total * 100 if total else 0
+            rows.append({'Category': labels[cat], 'Count': count, 'Percentage': f"{pct:.2f}\\%"})
+            
+        df = pd.DataFrame(rows)
+        # Use booktabs compatible format
+        latex_str = df.to_latex(index=False, escape=True, float_format="%.2f", column_format="lcc")
+        
+        table_str = f"""
+\\begin{{table}}[htbp]
+\\centering
+\\caption{{Human vs AI Comparison Results: {stratum_label} Papers ({res['n_papers']:,} papers, {total:,} cells)}}
+\\label{{tab:comparison_{stratum_key}}}
+\\resizebox{{\\columnwidth}}{{!}}{{%
+{latex_str.replace('table', '')}
+}}
+\\end{{table}}
+"""
+        tables.append(table_str)
+        
+    with open(latex_path, 'w', encoding='utf-8') as f:
+        f.write("% Human vs AI Comparison Results (Stratified)\n")
+        f.write("% Requires: graphicx package for \\resizebox\n\n")
+        for t in tables:
+            f.write(t)
+            f.write("\n")
+    print(f"📄 LaTeX tables saved to {latex_path}")
 
 # ============================================================================
 # MAIN
@@ -331,6 +363,8 @@ def main():
         print("❌ Database file not found."); sys.exit(1)
         
     res = run_comparison(args.user_db, args.ai_db, args.output)
+    if res is None: return 1
+        
     print_results(res, args.output)
     
     try:

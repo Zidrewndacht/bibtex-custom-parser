@@ -22,14 +22,14 @@ try:
 except NameError:
     SCRIPT_DIR = Path.cwd()
 
-DEFAULT_CSV_PATH = SCRIPT_DIR / "sensor_log.CSV"
+DEFAULT_CSV_PATH = SCRIPT_DIR / "sensor_log27.CSV"
 DEFAULT_DB_PATH = SCRIPT_DIR / "db.sqlite"
 DEFAULT_OUTPUT_PATH = SCRIPT_DIR / "consensus_progress.png"
 
-POWER_SMOOTHING_WINDOW = 24
-PAPER_TICK_INTERVAL = 100
-TIME_MAJOR_INTERVAL = 30
-TIME_MINOR_INTERVAL = 10
+POWER_SMOOTHING_WINDOW = 6
+PAPER_TICK_INTERVAL = 60
+TIME_MAJOR_INTERVAL = 60
+TIME_MINOR_INTERVAL = 15
 
 # ============================================================================
 # PARSE POWER LOG CSV
@@ -171,8 +171,8 @@ def plot(power_data, remaining_data, output_path, has_power=True):
         ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color=C_PWR)
         ax2.plot(times, power_smooth, color=C_PWR, linewidth=2.5, label='Wall Power', alpha=0.95)
         paper_max = ax1.get_ylim()[1]
-        ax2.set_ylim(0, paper_max / 2.0)
-        ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL / 2.0))
+        ax2.set_ylim(0, paper_max )
+        ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL))
         ax2.tick_params(axis='y', labelcolor=C_PWR, labelsize=11)
     else:
         ax2 = None
