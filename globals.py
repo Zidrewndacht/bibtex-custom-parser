@@ -15,10 +15,10 @@ QUEUE_MANAGER_PORT = 6001
 QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
-MAX_CONCURRENT_WORKERS_CLASSIFY = 60 #256 #70
-MAX_CONCURRENT_WORKERS_VERIFY = 90  #480 #120
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 48 #180 #60
-MIN_CONCURRENT_WORKERS = 48     # Minimum concurrent limit for mixed workloads
+MAX_CONCURRENT_WORKERS_CLASSIFY = 5 #256 #27B 60 
+MAX_CONCURRENT_WORKERS_VERIFY = 5  #480 #27B 90
+MAX_CONCURRENT_WORKERS_RECLASSIFY = 5 #180 #27B 48
+MIN_CONCURRENT_WORKERS = 5     # Minimum concurrent limit for mixed workloads
 
 
 MAX_CONSENSUS_ITERATIONS = 15
@@ -58,11 +58,17 @@ DEFAULT_FEATURES = {
     "other": None
 }
 
+# Calculate user_override_count
 BOOLEAN_FEATURE_KEYS = [
-    "tracks", "holes", "bare_pcb_other", "solder_insufficient",
-    "solder_excess", "solder_void", "solder_crack", "solder_other",
-    "orientation", "wrong_component", "missing_component",
-    "component_other", "cosmetic"
+    'tracks', 'holes', 'bare_pcb_other', 'solder_insufficient',
+    'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
+    'orientation', 'wrong_component', 'missing_component',
+    'component_other', 'cosmetic'
+]
+BOOLEAN_TECHNIQUE_KEYS = [
+    'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
+    'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
+    'dl_other', 'hybrid', 'available_dataset'
 ]
 
 DEFAULT_TECHNIQUE = {
@@ -402,21 +408,6 @@ def load_prompt_template(template_path):
     except Exception as e:
         print(f"Error reading prompt template file '{template_path}': {e}")
         raise
-
-def get_paper_by_id(db_path, paper_id):
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        if conn:
-            conn.close()
 
 def get_best_set_for_text_fields(paper_data):
     set_scores = []

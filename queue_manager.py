@@ -14,7 +14,8 @@ import os
 import globals
 import time
 from flask import Flask, request, jsonify
-# Add after: from flask import Flask, request, jsonify
+import db
+
 from colorama import init, Fore, Style
 init(autoreset=True)
 # ============================================================================
@@ -98,7 +99,6 @@ def _color_prefix(prefix: str, color: str) -> str:
 
 def _color_queue_mode(status_line: str) -> str:
     """Color only the queue mode keyword in status lines like:
-    'HOMOGENEOUS_CLASSIFY (limit=256)' or 'MIXED (min_threshold=160)'
     """
     if status_line.startswith("HOMOGENEOUS_CLASSIFY"):
         return f"{Colors.MODE_QUEUE_HOMOGENEOUS_CLASSIFY}HOMOGENEOUS_CLASSIFY{Style.RESET_ALL}" + status_line[len("HOMOGENEOUS_CLASSIFY"):]
@@ -130,8 +130,6 @@ def _color_mode(mode: str) -> str:
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
-DB_PATH = globals.DATABASE_FILE
 
 # Task types
 TASK_CLASSIFY = "classify"
@@ -234,19 +232,18 @@ class ClassificationStateMachine:
     """State machine for classifying a SINGLE set of a single paper."""
     def __init__(self, paper_id, set_num, prompt_template, model_alias):
         self.paper_id = paper_id
-        self.set_num = set_num  # Single set, not all 3
+        self.set_num = set_num
         self.prompt_template = prompt_template
         self.model_alias = model_alias
         self.completion_callback = None
         self.lock = threading.Lock()
-    
+
     def get_prompts(self):
-        """Generate exactly 1 classification task for this specific paper×set."""
-        paper = globals.get_paper_by_id(DB_PATH, self.paper_id)
+        """Generate exactly 1 classification task for this specific paper/set."""
+        paper = db.get_paper_by_id(self.paper_id)
         if not paper:
             return []
-        
-        prefix = f'set_{self.set_num}_last_llm_'
+            
         task = {
             'task_type': TASK_CLASSIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_classify",
@@ -264,123 +261,36 @@ class ClassificationStateMachine:
             ),
             'state_machine': self
         }
-        return [task]  # Single task
-    
+        return [task]
+
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when this single set classification completes."""
         if success and llm_data:
-            self._update_set_cache(set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
-            globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"LLM_Classify_Set{set_num}")
+            db.update_set_cache(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+            db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Classify_Set{set_num}")
         else:
-            self._update_set_log(set_num, model_name, reasoning_trace, json_result, valid=False)
-        
+            db.update_set_log_only(self.paper_id, set_num, "classifier", model_name, reasoning_trace, json_result, valid=False)
+            
         if self.completion_callback:
             self.completion_callback(self.paper_id, set_num, success)
-    
-    def _update_set_cache(self, set_num, llm_data, model_name, reasoning_trace, json_result, valid):
-        """Update set_*_last_llm_* columns and set log."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        prefix = f'set_{set_num}_last_llm_'
-        
-        update_fields = []
-        update_values = []
-        
-        for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
-            if field in llm_data:
-                val = llm_data[field]
-                update_fields.append(f"{prefix}{field} = ?")
-                update_values.append(1 if val is True else 0 if val is False else None)
-        
-        if 'relevance' in llm_data:
-            update_fields.append(f"{prefix}relevance = ?")
-            update_values.append(llm_data['relevance'])
-        
-        if 'features' in llm_data:
-            update_fields.append(f"{prefix}features = ?")
-            update_values.append(json.dumps(llm_data['features']))
-        
-        if 'technique' in llm_data:
-            update_fields.append(f"{prefix}technique = ?")
-            update_values.append(json.dumps(llm_data['technique']))
-        
-        # Update log
-        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "classifier",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        update_fields.append(f"set_{set_num}_llm_log = ?")
-        update_values.append(json.dumps(existing_log))
-        
-        if update_fields:
-            update_values.append(self.paper_id)
-            query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(query, update_values)
-            conn.commit()
-        
-        conn.close()
-    
-    def _update_set_log(self, set_num, model_name, reasoning_trace, json_result, valid):
-        """Update only the set log (for invalid/malformed responses)."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "classifier",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        
-        cursor.execute(f"UPDATE papers SET set_{set_num}_llm_log = ? WHERE id = ?",
-                      (json.dumps(existing_log), self.paper_id))
-        conn.commit()
-        conn.close()
+
 
 class VerificationStateMachine:
     """State machine for verifying a SINGLE set of a single paper."""
     def __init__(self, paper_id, set_num, prompt_template, model_alias):
         self.paper_id = paper_id
-        self.set_num = set_num  # Single set
+        self.set_num = set_num
         self.prompt_template = prompt_template
         self.model_alias = model_alias
         self.completion_callback = None
         self.lock = threading.Lock()
-    
+
     def get_prompts(self):
-        """Generate exactly 1 verification task for this specific paper×set."""
-        paper = globals.get_paper_by_id(DB_PATH, self.paper_id)
+        """Generate exactly 1 verification task for this specific paper/set."""
+        paper = db.get_paper_by_id(self.paper_id)
         if not paper:
             return []
-        
+            
         prefix = f'set_{self.set_num}_last_llm_'
         format_data = {
             'title': paper.get('title', ''),
@@ -393,11 +303,10 @@ class VerificationStateMachine:
             'relevance': paper.get(f'{prefix}relevance'),
             'research_area': paper.get('research_area', ''),
         }
-        
         for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
             db_val = paper.get(f'{prefix}{field}')
             format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
-        
+            
         features_str = paper.get(f'{prefix}features')
         technique_str = paper.get(f'{prefix}technique')
         try:
@@ -408,7 +317,7 @@ class VerificationStateMachine:
             format_data['technique'] = json.loads(technique_str) if technique_str else {}
         except:
             format_data['technique'] = {}
-        
+            
         task = {
             'task_type': TASK_VERIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_verify",
@@ -418,99 +327,22 @@ class VerificationStateMachine:
             'prompt': self.prompt_template.format(**format_data),
             'state_machine': self
         }
-        return [task]  # Single task
-    
+        return [task]
+
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when this single set verification completes."""
         if success and llm_data:
-            self._update_set_verifier(set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
-            globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"LLM_Verify_Set{set_num}")
+            db.update_set_verifier(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+            db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Verify_Set{set_num}")
         else:
-            self._update_set_log(set_num, model_name, reasoning_trace, json_result, valid=False)
-        
+            db.update_set_log_only(self.paper_id, set_num, "verifier", model_name, reasoning_trace, json_result, valid=False)
+            
         if self.completion_callback:
             self.completion_callback(self.paper_id, set_num, success)
-    
-    def _update_set_verifier(self, set_num, llm_data, model_name, reasoning_trace, json_result, valid):
-        """Update set verifier columns and log."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        prefix = f'set_{set_num}_last_llm_'
-        
-        update_fields = []
-        update_values = []
-        
-        if 'verified' in llm_data:
-            val = llm_data['verified']
-            update_fields.append(f"{prefix}verified = ?")
-            update_values.append(1 if val is True else 0 if val is False else None)
-        
-        if 'estimated_score' in llm_data:
-            update_fields.append(f"{prefix}estimated_score = ?")
-            update_values.append(int(llm_data['estimated_score']))
-        
-        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "verifier",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        update_fields.append(f"set_{set_num}_llm_log = ?")
-        update_values.append(json.dumps(existing_log))
-        
-        if update_fields:
-            update_values.append(self.paper_id)
-            query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(query, update_values)
-            conn.commit()
-        
-        conn.close()
-    
-    def _update_set_log(self, set_num, model_name, reasoning_trace, json_result, valid):
-        """Update only the set log (for invalid/malformed responses)."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "verifier",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        
-        cursor.execute(f"UPDATE papers SET set_{set_num}_llm_log = ? WHERE id = ?",
-                      (json.dumps(existing_log), self.paper_id))
-        conn.commit()
-        conn.close()
+
 
 class ConsensusStateMachine:
-    """State machine for classify-until-consensus on a single paper×set."""
-    
+    """State machine for classify-until-consensus on a single paper/set."""
     def __init__(self, paper_id, set_num, classify_template, verify_template, reclassify_template, model_alias):
         self.paper_id = paper_id
         self.set_num = set_num
@@ -524,16 +356,16 @@ class ConsensusStateMachine:
         self.current_task_type = None
         self.completion_callback = None
         self.lock = threading.Lock()
-    
+
     def get_next_task(self):
         """Determine next task based on current paper state."""
-        paper = globals.get_paper_by_id(DB_PATH, self.paper_id)
+        paper = db.get_paper_by_id(self.paper_id)
         if not paper:
             return None
-        
+            
         if self.iteration >= self.max_iterations:
             return None
-        
+            
         prefix = f'set_{self.set_num}_last_llm_'
         verified = paper.get(f'{prefix}verified')
         score = paper.get(f'{prefix}estimated_score')
@@ -554,7 +386,7 @@ class ConsensusStateMachine:
                 return self._create_reclassify_task(paper)
         else:
             return None
-    
+
     def _create_classify_task(self, paper):
         return {
             'task_type': TASK_CLASSIFY,
@@ -573,12 +405,10 @@ class ConsensusStateMachine:
             ),
             'state_machine': self
         }
-    
+
     def _create_verify_task(self, paper):
         """Create verification task for consensus state machine."""
         prefix = f'set_{self.set_num}_last_llm_'
-        
-        # Build format_data matching VerificationStateMachine.get_prompts()
         format_data = {
             'title': paper.get('title', ''),
             'abstract': paper.get('abstract', ''),
@@ -590,13 +420,10 @@ class ConsensusStateMachine:
             'relevance': paper.get(f'{prefix}relevance'),
             'research_area': paper.get('research_area', ''),
         }
-        
-        # Boolean classification fields - convert DB integers to Python booleans
         for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
             db_val = paper.get(f'{prefix}{field}')
             format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
-        
-        # JSON fields - parse from DB strings
+            
         features_str = paper.get(f'{prefix}features')
         technique_str = paper.get(f'{prefix}technique')
         try:
@@ -607,7 +434,7 @@ class ConsensusStateMachine:
             format_data['technique'] = json.loads(technique_str) if technique_str else {}
         except:
             format_data['technique'] = {}
-        
+            
         return {
             'task_type': TASK_VERIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_consensus_verify_{self.iteration}",
@@ -617,12 +444,10 @@ class ConsensusStateMachine:
             'prompt': self.verify_template.format(**format_data),
             'state_machine': self
         }
-        
+
     def _create_reclassify_task(self, paper):
         """Create reclassification task for consensus state machine."""
         prefix = f'set_{self.set_num}_last_llm_'
-        
-        # Build classification data from set-specific cached columns
         classification_data = {}
         bool_fields = ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
         for field in bool_fields:
@@ -633,11 +458,10 @@ class ConsensusStateMachine:
                 classification_data[field] = False
             else:
                 classification_data[field] = None
-        
+                
         classification_data['research_area'] = paper.get('research_area')
         classification_data['relevance'] = paper.get(f'{prefix}relevance')
         
-        # Parse JSON fields
         features_str = paper.get(f'{prefix}features')
         technique_str = paper.get(f'{prefix}technique')
         try:
@@ -648,27 +472,23 @@ class ConsensusStateMachine:
             classification_data['technique'] = json.loads(technique_str) if technique_str else {}
         except:
             classification_data['technique'] = {}
-        
-        # Extract latest classifier and verifier traces from main llm_log
+            
         latest_classifier_trace = ''
         latest_verifier_trace = ''
         try:
             llm_log_str = paper.get('llm_log', '[]')
             llm_log = json.loads(llm_log_str) if llm_log_str else []
-            # Find most recent classifier/consensus entry
             for entry in reversed(llm_log):
                 if entry.get('type') in ['classifier', 'consensus', 'averaged_llm'] and entry.get('valid'):
                     latest_classifier_trace = entry.get('trace', '')
                     break
-            # Find most recent verifier entry
             for entry in reversed(llm_log):
                 if entry.get('type') == 'verifier' and entry.get('valid'):
                     latest_verifier_trace = entry.get('trace', '')
                     break
         except:
             pass
-        
-        # Build format_data matching v1.0's build_reclassification_prompt
+            
         format_data = {
             'title': paper.get('title', ''),
             'abstract': paper.get('abstract', ''),
@@ -694,165 +514,30 @@ class ConsensusStateMachine:
             'prompt': self.reclassify_template.format(**format_data),
             'state_machine': self
         }
-    
+
     def on_task_complete(self, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when a consensus task completes."""
         if success and llm_data:
             if self.current_task_type == TASK_CLASSIFY or self.current_task_type == TASK_RECLASSIFY:
-                # FIX: Pass reset_verification=True to trigger verification on next iteration
-                self._update_set_cache(llm_data, model_name, reasoning_trace, json_result, valid=True, reset_verification=True)
-                globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"Consensus_Classify_{self.iteration}")
+                log_type = "consensus" if self.current_task_type == TASK_RECLASSIFY else "classifier"
+                db.update_set_cache(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True, log_type=log_type, reset_verification=True)
+                db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Classify_{self.iteration}")
             elif self.current_task_type == TASK_VERIFY:
-                self._update_set_verifier(llm_data, model_name, reasoning_trace, json_result, valid=True)
-                globals.recalculate_main_set(self.paper_id, DB_PATH, changed_by=f"Consensus_Verify_{self.iteration}")
+                db.update_set_verifier(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+                db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Verify_{self.iteration}")
         else:
-            self._update_set_log(model_name, reasoning_trace, json_result, valid=False)
-        
+            log_type = "error"
+            if self.current_task_type == TASK_VERIFY: log_type = "verifier"
+            elif self.current_task_type == TASK_RECLASSIFY: log_type = "consensus"
+            else: log_type = "classifier"
+            db.update_set_log_only(self.paper_id, self.set_num, log_type, model_name, reasoning_trace, json_result, valid=False)
+            
         next_task = self.get_next_task()
         if next_task:
             state.enqueue(next_task)
         elif self.completion_callback:
             self.completion_callback(self.paper_id, self.set_num, success)
-    
-    def _update_set_cache(self, llm_data, model_name, reasoning_trace, json_result, valid, reset_verification=False):
-        """Update set cache columns.
-        
-        Args:
-            reset_verification: If True, also reset verified/estimated_score fields
-                            (used after classify/reclassify to trigger verification)
-        """
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        prefix = f'set_{self.set_num}_last_llm_'
-        update_fields = []
-        update_values = []
-        for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
-            if field in llm_data:
-                val = llm_data[field]
-                update_fields.append(f"{prefix}{field} = ?")
-                update_values.append(1 if val is True else 0 if val is False else None)
-        if 'relevance' in llm_data:
-            update_fields.append(f"{prefix}relevance = ?")
-            update_values.append(llm_data['relevance'])
-        if 'features' in llm_data:
-            update_fields.append(f"{prefix}features = ?")
-            update_values.append(json.dumps(llm_data['features']))
-        if 'technique' in llm_data:
-            update_fields.append(f"{prefix}technique = ?")
-            update_values.append(json.dumps(llm_data['technique']))
-        
-        # FIX: Reset verification fields if requested (after classify/reclassify)
-        if reset_verification:
-            update_fields.append(f"{prefix}verified = ?")
-            update_values.append(None)
-            update_fields.append(f"{prefix}estimated_score = ?")
-            update_values.append(None)
-        
-        cursor.execute(f"SELECT set_{self.set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        task_type = "consensus" if self.current_task_type == TASK_RECLASSIFY else "classifier"
-        log_entry = {
-            "timestamp": timestamp,
-            "type": task_type,
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        update_fields.append(f"set_{self.set_num}_llm_log = ?")
-        update_values.append(json.dumps(existing_log))
-        if update_fields:
-            update_values.append(self.paper_id)
-            query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(query, update_values)
-            conn.commit()
-        conn.close()
-    
-    def _update_set_verifier(self, llm_data, model_name, reasoning_trace, json_result, valid):
-        """Update set verifier columns."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        prefix = f'set_{self.set_num}_last_llm_'
-        
-        update_fields = []
-        update_values = []
-        
-        if 'verified' in llm_data:
-            val = llm_data['verified']
-            update_fields.append(f"{prefix}verified = ?")
-            update_values.append(1 if val is True else 0 if val is False else None)
-        
-        if 'estimated_score' in llm_data:
-            update_fields.append(f"{prefix}estimated_score = ?")
-            update_values.append(int(llm_data['estimated_score']))
-        
-        cursor.execute(f"SELECT set_{self.set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "verifier",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        
-        update_fields.append(f"set_{self.set_num}_llm_log = ?")
-        update_values.append(json.dumps(existing_log))
-        
-        if update_fields:
-            update_values.append(self.paper_id)
-            query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-            cursor.execute(query, update_values)
-            conn.commit()
-        
-        conn.close()
-    
-    def _update_set_log(self, model_name, reasoning_trace, json_result, valid):
-        """Update only the set log."""
-        conn = sqlite3.connect(DB_PATH, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
-        cursor = conn.cursor()
-        
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        cursor.execute(f"SELECT set_{self.set_num}_llm_log FROM papers WHERE id = ?", (self.paper_id,))
-        row = cursor.fetchone()
-        try:
-            existing_log = json.loads(row[0]) if row and row[0] else []
-        except:
-            existing_log = []
-        
-        log_entry = {
-            "timestamp": timestamp,
-            "type": "error",
-            "model": model_name,
-            "trace": reasoning_trace or "",
-            "output": json_result or "{}",
-            "valid": valid
-        }
-        existing_log.append(log_entry)
-        
-        cursor.execute(f"UPDATE papers SET set_{self.set_num}_llm_log = ? WHERE id = ?",
-                      (json.dumps(existing_log), self.paper_id))
-        conn.commit()
-        conn.close()
-
+            
 # ============================================================================
 # vLLM COMMUNICATION
 # ============================================================================
@@ -914,9 +599,6 @@ def send_to_vllm(task):
 def can_admit_task(task_type):
     """
     Homogeneous/mixed concurrency logic.
-    If 255 classifications in-flight:
-      → 256th classification: ADMIT immediately
-      → Incoming verification: WAIT until total ≤ 32
     """
     total = state.get_total_in_flight()
     task_in_flight = state.get_in_flight(task_type)
@@ -984,140 +666,115 @@ def dispatcher_loop():
 import logging
 werkzeug_log = logging.getLogger('werkzeug')
 werkzeug_log.setLevel(logging.ERROR)
-
 @app.route('/classify', methods=['POST'])
 def handle_classify_route():
     """Handle classification request (single paper or batch)."""
     client = request.remote_addr
     data = request.get_json(silent=True) or {}
     paper_id = data.get('paper_id')
-    mode = data.get('mode', 'id')  # ← Define mode BEFORE using it
+    mode = data.get('mode', 'id')
     log(f"{_color_prefix('REQUEST:', Colors.REQUEST)} from {client}: /classify mode={_color_mode(mode)} paper_id={paper_id}")
     log_file_request('/classify', client, mode, paper_id)
-    
+
     try:
         prompt_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
     except Exception as e:
         return jsonify({'error': f'Failed to load prompt template: {e}'}), 500
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
+
     if mode == 'id' and paper_id:
-        # Single paper - enqueue all 3 sets unconditionally (force reclassify)
+        # Single paper - NO DB connection held here. 
+        # State machines will do their own short-lived DB lookups via db.get_paper_by_id()
         log(f"{_color_prefix('[CLASSIFY]', Colors.CLASSIFY)} Single paper: {paper_id} (3 sets)")
         completion_events = [threading.Event() for _ in range(3)]
-        
         for set_num in [1, 2, 3]:
             sm = ClassificationStateMachine(paper_id, set_num, prompt_template, model_alias)
-            
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
-                    log(f"{_color_prefix('[CLASSIFY]', Colors.CLASSIFY)} paper={pid} set={sn} complete success={success}") # callback
+                    log(f"{_color_prefix('[CLASSIFY]', Colors.CLASSIFY)} paper={pid} set={sn} complete success={success}")
                     event.set()
                 return callback
-            
             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            
+            # get_prompts() briefly touches the DB, formats the string, and returns
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
-        
+                
         log(f"Enqueued 3 tasks for paper {paper_id}")
         log_queue_status()
         
-        # Wait for all 3 sets to complete
+        # Wait for background threads OUTSIDE of any DB context
         for event in completion_events:
             event.wait()
-        
-        conn.close()
+            
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
-    
+
     else:
-        # Batch modes - ALL query set-specific columns ONLY
-        if mode == 'all':
-            # All papers × 3 sets (force reclassify everything)
-            cursor.execute("""
-                SELECT id, 1 as set_num FROM papers
-                UNION ALL SELECT id, 2 FROM papers
-                UNION ALL SELECT id, 3 FROM papers
-                ORDER BY id, set_num
-            """)
-        
-        elif mode == 'remaining':
-            # Only incomplete sets (set-specific is_offtopic check)
-            cursor.execute("""
-                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NULL OR set_1_last_llm_is_offtopic = ''
-                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NULL OR set_2_last_llm_is_offtopic = ''
-                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NULL OR set_3_last_llm_is_offtopic = ''
-                ORDER BY id, set_num
-            """)
-        
-        elif mode == 'no_features':
-            # Sets where the paper is explicitly ON-TOPIC but ALL boolean features are NULL/0/empty
-            set_queries = []
-            for sn in [1, 2, 3]:
-                col_name = f'set_{sn}_last_llm_features'
-                
-                # 1. Must be classified as on-topic (is_offtopic = 0)
-                conditions = [f"set_{sn}_last_llm_is_offtopic = 0"]
-                
-                # 2. All boolean features must be NULL or 0
-                # Using CASE WHEN to safely skip json_extract on empty/NULL strings (prevents 'malformed JSON')
-                for key in globals.BOOLEAN_FEATURE_KEYS:
-                    conditions.append(f"""(
-                        CASE 
-                            WHEN {col_name} IS NULL OR {col_name} = '' THEN 1
-                            WHEN json_extract({col_name}, '$.{key}') IS NULL THEN 1
-                            WHEN json_extract({col_name}, '$.{key}') = 0 THEN 1
-                            ELSE 0
-                        END = 1
-                    )""")
-                    
-                set_queries.append(f"""
-                    SELECT id, {sn} as set_num FROM papers 
-                    WHERE {' AND '.join(conditions)}
+        # Batch modes
+        # 1. STRICT DB PHASE: Fetch data and immediately release connection
+        with db.get_db() as conn:
+            cursor = conn.cursor()
+            if mode == 'all':
+                cursor.execute("""
+                    SELECT id, 1 as set_num FROM papers
+                    UNION ALL SELECT id, 2 FROM papers
+                    UNION ALL SELECT id, 3 FROM papers
+                    ORDER BY id, set_num
                 """)
-                
-            cursor.execute(f" {' UNION ALL '.join(set_queries)} ORDER BY id, set_num")
-        
-        elif mode == 'on_topic_implementation':
-            # Sets where is_offtopic=0 AND is_survey=0 (set-specific)
-            cursor.execute("""
-                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic = 0 AND (set_1_last_llm_is_survey = 0 OR set_1_last_llm_is_survey IS NULL)
-                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic = 0 AND (set_2_last_llm_is_survey = 0 OR set_2_last_llm_is_survey IS NULL)
-                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic = 0 AND (set_3_last_llm_is_survey = 0 OR set_3_last_llm_is_survey IS NULL)
-                ORDER BY id, set_num
-            """)
-        
-        else:
-            conn.close()
-            log(f"ERROR: Invalid mode {mode}")
-            return jsonify({'error': f'Invalid mode: {mode}'}), 400
-        
-        paper_set_pairs = cursor.fetchall()  # [(id, 1), (id, 2), ...]
-        conn.close()
-        
+            elif mode == 'remaining':
+                cursor.execute("""
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NULL OR set_1_last_llm_is_offtopic = ''
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NULL OR set_2_last_llm_is_offtopic = ''
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NULL OR set_3_last_llm_is_offtopic = ''
+                    ORDER BY id, set_num
+                """)
+            elif mode == 'no_features':
+                set_queries = []
+                for sn in [1, 2, 3]:
+                    col_name = f'set_{sn}_last_llm_features'
+                    conditions = [f"set_{sn}_last_llm_is_offtopic = 0"]
+                    for key in globals.BOOLEAN_FEATURE_KEYS:
+                        conditions.append(f"""(
+                            CASE 
+                                WHEN {col_name} IS NULL OR {col_name} = '' THEN 1
+                                WHEN json_extract({col_name}, '$.{key}') IS NULL THEN 1
+                                WHEN json_extract({col_name}, '$.{key}') = 0 THEN 1
+                                ELSE 0
+                            END = 1
+                        )""")
+                    set_queries.append(f"SELECT id, {sn} as set_num FROM papers WHERE {' AND '.join(conditions)}")
+                cursor.execute(f" {' UNION ALL '.join(set_queries)} ORDER BY id, set_num")
+            elif mode == 'on_topic_implementation':
+                cursor.execute("""
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic = 0 AND (set_1_last_llm_is_survey = 0 OR set_1_last_llm_is_survey IS NULL)
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic = 0 AND (set_2_last_llm_is_survey = 0 OR set_2_last_llm_is_survey IS NULL)
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic = 0 AND (set_3_last_llm_is_survey = 0 OR set_3_last_llm_is_survey IS NULL)
+                    ORDER BY id, set_num
+                """)
+            else:
+                return jsonify({'error': f'Invalid mode: {mode}'}), 400
+
+            paper_set_pairs = cursor.fetchall()
+        # --- DB CONNECTION RELEASED HERE ---
+
         log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
-        
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs found for mode={mode}")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
-        
-        # Enqueue all paper×set pairs
+
+        # 2. PREPARATION PHASE: Enqueue tasks (get_prompts handles its own micro-DB lookups)
         total_tasks = 0
         for pid, set_num in paper_set_pairs:
             sm = ClassificationStateMachine(pid, set_num, prompt_template, model_alias)
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
-                total_tasks += 1
-        
-        # FIX: Calculate unique paper count instead of raw pair count
+            total_tasks += 1
+
         unique_papers = len(set(p[0] for p in paper_set_pairs))
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
-        
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
 
 @app.route('/verify', methods=['POST'])
@@ -1129,93 +786,77 @@ def handle_verify_route():
     mode = data.get('mode', 'id')
     log(f"{_color_prefix('VERIFY REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
     log_file_request('/verify', client, mode, paper_id)
-    
+
     try:
         prompt_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
         model_alias = globals.get_model_alias(globals.LLM_SERVER_URL)
     except Exception as e:
         log(f"ERROR: Failed to load verifier template: {e}")
         return jsonify({'error': f'Failed to load verifier template: {e}'}), 500
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
+
     if mode == 'id' and paper_id:
-        # Single paper - enqueue all 3 sets unconditionally
         log(f"Single paper verification: {paper_id} (3 sets)")
         completion_events = [threading.Event() for _ in range(3)]
-        
         for set_num in [1, 2, 3]:
             sm = VerificationStateMachine(paper_id, set_num, prompt_template, model_alias)
-            
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
                     log(f"{_color_prefix('[VERIFY]', Colors.VERIFY)} paper={pid} set={sn} complete success={success}")
                     event.set()
                 return callback
-            
             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
-        
+                
         log(f"Enqueued 3 tasks for paper {paper_id}")
         log_queue_status()
-        
         for event in completion_events:
             event.wait()
-        
-        conn.close()
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
-    
+        
     else:
-        # Batch modes - ALL query set-specific columns ONLY
-        if mode == 'all':
-            # All papers × 3 sets where classification exists (set-specific is_offtopic check)
-            cursor.execute("""
-                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != ''
-                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != ''
-                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != ''
-                ORDER BY id, set_num
-            """)
-        
-        elif mode == 'remaining':
-            # Only unverified sets (set-specific verified check)
-            cursor.execute("""
-                SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != '' AND (set_1_last_llm_verified IS NULL OR set_1_last_llm_verified = '')
-                UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != '' AND (set_2_last_llm_verified IS NULL OR set_2_last_llm_verified = '')
-                UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != '' AND (set_3_last_llm_verified IS NULL OR set_3_last_llm_verified = '')
-                ORDER BY id, set_num
-            """)
-        
-        else:
-            conn.close()
-            log(f"ERROR: Invalid mode {mode}")
-            return jsonify({'error': f'Invalid mode: {mode}'}), 400
-        
-        paper_set_pairs = cursor.fetchall()
-        conn.close()
-        
+        # 1. STRICT DB PHASE
+        with db.get_db() as conn:
+            cursor = conn.cursor()
+            if mode == 'all':
+                cursor.execute("""
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != ''
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != ''
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != ''
+                    ORDER BY id, set_num
+                """)
+            elif mode == 'remaining':
+                cursor.execute("""
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != '' AND (set_1_last_llm_verified IS NULL OR set_1_last_llm_verified = '')
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != '' AND (set_2_last_llm_verified IS NULL OR set_2_last_llm_verified = '')
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != '' AND (set_3_last_llm_verified IS NULL OR set_3_last_llm_verified = '')
+                    ORDER BY id, set_num
+                """)
+            else:
+                return jsonify({'error': f'Invalid mode: {mode}'}), 400
+
+            paper_set_pairs = cursor.fetchall()
+        # --- DB CONNECTION RELEASED HERE ---
+
         log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
-        
         if not paper_set_pairs:
-            log(f"WARNING: No paper×set pairs found for mode={mode}")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
-        
+
+        # 2. PREPARATION PHASE
         total_tasks = 0
         for pid, set_num in paper_set_pairs:
             sm = VerificationStateMachine(pid, set_num, prompt_template, model_alias)
             tasks = sm.get_prompts()
             for task in tasks:
                 state.enqueue(task)
-                total_tasks += 1
+            total_tasks += 1
 
         unique_papers = len(set(p[0] for p in paper_set_pairs))
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
-        
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
-    
+
 @app.route('/consensus', methods=['POST'])
 def handle_consensus_route():
     """Handle classify-until-consensus request."""
@@ -1225,7 +866,7 @@ def handle_consensus_route():
     mode = data.get('mode', 'id')
     log(f"{_color_prefix('CONSENSUS REQUEST:', Colors.REQUEST)} from {client}: mode={_color_mode(mode)} paper_id={paper_id}")
     log_file_request('/consensus', client, mode, paper_id)
-    
+
     try:
         classify_template = globals.load_prompt_template(globals.PROMPT_TEMPLATE)
         verify_template = globals.load_prompt_template(globals.VERIFIER_TEMPLATE)
@@ -1234,61 +875,53 @@ def handle_consensus_route():
     except Exception as e:
         log(f"ERROR: Failed to load consensus templates: {e}", Colors.ERROR)
         return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
+
     if mode == 'id' and paper_id:
-        # Single paper - create 3 consensus state machines (one per set)
         log(f"Single paper consensus: {paper_id} (3 sets)")
         completion_events = [threading.Event() for _ in range(3)]
-        
         for set_num in [1, 2, 3]:
             sm = ConsensusStateMachine(
                 paper_id, set_num,
                 classify_template, verify_template, reclassify_template,
                 model_alias
             )
-            
             def make_callback(set_n, event):
                 def callback(pid, sn, success):
                     log(f"{_color_prefix('[CONSENSUS]', Colors.CONSENSUS)} paper={pid} set={sn} complete success={success}")
                     event.set()
                 return callback
-            
             sm.completion_callback = make_callback(set_num, completion_events[set_num - 1])
+            
             task = sm.get_next_task()
             if task:
                 state.enqueue(task)
-                log(f"Enqueued initial task for paper={paper_id} set={set_num} type={task['task_type']}")
-        
+                
         log_queue_status()
-        
         for event in completion_events:
             event.wait()
-        
+            
         log(f"COMPLETE: consensus paper={paper_id}")
-        conn.close()
         return jsonify({'status': 'complete', 'paper_id': paper_id}), 200
-    
+        
     else:
-        # Batch consensus - query sets needing consensus (set-specific verified/score check)
-        cursor.execute("""
-            SELECT id, 1 as set_num FROM papers WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
-            UNION ALL SELECT id, 2 FROM papers WHERE (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
-            UNION ALL SELECT id, 3 FROM papers WHERE (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
-            ORDER BY id, set_num
-        """)
-        
-        paper_set_pairs = cursor.fetchall()
-        conn.close()
-        
+        # 1. STRICT DB PHASE
+        with db.get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, 1 as set_num FROM papers WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
+                UNION ALL SELECT id, 2 FROM papers WHERE (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
+                UNION ALL SELECT id, 3 FROM papers WHERE (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+                ORDER BY id, set_num
+            """)
+            paper_set_pairs = cursor.fetchall()
+        # --- DB CONNECTION RELEASED HERE ---
+
         log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
-        
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs need consensus")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
-        
+
+        # 2. PREPARATION PHASE
         total_tasks = 0
         for pid, set_num in paper_set_pairs:
             sm = ConsensusStateMachine(
@@ -1300,13 +933,12 @@ def handle_consensus_route():
             if task:
                 state.enqueue(task)
                 total_tasks += 1
-        
+
         unique_papers = len(set(p[0] for p in paper_set_pairs))
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
-        
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
-
+    
 @app.errorhandler(404)
 def not_found(e):
     log(f"{_color_prefix('ERROR:', Colors.ERROR)} Unknown endpoint {request.path}")
@@ -1340,12 +972,12 @@ def run_flask_server():
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+    db.init_db(globals.DATABASE_FILE)
 
-    _log_to_file('dispatcher.log', event='startup', db_path=DB_PATH, llm_server=globals.LLM_SERVER_URL, http_api=f"{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
+    _log_to_file('dispatcher.log', event='startup', llm_server=globals.LLM_SERVER_URL, http_api=f"{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParça Queue Manager Starting")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
-    log(f"Database: {DB_PATH}")
     log(f"vLLM Server: {globals.LLM_SERVER_URL}")
     log(f"HTTP API: http://{globals.QUEUE_MANAGER_HOST}:{globals.QUEUE_MANAGER_PORT}")
     log(f"Concurrency Limits: classify={globals.MAX_CONCURRENT_WORKERS_CLASSIFY} verify={globals.MAX_CONCURRENT_WORKERS_VERIFY} reclassify={globals.MAX_CONCURRENT_WORKERS_RECLASSIFY} mixed_threshold={globals.MIN_CONCURRENT_WORKERS}")

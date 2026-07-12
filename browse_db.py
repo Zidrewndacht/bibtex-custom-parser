@@ -1,5 +1,4 @@
 # browse_db.py
-import sqlite3
 import json
 import argparse
 from datetime import datetime
@@ -12,10 +11,7 @@ import threading
 import webbrowser
 import rjsmin
 import io
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill 
-from openpyxl.worksheet.table import Table, TableStyleInfo
-from werkzeug.utils import secure_filename 
+# from werkzeug.utils import secure_filename 
 import gzip
 import base64
 import zstandard as zstd
@@ -24,8 +20,10 @@ import shutil
 # import subprocess
 import logging
 import requests
-from datetime import datetime, timezone
+from datetime import datetime
 import globals
+import db
+
 
 # Define default year range - For this app:
 DEFAULT_YEAR_FROM = 2016
@@ -50,7 +48,7 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
     min_page_count_value = int(min_page_count_param) if min_page_count_param is not None else DEFAULT_MIN_PAGE_COUNT
 
     # Fetch papers with ALL the filters applied
-    papers = fetch_papers(
+    papers = db.fetch_papers(
         hide_offtopic=hide_offtopic,
         year_from=year_from_value,
         year_to=year_to_value,
@@ -71,568 +69,6 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
         min_page_count_value=str(min_page_count_value)
     )
     return rendered_table
-
-# DB functions - should not be moved away from Flask process here:
-def get_db_connection():
-    """Create a connection to the SQLite database and ensure FTS tables."""
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row 
-    return conn
-
-
-def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_count=None):
-    """Fetch papers from the database, applying various optional filters."""
-    conn = get_db_connection()
-    base_query = "SELECT p.* FROM papers p"
-    conditions = []
-    params = []
-    
-    if hide_offtopic:
-        conditions.append("(p.is_offtopic = 0 OR p.is_offtopic IS NULL)")
-    
-    if year_from is not None:
-        try:
-            year_from = int(year_from)
-            conditions.append("p.year >= ?")
-            params.append(year_from)
-        except (ValueError, TypeError):
-            pass
-    
-    if year_to is not None:
-        try:
-            year_to = int(year_to)
-            conditions.append("p.year <= ?")
-            params.append(year_to)
-        except (ValueError, TypeError):
-            pass
-    
-    if min_page_count is not None:
-        try:
-            min_page_count = int(min_page_count)
-            conditions.append("(p.page_count IS NULL OR p.page_count = '' OR p.page_count >= ?)")
-            params.append(min_page_count)
-        except (ValueError, TypeError):
-            pass
-    
-    # Build Final Query
-    query_parts = [base_query]
-    if conditions:
-        query_parts.append("WHERE " + " AND ".join(conditions))
-    query_parts.append("ORDER BY (p.user_trace IS NULL OR p.user_trace = '') ASC")
-    
-    query = " ".join(query_parts)
-    
-    try:
-        papers = conn.execute(query, params).fetchall()
-    except sqlite3.Error as e:
-        conn.close()
-        print(f"Database error during fetch_papers: {e}")
-        raise
-    finally:
-        conn.close()
-    
-    # Process Results
-    paper_list = []
-    for paper in papers:
-        paper_dict = dict(paper)
-        
-        # Parse main JSON fields
-        try:
-            paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
-        except (json.JSONDecodeError, TypeError):
-            paper_dict['features'] = {}
-        
-        try:
-            paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
-        except (json.JSONDecodeError, TypeError):
-            paper_dict['technique'] = {}
-        
-        # Parse main_certainty
-        try:
-            paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
-        except (json.JSONDecodeError, TypeError):
-            paper_dict['main_certainty'] = {}
-        
-        paper_dict['pdf_filename'] = paper_dict.get('pdf_filename')
-        paper_dict['pdf_state'] = paper_dict.get('pdf_state', 'none')
-        paper_dict['changed_formatted'] = format_changed_timestamp(paper_dict.get('changed'))
-        
-        paper_list.append(paper_dict)
-    
-    return paper_list
-# In browse_db.py, update update_paper_custom_fields() function
-
-def update_paper_custom_fields(paper_id, data, changed_by="user"):
-    """
-    Update the custom classification fields for a paper.
-    User changes only affect main columns, not set_* columns.
-    Updates certainty_map for all changed fields to 'solid'.
-    Handles verified_by field updates.
-    Verification Reset Rules:
-    - If user explicitly sets verified/verified_by, those values stick
-    - If user changes non-verification fields on LLM-verified paper, verification resets
-    - If user changes non-verification fields on user-verified paper, verification stays
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-    
-    # Fetch current state
-    cursor.execute("""
-    SELECT llm_log, user_override_count,
-    last_llm_features, last_llm_technique,
-    last_llm_is_survey, last_llm_is_offtopic,
-    last_llm_is_through_hole, last_llm_is_smt, last_llm_is_x_ray,
-    last_llm_relevance, last_llm_verified, last_llm_estimated_score,
-    features, technique,
-    is_survey, is_offtopic, is_through_hole, is_smt, is_x_ray,
-    relevance, verified, estimated_score,
-    user_trace, main_certainty, verified_by, pdf_filename, pdf_state
-    FROM papers WHERE id = ?
-    """, (paper_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return {'status': 'error', 'message': 'Paper not found'}
-    
-    (current_llm_log_str, current_user_override_count,
-    last_llm_features_str, last_llm_technique_str,
-    last_llm_is_survey, last_llm_is_offtopic,
-    last_llm_is_through_hole, last_llm_is_smt, last_llm_is_x_ray,
-    last_llm_relevance, last_llm_verified, last_llm_estimated_score,
-    current_features_str, current_technique_str,
-    current_is_survey, current_is_offtopic,
-    current_is_through_hole, current_is_smt, current_is_x_ray,
-    current_relevance, current_verified, current_estimated_score,
-    current_user_trace, current_certainty_str, current_verified_by,
-    current_pdf_filename, current_pdf_state) = row
-    
-    # === Save original verified_by BEFORE any processing ===
-    original_verified_by = current_verified_by
-    
-    # Parse existing log
-    try:
-        existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
-    except json.JSONDecodeError:
-        existing_log = []
-    
-    # Parse current features/technique
-    try:
-        current_features = json.loads(current_features_str) if current_features_str else {}
-    except:
-        current_features = {}
-    try:
-        current_technique = json.loads(current_technique_str) if current_technique_str else {}
-    except:
-        current_technique = {}
-    
-    # Parse current certainty map
-    try:
-        certainty_map = json.loads(current_certainty_str) if current_certainty_str else {}
-    except:
-        certainty_map = {}
-    
-    # Prepare Database Updates
-    update_fields = []
-    update_values = []
-    
-    # Track which fields are being updated
-    updated_main_fields = {}
-    
-    # Track if user explicitly set verification fields (to prevent reset logic)
-    user_set_verified = 'verified' in data
-    user_set_verified_by = 'verified_by' in data
-    
-    # Handle features_ updates
-    feature_updates = {}
-    for key in list(data.keys()):
-        if key.startswith('features_'):
-            feature_key = key.split('features_', 1)[1]
-            value = data[key]
-            if isinstance(value, str):
-                if value.lower() == 'true':
-                    feature_updates[feature_key] = True
-                elif value.lower() == 'false':
-                    feature_updates[feature_key] = False
-                elif value == '':
-                    feature_updates[feature_key] = None  # Empty string becomes None
-                else:
-                    feature_updates[feature_key] = value # <-- FIX: Preserve text strings (e.g., 'other')
-            else:
-                feature_updates[feature_key] = value
-            data.pop(key)
-    
-    if feature_updates:
-        current_features.update(feature_updates)
-        update_fields.append("features = ?")
-        update_values.append(json.dumps(current_features))
-        for feature_key in feature_updates.keys():
-            certainty_map[f'features_{feature_key}'] = 'solid'
-    
-    # Handle technique_ updates
-    technique_updates = {}
-    for key in list(data.keys()):
-        if key.startswith('technique_'):
-            tech_key = key.split('technique_', 1)[1]
-            value = data[key]
-            if isinstance(value, str):
-                if value.lower() == 'true':
-                    technique_updates[tech_key] = True
-                elif value.lower() == 'false':
-                    technique_updates[tech_key] = False
-                elif value == '':
-                    technique_updates[tech_key] = None  # Empty string becomes None
-                else:
-                    technique_updates[tech_key] = value  # <-- FIX: Preserve text strings (e.g., 'model')
-            else:
-                technique_updates[tech_key] = value
-            data.pop(key)
-
-    if technique_updates:
-        current_technique.update(technique_updates)
-        update_fields.append("technique = ?")
-        update_values.append(json.dumps(current_technique))
-        for tech_key in technique_updates.keys():
-            certainty_map[f'technique_{tech_key}'] = 'solid'
-    
-    # Handle main boolean fields
-    main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
-    for field in main_bool_fields:
-        if field in data:
-            value = data[field]
-            if isinstance(value, str):
-                db_val = 1 if value.lower() in ('true', '1', 'on') else (0 if value.lower() in ('false', '0') else None)
-            else:
-                db_val = 1 if value is True else (0 if value is False else None)
-            update_fields.append(f"{field} = ?")
-            update_values.append(db_val)
-            updated_main_fields[field] = db_val
-            certainty_map[field] = 'solid'
-            if field == 'is_survey':
-                current_is_survey = db_val
-            elif field == 'is_offtopic':
-                current_is_offtopic = db_val
-            elif field == 'is_through_hole':
-                current_is_through_hole = db_val
-            elif field == 'is_smt':
-                current_is_smt = db_val
-            elif field == 'is_x_ray':
-                current_is_x_ray = db_val
-            data.pop(field)
-    
-    # Handle other fields
-    if 'research_area' in data:
-        update_fields.append("research_area = ?")
-        update_values.append(data['research_area'])
-        data.pop('research_area')
-    
-    if 'page_count' in data:
-        page_count_value = data['page_count']
-        if page_count_value is not None:
-            try:
-                page_count_value = int(page_count_value)
-            except (ValueError, TypeError):
-                page_count_value = None
-        update_fields.append("page_count = ?")
-        update_values.append(page_count_value)
-        data.pop('page_count')
-    
-    if 'relevance' in data:
-        update_fields.append("relevance = ?")
-        update_values.append(data['relevance'])
-        current_relevance = data['relevance']
-        data.pop('relevance')
-    
-    if 'user_trace' in data:
-        update_fields.append("user_trace = ?")
-        update_values.append(data['user_trace'])
-        current_user_trace = data['user_trace']
-        data.pop('user_trace')
-
-        # === Automated paywall detection (Bidirectional) ===
-        is_paywalled_present = 'paywalled' in str(current_user_trace).lower()
-        has_pdf = bool(current_pdf_filename)
-
-        if is_paywalled_present:
-            # Keyword exists: Set to paywalled ONLY if no PDF is attached and not already set
-            if not has_pdf and current_pdf_state != "paywalled":
-                update_fields.append("pdf_state = ?")
-                update_values.append("paywalled")
-        else:
-            # Keyword removed: Clear paywalled state if it was set and no PDF exists
-            if not has_pdf and current_pdf_state == "paywalled":
-                update_fields.append("pdf_state = ?")
-                update_values.append("none")
-
-    # === Handle verified field ===
-    if 'verified' in data:
-        val = data['verified']
-        if isinstance(val, str):
-            db_val = 1 if val.lower() in ('true', '1', 'on') else (0 if val.lower() in ('false', '0') else None)
-        else:
-            db_val = 1 if val is True else (0 if val is False else None)
-        update_fields.append("verified = ?")
-        update_values.append(db_val)
-        current_verified = db_val
-        # === When user explicitly sets verified, set verified_by to 'user' ===
-        current_verified_by = 'user'
-        update_fields.append("verified_by = ?")
-        update_values.append('user')
-        data.pop('verified')
-    
-    # === Handle verified_by field (only if user explicitly sets it separately) ===
-    if 'verified_by' in data:
-        verified_by_value = data['verified_by']
-        db_val = None if verified_by_value == 'unknown' or verified_by_value is None else verified_by_value
-        update_fields.append("verified_by = ?")
-        update_values.append(db_val)
-        current_verified_by = db_val
-        data.pop('verified_by')
-    
-    if 'estimated_score' in data:
-        val = data['estimated_score']
-        db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) else None
-        update_fields.append("estimated_score = ?")
-        update_values.append(db_val)
-        current_estimated_score = db_val
-        data.pop('estimated_score')
-    
-    # === Verification Reset Logic (AFTER all field processing) ===
-    # Only reset if:
-    # 1. Changed by user
-    # 2. User did NOT explicitly set verified or verified_by
-    # 3. Paper was LLM-verified (not user-verified, not empty)
-    if changed_by == "user" and not user_set_verified and not user_set_verified_by:
-        was_llm_verified = (original_verified_by and
-                          original_verified_by.strip() != '' and
-                          original_verified_by != 'user')
-        if was_llm_verified:
-            # Reset verification
-            update_fields.append("verified = ?")
-            update_values.append(None)
-            update_fields.append("estimated_score = ?")
-            update_values.append(None)
-            update_fields.append("verified_by = ?")
-            update_values.append("")
-            # === Update local variables for log entry ===
-            current_verified = None
-            current_estimated_score = None
-            current_verified_by = ""
-    
-    # Calculate user_override_count
-    BOOLEAN_FEATURE_KEYS = [
-        'tracks', 'holes', 'bare_pcb_other', 'solder_insufficient',
-        'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
-        'orientation', 'wrong_component', 'missing_component',
-        'component_other', 'cosmetic'
-    ]
-    BOOLEAN_TECHNIQUE_KEYS = [
-        'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
-        'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
-        'dl_other', 'hybrid', 'available_dataset'
-    ]
-    
-    def normalize_bool(val):
-        if val is None or val == '' or val == 'null':
-            return None
-        if val is True or val == 1 or val == '1' or val == 'true':
-            return 1
-        if val is False or val == 0 or val == '0' or val == 'false':
-            return 0
-        return val
-    
-    user_override_count = 0
-    try:
-        last_llm_features = json.loads(last_llm_features_str) if last_llm_features_str else {}
-    except:
-        last_llm_features = {}
-    try:
-        last_llm_technique = json.loads(last_llm_technique_str) if last_llm_technique_str else {}
-    except:
-        last_llm_technique = {}
-    
-    for key in BOOLEAN_FEATURE_KEYS:
-        current_val = normalize_bool(current_features.get(key))
-        llm_val = normalize_bool(last_llm_features.get(key))
-        if current_val != llm_val:
-            user_override_count += 1
-    
-    for key in BOOLEAN_TECHNIQUE_KEYS:
-        current_val = normalize_bool(current_technique.get(key))
-        llm_val = normalize_bool(last_llm_technique.get(key))
-        if current_val != llm_val:
-            user_override_count += 1
-    
-    for field in ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']:
-        current_val = normalize_bool(locals()[f'current_{field}'])
-        llm_val = normalize_bool(locals()[f'last_llm_{field}'])
-        if current_val != llm_val:
-            user_override_count += 1
-    
-    update_fields.append("changed = ?")
-    update_values.append(changed_timestamp)
-    update_fields.append("changed_by = ?")
-    update_values.append(changed_by)
-    update_fields.append("user_override_count = ?")
-    update_values.append(user_override_count)
-    update_fields.append("main_certainty = ?")
-    update_values.append(json.dumps(certainty_map))
-    
-    # === Build user_log_output AFTER all field processing ===
-    # This ensures we capture the FINAL state including verification changes
-    def db_to_bool(val):
-        if val == 1:
-            return True
-        elif val == 0:
-            return False
-        else:
-            return None
-    
-    # === FULL STATE SNAPSHOT (including verification) ===
-    user_log_output = {
-        "is_offtopic": db_to_bool(updated_main_fields.get('is_offtopic', current_is_offtopic)),
-        "relevance": current_relevance,
-        "is_survey": db_to_bool(updated_main_fields.get('is_survey', current_is_survey)),
-        "is_through_hole": db_to_bool(updated_main_fields.get('is_through_hole', current_is_through_hole)),
-        "is_smt": db_to_bool(updated_main_fields.get('is_smt', current_is_smt)),
-        "is_x_ray": db_to_bool(updated_main_fields.get('is_x_ray', current_is_x_ray)),
-        "features": current_features if current_features else {},
-        "technique": current_technique if current_technique else {},
-        "verified": db_to_bool(current_verified),  # ← Uses UPDATED value
-        "estimated_score": current_estimated_score
-    }
-    
-    # === If verification was reset, update user_log_output to reflect it ===
-    if changed_by == "user" and not user_set_verified and not user_set_verified_by:
-        was_llm_verified = (original_verified_by and
-                          original_verified_by.strip() != '' and
-                          original_verified_by != 'user')
-        if was_llm_verified:
-            user_log_output['verified'] = None
-            user_log_output['estimated_score'] = None
-    
-    user_log_entry = {
-        "timestamp": changed_timestamp,
-        "type": "user",
-        "model": "user",
-        "trace": current_user_trace or "",
-        "output": json.dumps(user_log_output),
-        "valid": True,
-        "certainty_map": certainty_map
-    }
-    
-    if existing_log and existing_log[-1].get('type') == 'user':
-        last_user_entry = existing_log[-1]
-        last_user_entry['output'] = json.dumps(user_log_output)
-        last_user_entry['trace'] = current_user_trace or ""
-        last_user_entry['timestamp'] = changed_timestamp
-        last_user_entry['certainty_map'] = certainty_map
-    else:
-        existing_log.append(user_log_entry)
-    
-    update_fields.append("llm_log = ?")
-    update_values.append(json.dumps(existing_log))
-    
-    if update_fields:
-        update_values.append(paper_id)
-        update_query = f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?"
-        cursor.execute(update_query, update_values)
-        conn.commit()
-        rows_affected = cursor.rowcount
-    else:
-        rows_affected = 0
-    
-    conn.close()
-    
-    if rows_affected > 0:
-        updated_paper = globals.get_paper_by_id(DATABASE, paper_id)
-        if updated_paper:
-            updated_paper['changed_formatted'] = format_changed_timestamp(updated_paper.get('changed'))
-            return_data = {
-                'status': 'success',
-                'changed': updated_paper.get('changed'),
-                'changed_formatted': updated_paper.get('changed_formatted'),
-                'changed_by': updated_paper.get('changed_by'),
-                'research_area': updated_paper.get('research_area'),
-                'page_count': updated_paper.get('page_count'),
-                'is_survey': updated_paper.get('is_survey'),
-                'is_offtopic': updated_paper.get('is_offtopic'),
-                'is_through_hole': updated_paper.get('is_through_hole'),
-                'is_smt': updated_paper.get('is_smt'),
-                'is_x_ray': updated_paper.get('is_x_ray'),
-                'relevance': updated_paper.get('relevance'),
-                'features': updated_paper.get('features', {}),
-                'technique': updated_paper.get('technique', {}),
-                'user_trace': updated_paper.get('user_trace'),
-                'user_override_count': updated_paper.get('user_override_count'),
-                'verified': updated_paper.get('verified'),
-                'verified_by': updated_paper.get('verified_by'),
-                'estimated_score': updated_paper.get('estimated_score'),
-                'main_certainty': certainty_map,
-                'pdf_state': updated_paper.get('pdf_state'),
-                'pdf_filename': updated_paper.get('pdf_filename')
-            }
-            return return_data
-        else:
-            return {'status': 'error', 'message': 'Paper not found after update.'}
-    else:
-        return {'status': 'error', 'message': 'No rows updated.'}
-    
-def fetch_updated_paper_data(paper_id):
-    """Fetches the full paper data after classification/verification for client-side update."""
-    conn = get_db_connection()
-    try:
-        updated_paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        if updated_paper:
-            updated_dict = dict(updated_paper)
-            try:
-                updated_dict['features'] = json.loads(updated_dict['features'])
-            except (json.JSONDecodeError, TypeError):
-                updated_dict['features'] = {}
-            try:
-                updated_dict['technique'] = json.loads(updated_dict['technique'])
-            except (json.JSONDecodeError, TypeError):
-                updated_dict['technique'] = {}
-            updated_dict['changed_formatted'] = format_changed_timestamp(updated_dict.get('changed'))
-            
-            # Prepare data for frontend refresh
-            return_data = {
-                'status': 'success',
-                'changed': updated_dict.get('changed'),
-                'changed_formatted': updated_dict['changed_formatted'],
-                'changed_by': updated_dict.get('changed_by'),
-                'verified_by': updated_dict.get('verified_by'),
-                'research_area': updated_dict.get('research_area'),
-                'page_count': updated_dict.get('page_count'),
-                'is_survey': updated_dict.get('is_survey'),
-                'is_offtopic': updated_dict.get('is_offtopic'),
-                'is_through_hole': updated_dict.get('is_through_hole'),
-                'is_smt': updated_dict.get('is_smt'),
-                'is_x_ray': updated_dict.get('is_x_ray'),
-                'relevance': updated_dict.get('relevance'),
-                'verified': updated_dict.get('verified'),
-                'estimated_score': updated_dict.get('estimated_score'),
-                'features': updated_dict['features'],
-                'technique': updated_dict['technique'],
-                'user_trace': updated_dict.get('user_trace'),
-                'user_override_count': updated_dict.get('user_override_count')
-                # REMOVED: 'reasoning_trace' and 'verifier_trace' - no longer used
-            }
-            return return_data
-        else:
-            return {'status': 'error', 'message': 'Paper not found after update.'}
-    finally:
-        conn.close()
-
-def format_changed_timestamp(changed_str):
-    """Format the ISO timestamp string to dd/mm/yy hh:mm:ss"""
-    if not changed_str:
-        return ""
-    try:
-        dt = datetime.fromisoformat(changed_str.replace('Z', '+00:00'))
-        return dt.strftime("%d/%m/%y %H:%M:%S")
-    except ValueError:
-        return changed_str  # If parsing fails, return the original string
 
 
 # Helpers used for HTML and XLSX exports: 
@@ -840,6 +276,9 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
 
 def generate_xlsx_export_content(papers): #outdated, must be updated to be useful for v1.2:
     # """Generates the Excel file content as bytes."""
+    # from openpyxl import Workbook
+    # from openpyxl.styles import Font, PatternFill 
+    # from openpyxl.worksheet.table import Table, TableStyleInfo
     # output = io.BytesIO()
     # wb = Workbook()
     # ws = wb.active
@@ -1364,10 +803,9 @@ def index():
     min_page_count_param = request.args.get('min_page_count')
         
     # Get the total number of papers in the database.
-    conn = get_db_connection()
-    total_paper_count = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
-    conn.close()
-
+    with db.get_db() as conn:
+        total_paper_count = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
+        
     papers_table_content = render_papers_table(
         hide_offtopic_param=hide_offtopic_param,
         year_from_param=year_from_param,
@@ -1412,7 +850,7 @@ def backup_database():
         # Create temporary directory for exports
         with tempfile.TemporaryDirectory() as temp_dir:
             # Generate HTML export (full, not lite)
-            papers = fetch_papers(hide_offtopic=True, year_from=0, year_to=9999, min_page_count=0)
+            papers = db.fetch_papers(hide_offtopic=True, year_from=0, year_to=9999, min_page_count=0)
             html_content = generate_html_export_content(papers, True, 0, 9999, 0, is_lite_export=False)
             html_path = os.path.join(temp_dir, 'export.html')
             with open(html_path, 'w', encoding='utf-8') as f:
@@ -1566,47 +1004,45 @@ def restore_database():
 def upload_pdf(paper_id):
     """Handles PDF file upload for a specific paper."""
     print(f"Received upload request for paper ID: {paper_id}") # Debug print
+    
     if 'pdf_file' not in request.files:
         return jsonify({'status': 'error', 'message': 'No file part in request'}), 400
-
     file = request.files['pdf_file']
     if file.filename == '':
         return jsonify({'status': 'error', 'message': 'No file selected'}), 400
-
+        
     if file and file.filename.lower().endswith('.pdf'):
         # original_filename = secure_filename(file.filename)
         unique_filename = f"{paper_id}.pdf"
         filepath = os.path.join(globals.PDF_STORAGE_DIR, unique_filename)
-
+        
         try:
             file.save(filepath)
+            
             # Direct DB update to avoid verification reset & log pollution from update_paper_custom_fields
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE papers SET pdf_filename = ?, pdf_state = ? WHERE id = ?", (unique_filename, 'PDF', paper_id))
-            conn.commit()
-            conn.close()
+            with db.get_db() as conn:
+                conn.execute("UPDATE papers SET pdf_filename = ?, pdf_state = ? WHERE id = ?", (unique_filename, 'PDF', paper_id))
             
             result = {'status': 'success'}
+            
             if result['status'] == 'success':
-                # Fetch updated paper data including new PDF info
-                # Pass the string ID here too
-                updated_paper_data = fetch_updated_paper_data(paper_id)
+                # Fetch updated paper data including new PDF info (Now routed through db.py)
+                updated_paper_data = db.fetch_updated_paper_data(paper_id)
                 if updated_paper_data['status'] == 'success':
                     # Add the PDF specific data to the response
                     updated_paper_data['pdf_filename'] = unique_filename
                     updated_paper_data['pdf_state'] = 'PDF'
                     return jsonify(updated_paper_data)
                 else:
-                     print(f"Failed to fetch updated data for {paper_id} after upload.")
-                     return jsonify({'status': 'error', 'message': 'Failed to fetch updated paper data after upload'}), 500
+                    print(f"Failed to fetch updated data for {paper_id} after upload.")
+                    return jsonify({'status': 'error', 'message': 'Failed to fetch updated paper data after upload'}), 500
             else:
                 print(f"DB update failed for {paper_id} after saving file.")
                 # Rollback: delete the file if DB update failed
                 if os.path.exists(filepath):
                     os.remove(filepath)
                 return jsonify({'status': 'error', 'message': 'Failed to update database after saving file'}), 500
-
+                
         except Exception as e:
             print(f"Error saving uploaded PDF for paper {paper_id}: {e}")
             # Attempt to remove the file if saving failed partway
@@ -1627,99 +1063,84 @@ def serve_pdf(paper_id):
     based on the paper_id. Also updates the pdf_state in the database
     based on the actual existence of the annotated files.
     """
-    conn = get_db_connection()
-    paper = conn.execute("SELECT pdf_filename, pdf_state FROM papers WHERE id = ?", (paper_id,)).fetchone()
-    
+    # 1. Fetch (DB Phase)
+    with db.get_db() as conn:
+        paper = conn.execute("SELECT pdf_filename, pdf_state FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        
     if not paper or not paper['pdf_filename']:
-        conn.close()
         print(f"No PDF filename found in DB for paper_id: {paper_id}")
         abort(404)
-
+        
     filename = paper['pdf_filename']
     current_db_state = paper['pdf_state']
-    
-    # Check for annotated and original files
+
+    # 2. Disk I/O (No DB connection open!)
     annotated_path = os.path.join(globals.ANNOTATED_PDF_STORAGE_DIR, filename)
     original_path = os.path.join(globals.PDF_STORAGE_DIR, filename)
     new_state = None
     file_to_serve = None
-
+    
     if os.path.exists(annotated_path):
-        # print(f"Found annotated file: {filename}")
         new_state = 'annotated'
         file_to_serve = annotated_path
     elif os.path.exists(original_path):
-        # print(f"Found original file: {filename}")
-        new_state = 'PDF' # Reset to 'PDF' if annotated file is missing but original exists
+        new_state = 'PDF' 
         file_to_serve = original_path
     else:
         print(f"No PDF file found for paper_id: {paper_id} (filename: {filename})")
         new_state = 'none'
-        update_query = "UPDATE papers SET pdf_state = ? WHERE id = ?"
-        conn.execute(update_query, (new_state, paper_id))
-        conn.commit()
-        conn.close()
+        with db.get_db() as conn:
+            conn.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", (new_state, paper_id))
         abort(404)
 
+    # 3. Save State (DB Phase)
     if current_db_state != new_state:
         print(f"Updating pdf_state for {paper_id} from '{current_db_state}' to '{new_state}'")
-        update_query = "UPDATE papers SET pdf_state = ? WHERE id = ?"
-        conn.execute(update_query, (new_state, paper_id))
-        conn.commit()
+        with db.get_db() as conn:
+            conn.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", (new_state, paper_id))
     else:
         print(f"pdf_state for {paper_id} is already correct ('{new_state}')")
 
-    conn.close()
-
-    # Use os.path.basename to get just the filename from the full path for send_from_directory
     return send_from_directory(os.path.dirname(file_to_serve), os.path.basename(file_to_serve), as_attachment=False)
 
 @app.route('/upload_annotated_pdf/<paper_id>', methods=['POST'])
 def upload_annotated_pdf(paper_id):
-    """
-    API call for annotator autosaving feature:
-    Receives an annotated PDF file associated with a paper_id,
-    saves it to the annotated storage directory, and updates the pdf_state.
-    """
-    if 'pdf_file' not in request.files:
+    """Handles annotated PDF file upload and updates pdf_state to 'annotated'."""
+    if 'annotated_pdf_file' not in request.files:
         return jsonify({'status': 'error', 'message': 'No file part in request'}), 400
-
-    file = request.files['pdf_file']
-    if file.filename == '' or not file.filename.lower().endswith('.pdf'):
-        return jsonify({'status': 'error', 'message': 'Invalid or missing file'}), 400
-
-    # Look up filename from paper_id to save it correctly.
-    conn = get_db_connection()
-    paper = conn.execute("SELECT pdf_filename FROM papers WHERE id = ?", (paper_id,)).fetchone()
-    conn.close()
-
-    if not paper or not paper['pdf_filename']:
-        return jsonify({'status': 'error', 'message': f'Paper ID {paper_id} not found in DB'}), 404
-    
-    # Use the filename from the DB. Sanitize for security.
-    filename = secure_filename(paper['pdf_filename'])
-    filepath = os.path.join(globals.ANNOTATED_PDF_STORAGE_DIR, filename) # [2]
-
-    try:
-        file.save(filepath)
-        # Direct DB update
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", ('annotated', paper_id))
-        conn.commit()
-        conn.close()
-        result = {'status': 'success'}
-        if result.get('status') != 'success':
-             # If DB update fails, you might want to remove the saved file to avoid inconsistency.
+        
+    file = request.files['annotated_pdf_file']
+    if file.filename == '':
+        return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+        
+    if file and file.filename.lower().endswith('.pdf'):
+        unique_filename = f"{paper_id}.pdf"
+        filepath = os.path.join(globals.ANNOTATED_PDF_STORAGE_DIR, unique_filename)
+        
+        try:
+            file.save(filepath)
+            
+            # Centralized DB update
+            with db.get_db() as conn:
+                conn.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", ('annotated', paper_id))
+                
+            # Fetch refreshed data for the frontend
+            updated_data = db.fetch_updated_paper_data(paper_id)
+            if updated_data['status'] == 'success':
+                updated_data['pdf_filename'] = unique_filename
+                updated_data['pdf_state'] = 'annotated'
+                return jsonify(updated_data)
+            else:
+                return jsonify({'status': 'error', 'message': 'DB updated but failed to fetch refreshed data'}), 500
+                
+        except Exception as e:
+            print(f"Error saving annotated PDF for {paper_id}: {e}")
             if os.path.exists(filepath):
-                os.remove(filepath)
-            return jsonify({'status': 'error', 'message': 'Failed to update paper state in DB'}), 500
-
-        # print(f"Saved annotated PDF for paper {paper_id} as {filename}")
-        return jsonify({'status': 'success', 'message': f'File {filename} updated successfully.'})
-    except Exception as e:
-        print(f"Error saving annotated PDF for paper {paper_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to save file on server.'}), 500
+                try: os.remove(filepath)
+                except OSError: pass
+            return jsonify({'status': 'error', 'message': 'Failed to save annotated file'}), 500
+    else:
+        return jsonify({'status': 'error', 'message': 'Invalid file type. Only PDFs accepted.'}), 400
 
 # Export routes
 @app.route('/static_export', methods=['GET'])
@@ -1740,7 +1161,7 @@ def static_export():
     )
 
     # --- Fetch papers based on these filters ---
-    papers = fetch_papers(
+    papers = db.fetch_papers(
         hide_offtopic=hide_offtopic,
         year_from=year_from_value,
         year_to=year_to_value,
@@ -1788,7 +1209,7 @@ def export_excel():
     )
 
     # --- Fetch papers based on these filters ---
-    papers = fetch_papers(
+    papers = db.fetch_papers(
         hide_offtopic=hide_offtopic,
         year_from=year_from_value,
         year_to=year_to_value,
@@ -1811,29 +1232,17 @@ def export_excel():
 # Table generation routes
 @app.route('/get_detail_row', methods=['GET'])
 def get_detail_row():
-    """Endpoint to fetch and render the detail row content for a specific paper."""
     paper_id = request.args.get('paper_id')
     if not paper_id:
         return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
-
     try:
-        conn = get_db_connection()
-        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        conn.close()
-
-        if paper:
-            # Process the paper data like in fetch_papers for consistency
-            paper_dict = dict(paper)
-            try:
-                paper_dict['features'] = json.loads(paper_dict['features'])
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['features'] = {}
-            try:
-                paper_dict['technique'] = json.loads(paper_dict['technique'])
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['technique'] = {}
+        paper_dict = db.get_paper_by_id(paper_id)
+        if paper_dict:
+            try: paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
+            except: paper_dict['features'] = {}
+            try: paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
+            except: paper_dict['technique'] = {}
             
-            # Render the detail row template fragment for this specific paper
             detail_html = render_template('detail_row.html', paper=paper_dict)
             return jsonify({'status': 'success', 'html': detail_html})
         else:
@@ -1842,7 +1251,7 @@ def get_detail_row():
         print(f"Error fetching detail row for paper {paper_id}: {e}")
         return jsonify({'status': 'error', 'message': 'Failed to fetch detail row'}), 500
 
-app.jinja_env.filters['format_changed_timestamp'] = format_changed_timestamp
+app.jinja_env.filters['format_changed_timestamp'] = db.format_changed_timestamp
 
 
 @app.route('/get_history_row', methods=['GET'])
@@ -1851,32 +1260,29 @@ def get_history_row():
     paper_id = request.args.get('paper_id')
     if not paper_id:
         return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
-    
-    try:
-        conn = get_db_connection()
-        paper = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
-        conn.close()
         
+    try:
+        paper = db.get_paper_by_id(paper_id)
+            
         if paper:
             paper_dict = dict(paper)
-            
             # Parse main JSON fields
             try:
                 paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
             except (json.JSONDecodeError, TypeError):
                 paper_dict['features'] = {}
-            
+                
             try:
                 paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
             except (json.JSONDecodeError, TypeError):
                 paper_dict['technique'] = {}
-            
+                
             # Parse main_certainty
             try:
                 paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
             except (json.JSONDecodeError, TypeError):
                 paper_dict['main_certainty'] = {}
-            
+                
             # Prepare ALL 4 logs using the SAME function
             paper_dict['llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=None)
             paper_dict['set_1_llm_log_entries'] = prepare_history_log_data(paper_dict, set_num=1)
@@ -1888,9 +1294,10 @@ def get_history_row():
             return jsonify({'status': 'success', 'html': history_html})
         else:
             return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+            
     except Exception as e:
         print(f"Error fetching history row for paper {paper_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 50
+        return jsonify({'status': 'error', 'message': 'Failed to fetch history row'}), 500
     
 
 @app.route('/load_table', methods=['GET'])
@@ -1922,7 +1329,7 @@ def update_paper():
 
     try:
         # Use 'user' as the identifier for changes made via this interface
-        result = update_paper_custom_fields(paper_id, data, changed_by="user")
+        result = db.update_paper_custom_fields(paper_id, data, changed_by="user")
         # The result dict already contains status and other data
         return jsonify(result)
     except Exception as e:
@@ -1954,7 +1361,7 @@ def classify_paper():
             result = response.json()
             if mode == 'id':
                 # Single paper - fetch updated data and return
-                updated_data = fetch_updated_paper_data(paper_id)
+                updated_data = db.fetch_updated_paper_data(paper_id)
                 return jsonify(updated_data)
             else:
                 # Batch - return immediately
@@ -1982,7 +1389,7 @@ def verify_paper():
         if response.status_code == 200:
             result = response.json()
             if mode == 'id':
-                updated_data = fetch_updated_paper_data(paper_id)
+                updated_data = db.fetch_updated_paper_data(paper_id)
                 return jsonify(updated_data)
             else:
                 return jsonify({'status': 'started', 'message': f'Batch verification ({mode}) initiated.'})
@@ -2101,7 +1508,15 @@ if __name__ == '__main__':
         print(f"Error: Final database file not found: {DATABASE} \nPlease provide a valid database file via command line argument, set globals.DATABASE_FILE correctly, or ensure 'fallback.sqlite' exists in the script's directory.")
         sys.exit(1) # Exit if even the fallback doesn't exist
 
+    db.init_db(DATABASE)
     print(f"Starting server, database: {DATABASE}")
+    
+    # Add Flask Teardown to cleanly close thread-local connections
+    @app.teardown_appcontext
+    def teardown_db(exception):
+        if hasattr(db._local, 'conn') and db._local.conn is not None:
+            db._local.conn.close()
+            db._local.conn = None
 
     # --- Open browser only once ---
     # The standard Flask/Werkzeug reloader runs the script twice:
@@ -2112,7 +1527,7 @@ if __name__ == '__main__':
         # Function to open the browser after a delay
         def open_browser():
             import time
-            time.sleep(2)  # Wait for the server to start
+            time.sleep(1)  # Wait for the server to start
             webbrowser.open("http://127.0.0.1:5000")
 
         # Start the browser opener in a separate thread
