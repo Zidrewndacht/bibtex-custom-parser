@@ -4,13 +4,13 @@ Queue Manager - Flask HTTP server for LLM classification/verification.
 Single dispatcher thread, callback-driven state machines, no blocking.
 """
 
-import sqlite3
 import json
 import threading
 import signal
 from datetime import datetime, timezone
 from collections import deque
 import os 
+import sys
 import globals
 import time
 from flask import Flask, request, jsonify
@@ -18,6 +18,7 @@ import db
 
 from colorama import init, Fore, Style
 init(autoreset=True)
+
 # ============================================================================
 # FILE LOGGING (Append-only JSON lines, separate files by category)
 # ============================================================================
@@ -958,7 +959,8 @@ def bad_request(e):
 def signal_handler(sig, frame):
     _log_to_file('dispatcher.log', event='shutdown', signal=sig)
     print("\n[SHUTDOWN] Received shutdown signal...")
-    os._exit(1)  # no bullshit.
+    # os._exit(1)  # no bullshit.
+    sys.exit(1)
 
 def run_flask_server():
     """Run Flask server with threading enabled."""

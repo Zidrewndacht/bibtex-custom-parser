@@ -309,16 +309,28 @@
                     {% endif %}
                 </td>
                 <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
-                    {{ data.estimated_score|default('') }}
+                    {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
                 </td>
-                <td class="status-cell">🖥️</td>
+                <td class="status-cell">
+                    <!-- Only show computer if it was actually verified, otherwise show unknown -->
+                    {% if data.verified is not none %}🖥️{% else %}❔{% endif %}
+                </td>
+            {% elif entry.type == 'user' %}
+                <!-- For user entries, use the verified/verified_by saved in the output -->
+                <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
+                    <span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>
+                </td>
+                <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                    {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
+                </td>
+                <td class="status-cell">{{ data.verified_by|default('')|render_verified_by }}</td>
             {% elif entry.verification_data %}
                 <!-- For classifier/consensus with verifier, use verification_data (no certainty - single run) -->
                 <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
                     {{ entry.verification_data.verified|render_status }}
                 </td>
                 <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
-                    {{ entry.verification_data.estimated_score|default('') }}
+                    {% if entry.verification_data.estimated_score is not none %}{{ entry.verification_data.estimated_score }}{% endif %}
                 </td>
                 <td class="status-cell">{{ entry.verification_data.verifier_model|render_verified_by }}</td>
             {% else %}

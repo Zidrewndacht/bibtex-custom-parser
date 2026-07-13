@@ -1511,13 +1511,6 @@ if __name__ == '__main__':
     db.init_db(DATABASE)
     print(f"Starting server, database: {DATABASE}")
     
-    # Add Flask Teardown to cleanly close thread-local connections
-    @app.teardown_appcontext
-    def teardown_db(exception):
-        if hasattr(db._local, 'conn') and db._local.conn is not None:
-            db._local.conn.close()
-            db._local.conn = None
-
     # --- Open browser only once ---
     # The standard Flask/Werkzeug reloader runs the script twice:
     # 1. Once in the parent process (to manage the reloader)

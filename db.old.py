@@ -147,17 +147,9 @@ def calculate_field_certainty(values):
 def update_paper_custom_fields(paper_id, data, changed_by="user"):
     """
     Update the custom classification fields for a paper.
-    User changes only affect main columns, not set_* columns.
-    Updates certainty_map for all changed fields to 'solid'.
-    Handles verified_by field updates.
-    Verification Reset Rules:
-    - If user explicitly sets verified/verified_by, those values stick
-    - If user changes non-verification fields on LLM-verified paper, verification resets
-    - If user changes non-verification fields on user-verified paper, verification stays
     """
     import globals  # Local import to prevent circular dependencies
     
-    # These need to persist after the with block closes
     certainty_map = {}
     rows_affected = 0
     
@@ -193,7 +185,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
          current_user_trace, current_certainty_str, current_verified_by,
          current_pdf_filename, current_pdf_state) = row
          
-        # === Save original verified_by BEFORE any processing ===
         original_verified_by = current_verified_by
         
         try: existing_log = json.loads(current_llm_log_str) if current_llm_log_str else []
@@ -211,7 +202,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         user_set_verified = 'verified' in data
         user_set_verified_by = 'verified_by' in data
         
-        # Feature Updates
         feature_updates = {}
         for key in list(data.keys()):
             if key.startswith('features_'):
@@ -230,7 +220,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(json.dumps(current_features))
             for fk in feature_updates.keys(): certainty_map[f'features_{fk}'] = 'solid'
             
-        # Technique Updates
         technique_updates = {}
         for key in list(data.keys()):
             if key.startswith('technique_'):
@@ -249,7 +238,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(json.dumps(current_technique))
             for tk in technique_updates.keys(): certainty_map[f'technique_{tk}'] = 'solid'
             
-        # Main Boolean Fields
         main_bool_fields = ['is_survey', 'is_offtopic', 'is_through_hole', 'is_smt', 'is_x_ray']
         for field in main_bool_fields:
             if field in data:
@@ -269,7 +257,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 elif field == 'is_x_ray': current_is_x_ray = db_val
                 data.pop(field)
                 
-        # Other scalar fields (restoring old order: field first, then value)
         if 'research_area' in data:
             update_fields.append("research_area = ?")
             update_values.append(data['research_area'])
@@ -298,8 +285,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             current_user_trace = data['user_trace']
             data.pop('user_trace')
 
-            # === Automated paywall detection (Bidirectional) ===
-            # RESTORED: Only runs when user_trace was explicitly changed
             is_paywalled_present = 'paywalled' in str(current_user_trace).lower()
             has_pdf = bool(current_pdf_filename)
 
@@ -312,7 +297,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                     update_fields.append("pdf_state = ?")
                     update_values.append("none")
                 
-        # Verification explicit overrides
         if 'verified' in data:
             val = data['verified']
             if isinstance(val, str):
@@ -343,7 +327,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             current_estimated_score = db_val
             data.pop('estimated_score')
             
-        # Verification Reset Logic (AFTER all field processing)
         if changed_by == "user" and not user_set_verified and not user_set_verified_by:
             was_llm_verified = (original_verified_by and
                               original_verified_by.strip() != '' and
@@ -359,7 +342,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 current_estimated_score = None
                 current_verified_by = ""
                 
-        # User Override Count Calculation
         def normalize_bool(val):
             if val is None or val == '' or val == 'null': return None
             if val is True or val == 1 or val == '1' or val == 'true': return 1
@@ -388,7 +370,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         update_fields.append("main_certainty = ?")
         update_values.append(json.dumps(certainty_map))
         
-        # Log Building
         def db_to_bool(val):
             if val == 1: return True
             elif val == 0: return False
@@ -408,7 +389,6 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             "estimated_score": current_estimated_score
         }
         
-        # === If verification was reset, update user_log_output to reflect it ===
         if changed_by == "user" and not user_set_verified and not user_set_verified_by:
             was_llm_verified = (original_verified_by and
                               original_verified_by.strip() != '' and
@@ -442,25 +422,9 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         if update_fields:
             update_values.append(paper_id)
             cursor.execute(f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?", update_values)
-            # ================================================================
-            # CRITICAL FIX: Commit BEFORE reading back.
-            #
-            # The OLD version called conn.commit() then conn.close() before
-            # calling get_paper_by_id(). The NEW version's get_db() context
-            # manager only commits when the with-block exits, which is AFTER
-            # get_paper_by_id() opens a separate connection and reads stale
-            # (uncommitted) data. This caused:
-            #   1. Verified cell updates appearing to fail (UI reverts)
-            #   2. History entries not updating in the response
-            #   3. If get_paper_by_id raises, the except block ROLLS BACK
-            #      the entire transaction, truly losing the user's changes
-            # ================================================================
             conn.commit()
             rows_affected = cursor.rowcount
 
-    # === OUTSIDE the with block: connection is committed and closed ===
-    # get_paper_by_id() now opens a fresh connection that sees committed data.
-    
     if rows_affected > 0:
         updated_paper = get_paper_by_id(paper_id)
         if updated_paper:
