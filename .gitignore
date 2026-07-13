@@ -14,11 +14,6 @@ logs/
 meta/charts/
 meta/csv/
 
-# 6. Databases (Inferred from your tools/v1.2_db_fixes and v12_db_fixes folders)
-*.db
-*.sqlite
-*.sqlite3
-
 # 7. Raw Imports (Optional: uncomment if you don't want to track downloaded IEEE bibtex files)
 bibtex-imports/
 
