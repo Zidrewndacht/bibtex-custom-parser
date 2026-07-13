@@ -24,7 +24,6 @@ if not exist ".venv" (
 )
 
 REM Activate the virtual environment and run the script
-echo Activating virtual environment and running browse_db.py...
 call .\.venv\Scripts\activate.bat
 .\.venv\Scripts\python queue_manager.py
 

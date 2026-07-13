@@ -1,0 +1,313 @@
+<!-- templates/papers_table.html -->
+<!-- Replace the status cell rendering section with this -->
+<tr>
+    <td style="padding:0;" colspan="44">
+        <div class="loading-overlay">
+            <div class="header-branding"><span>Research</span><span
+                    style="font-weight: 600; color: var(--primary-ui-color);">Parça</span></div>
+            <div class="loading-spinner"></div>
+            <div>Reprocessing table. Wait patiently. </div>
+        </div>
+    </td>
+    <td style="display:none" colspan="5"></td>
+</tr>
+{% for paper in papers %}
+<tr data-paper-id="{{ paper.id }}" >
+    <td class="status-cell pdf-status emoji-column">
+        <!-- PDF cell remains unchanged -->
+        {% if paper.pdf_filename %}
+        <a href="{{ url_for('static', filename='pdfjs/web/viewer.html') }}?file={{ url_for('files.serve_pdf', paper_id=paper.id) | urlencode }}" target="_blank" class="pdf-link"
+            title="{% if paper.pdf_state == 'annotated' %}Open this annotated PDF in the Annotator{% else %}Open this PDF in the Annotator{% endif %}">
+        {{ pdf_emojis.get(paper.pdf_state) }}
+        </a>
+        {% else %}
+        <a href="#" class="pdf-upload-link" data-paper-id="{{ paper.id }}"
+        title="{% if paper.pdf_state == 'paywalled' %}Article is paywalled. Click to upload if a copy is available{% else %}No PDF stored yet. Click to upload PDF for this article{% endif %}">
+        {{ pdf_emojis.get(paper.pdf_state) }}
+        </a>
+        {% endif %}
+    </td>
+    
+    <!-- Title and other non-status cells remain unchanged -->
+    <td class="title-cell">
+        {% if paper.doi %}
+        <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>
+        {% else %}
+        <span style="font-weight: 300;">{{paper.title}}</span>
+        {% endif %}
+    </td>
+    <td class="secondary-text-cell number-cell">{{ paper.year or '' }}</td>
+    <td class="secondary-text-cell number-cell">{{ paper.page_count or '' }}</td>
+    <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>
+    <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
+    
+    <!-- Status cells with certainty handling -->
+    {% set certainty = paper.main_certainty if paper.main_certainty else {} %}
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('is_offtopic', 'solid') }}" data-field="is_offtopic">
+        {% if certainty.get('is_offtopic') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.is_offtopic | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="secondary-text-cell number-cell">{{ (paper.relevance|round(1)|string).rstrip('0').rstrip('.') if paper.relevance else '' }}</td>    
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('is_survey', 'solid') }}" data-field="is_survey">
+        {% if certainty.get('is_survey') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.is_survey | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('is_through_hole', 'solid') }}" data-field="is_through_hole">
+        {% if certainty.get('is_through_hole') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.is_through_hole | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('is_smt', 'solid') }}" data-field="is_smt">
+        {% if certainty.get('is_smt') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.is_smt | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('is_x_ray', 'solid') }}" data-field="is_x_ray">
+        {% if certainty.get('is_x_ray') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.is_x_ray | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <!-- Features with certainty -->
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_tracks', 'solid') }}" data-field="features_tracks">
+        {% if certainty.get('features_tracks') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.tracks | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_holes', 'solid') }}" data-field="features_holes">
+        {% if certainty.get('features_holes') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.holes | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_bare_pcb_other', 'solid') }}" data-field="features_bare_pcb_other">
+        {% if certainty.get('features_bare_pcb_other') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.bare_pcb_other | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('features_solder_insufficient', 'solid') }}" data-field="features_solder_insufficient">
+        {% if certainty.get('features_solder_insufficient') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.solder_insufficient | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('features_solder_excess', 'solid') }}" data-field="features_solder_excess">
+        {% if certainty.get('features_solder_excess') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.solder_excess | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('features_solder_void', 'solid') }}" data-field="features_solder_void">
+        {% if certainty.get('features_solder_void') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.solder_void | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('features_solder_crack', 'solid') }}" data-field="features_solder_crack">
+        {% if certainty.get('features_solder_crack') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.solder_crack | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('features_solder_other', 'solid') }}" data-field="features_solder_other">
+        {% if certainty.get('features_solder_other') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.solder_other | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_missing_component', 'solid') }}" data-field="features_missing_component">
+        {% if certainty.get('features_missing_component') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.missing_component | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_wrong_component', 'solid') }}" data-field="features_wrong_component">
+        {% if certainty.get('features_wrong_component') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.wrong_component | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_orientation', 'solid') }}" data-field="features_orientation">
+        {% if certainty.get('features_orientation') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.orientation | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_component_other', 'solid') }}" data-field="features_component_other">
+        {% if certainty.get('features_component_other') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.component_other | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('features_cosmetic', 'solid') }}" data-field="features_cosmetic">
+        {% if certainty.get('features_cosmetic') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.features.cosmetic | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell highlight-status certainty-{{ certainty.get('features_other_state', 'solid') }}" data-field="features_other_state">
+        {% if certainty.get('features_other_state') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ '✔️' if paper.features.other and (paper.features.other|string).strip() else '❌' }}</span>
+        {% endif %}
+    </td>
+    
+    <!-- Techniques with certainty -->
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_classic_cv_based', 'solid') }}" data-field="technique_classic_cv_based">
+        {% if certainty.get('technique_classic_cv_based') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.classic_cv_based | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_ml_traditional', 'solid') }}" data-field="technique_ml_traditional">
+        {% if certainty.get('technique_ml_traditional') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.ml_traditional | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_dl_cnn_classifier', 'solid') }}" data-field="technique_dl_cnn_classifier">
+        {% if certainty.get('technique_dl_cnn_classifier') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.dl_cnn_classifier | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_dl_cnn_detector', 'solid') }}" data-field="technique_dl_cnn_detector">
+        {% if certainty.get('technique_dl_cnn_detector') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.dl_cnn_detector | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_dl_rcnn_detector', 'solid') }}" data-field="technique_dl_rcnn_detector">
+        {% if certainty.get('technique_dl_rcnn_detector') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.dl_rcnn_detector | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_dl_transformer', 'solid') }}" data-field="technique_dl_transformer">
+        {% if certainty.get('technique_dl_transformer') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.dl_transformer | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_dl_other', 'solid') }}" data-field="technique_dl_other">
+        {% if certainty.get('technique_dl_other') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.dl_other | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status certainty-{{ certainty.get('technique_hybrid', 'solid') }}" data-field="technique_hybrid">
+        {% if certainty.get('technique_hybrid') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.hybrid | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <td class="status-cell editable-status highlight-status certainty-{{ certainty.get('technique_available_dataset', 'solid') }}" data-field="technique_available_dataset">
+        {% if certainty.get('technique_available_dataset') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.technique.available_dataset | render_status }}</span>
+        {% endif %}
+    </td>
+    
+    <!-- Remaining cells unchanged -->
+    <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td>
+    <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>
+    <td class="status-cell editable-status certainty-{{ certainty.get('verified', 'solid') }}" data-field="verified">
+        {% if certainty.get('verified') == 'conflict' %}
+            <span class="conflict-warning">⚠️</span>
+        {% else %}
+            <span class="emoji-content">{{ paper.verified | render_status }}</span>
+        {% endif %}
+    </td>
+    <td class="secondary-text-cell number-cell" data-field="verified">{{ paper.estimated_score  or '' }}</td>
+    <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>
+    <td class="secondary-text-cell number-cell" data-field="user_override_count">{{ paper.user_override_count or '0' }}</td>
+    <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td>
+    <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+    <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+    
+    <!-- Hidden data cells -->
+    <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
+    <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
+    <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
+    <td class="hidden-data-cell" data-field="research_area" style="display: none;">{{ paper.research_area or '' }}</td>
+    <td class="hidden-data-cell" data-field="model_name" style="display: none;">{{ paper.technique.model or '' }}</td>
+    <td class="hidden-data-cell" data-field="features_other" style="display: none;">{{ paper.features.other or '' }}</td>
+    <td class="hidden-data-cell" data-field="user_trace" style="display: none;">{{ paper.user_trace or '' }}</td>
+</tr>
+
+<!-- Detail Row Placeholder (unchanged) -->
+<tr class="detail-row">
+    <td colspan="44" class="detail-content-placeholder"></td>
+    <td style="display:none" colspan="5"></td>
+</tr>
+
+<!-- History Row Placeholder (unchanged - content loaded via XHR) -->
+<tr class="history-row">
+    <td colspan="44" class="detail-content-placeholder"></td>
+    <td style="display:none" colspan="5"></td>
+</tr>
+{% endfor %}
