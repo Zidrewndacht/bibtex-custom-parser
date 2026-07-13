@@ -1,0 +1,25 @@
+# 1. Virtual Environment
+.venv/
+
+# 2. Python Cache (Present in almost all your app folders: shared, tools, web)
+__pycache__/
+
+# 3. Heavy/Binary Data (PDFs and Annotations)
+data/
+
+# 4. Runtime Logs
+logs/
+
+# 5. Generated Outputs (Charts and CSV exports)
+meta/charts/
+meta/csv/
+
+# 6. Databases (Inferred from your tools/v1.2_db_fixes and v12_db_fixes folders)
+*.db
+*.sqlite
+*.sqlite3
+
+# 7. Raw Imports (Optional: uncomment if you don't want to track downloaded IEEE bibtex files)
+bibtex-imports/
+
+obsolete/
