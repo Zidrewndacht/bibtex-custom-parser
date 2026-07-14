@@ -691,14 +691,24 @@ def generate_latex_tables(results: Dict, output_path: str):
             if cat_df.empty:
                 continue
             
-            cat_perfect = cat_df['perfect_pct'].mean()
-            cat_uncertain = cat_df['uncertain_pct'].mean()
-            cat_contra = cat_df['contradiction_pct'].mean()
+            # cat_perfect = cat_df['perfect_pct'].mean()
+            # cat_uncertain = cat_df['uncertain_pct'].mean()
+            # cat_contra = cat_df['contradiction_pct'].mean()
             
             cat_n_papers = len(cat_fields) * on_topic['n_papers']
-            cat_perfect_count = int(round(cat_perfect * cat_n_papers / 100))
-            cat_uncertain_count = int(round(cat_uncertain * cat_n_papers / 100))
-            cat_contra_count = int(round(cat_contra * cat_n_papers / 100))
+            # cat_perfect_count = int(round(cat_perfect * cat_n_papers / 100))
+            # cat_uncertain_count = int(round(cat_uncertain * cat_n_papers / 100))
+            # cat_contra_count = int(round(cat_contra * cat_n_papers / 100))
+
+            # REPLACE THE COUNT CALCULATIONS WITH:
+            cat_perfect_count = int(cat_df['perfect'].sum())
+            cat_uncertain_count = int(cat_df['uncertain'].sum())
+            cat_contra_count = int(cat_df['contradiction'].sum())
+
+            # Recalculate percentages from the exact sums:
+            cat_perfect = (cat_perfect_count / cat_n_papers * 100)
+            cat_uncertain = (cat_uncertain_count / cat_n_papers * 100)
+            cat_contra = (cat_contra_count / cat_n_papers * 100)
             
             most_contra = cat_df.loc[cat_df['contradiction_pct'].idxmax()]
             contra_field = escape_latex_underscores(most_contra['field'])
@@ -717,7 +727,10 @@ def generate_latex_tables(results: Dict, output_path: str):
             if idx < len(categories) - 1:
                 table5_rows.append("\\midrule")
         
-        caption_text = f"Agreement by Category (On-Topic Papers Only) -- Total classification decisions: {on_topic['n_observations']:,} ({on_topic['n_papers']:,} papers $\\times$ {on_topic['n_fields']:,} fields)."
+        # After building feature_fields:
+        rendered_field_count = len(main_fields) + len(technique_fields) + len(feature_fields)
+
+        caption_text = f"Agreement by Category (On-Topic Papers Only) -- Total classification decisions: {on_topic['n_observations']:,} ({on_topic['n_papers']:,} papers $\\times$ {rendered_field_count:,} fields)."        
         
         table5 = f"""
 \\begin{{table*}}[t]

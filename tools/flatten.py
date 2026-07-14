@@ -309,43 +309,63 @@ def flatten_files(file_list, output_file, max_file_size=MAX_FILE_SIZE):
 
 def main():
     # Predefined list of files to include in the flattened output
-    # You can modify this list to include your specific files
+    # Updated to reflect the new folder structure (modules, web/static, web/templates, etc.)
     FILE_LIST = [
-        "globals.py",
+        # Root files
         "browse_db.py",
-        "import_bibtex.py",
         "queue_manager.py",
-        "automate_classification.py",
-        "verify_classification.py",
-        "prompt_template.txt",
-        "verifier_template.txt",
-        "reclassify_template.txt",
-        "requirements.txt",
-        "static/comms.js",
-        "static/filtering.js",
-        "static/stats.js",
-        "static/ghpages.js",
-        "static/fonts.css",
-        "static/style.css",
-        "static/pdfjs/web/autosave.js",
-        "static/pdfjs/web/viewer.html",
-        "static/pdfjs/web/viewer_mods.css",
-        "static/pdfjs/LICENSE",
-        "templates/index.html",
-        "templates/papers_table.html",
-        "templates/papers_table_tfoot.html",
-        "templates/detail_row.html",
-        "templates/history_row.html",
-        "templates/stats_modal_content.html",
-        "templates/about_modal_content.html",
-        "templates/index_static_export.html",
-        "templates/papers_table_static_export.html",
-        "templates/loader.html",
-        "inference_engine_examples/llama-cpp.bat",
-        "inference_engine_examples/vLLM-WSL-docker.bat",
-        "inference_engine_examples/TabbyAPI.config.yml",
-        "TODO.txt",
-        "README.md"
+        "README.md",
+        
+        # Prompt templates
+        "prompt_templates/classify_template.txt",
+        "prompt_templates/reclassify_template.txt",
+        "prompt_templates/verify_template.txt",
+        
+        # Queue manager module
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
+        
+        # Shared module
+        "shared/__init__.py",
+        "shared/config.py",
+        "shared/db.py",
+        
+        # Web module
+        "web/__init__.py",
+        "web/export_logic.py",
+        "web/filters.py",
+        "web/importer.py",
+        "web/routes_data.py",
+        "web/routes_files.py",
+        "web/routes_ui.py",
+        
+        # Web static files
+        "web/static/comms.js",
+        "web/static/filtering.js",
+        "web/static/fonts.css",
+        "web/static/ghpages.js",
+        "web/static/stats.js",
+        "web/static/style.css",
+        
+        # Web static pdfjs files (kept as previously specified)
+        "web/static/pdfjs/web/autosave.js",
+        "web/static/pdfjs/web/viewer.html",
+        "web/static/pdfjs/web/viewer_mods.css",
+        
+        # Web templates
+        "web/templates/about_modal_content.html",
+        "web/templates/detail_row.html",
+        "web/templates/history_row.html",
+        "web/templates/index.html",
+        "web/templates/index_static_export.html",
+        "web/templates/loader.html",
+        "web/templates/papers_table.html",
+        "web/templates/papers_table_static_export.html",
+        "web/templates/papers_table_tfoot.html",
+        "web/templates/stats_modal_content.html",
     ]
     
     # Remove any non-existent files from the list

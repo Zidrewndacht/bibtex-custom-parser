@@ -18,3 +18,11 @@ meta/csv/
 bibtex-imports/
 
 obsolete/
+agreement_3run_results_tables.tex
+consensus_logic.png
+*.csv
+*.tex
+*.lnk
+
+flattened_code.txt
+.vscode
