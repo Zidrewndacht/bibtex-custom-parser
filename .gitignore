@@ -25,4 +25,4 @@ consensus_logic.png
 *.lnk
 
 flattened_code.txt
-.vscode
+# .vscode # not ignored to save VScode theme (quiet light teal-tinted)
