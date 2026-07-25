@@ -371,25 +371,12 @@ def import_bibtex(bib_file, db_path):
         
     schema_cols = [
         "id", "type", "title", "authors", "year", "month", "journal", "volume", "pages", "page_count",
-        "doi", "issn", "abstract", "keywords", "research_area", "is_offtopic", "relevance", "is_survey",
-        "is_through_hole", "is_smt", "is_x_ray", "features", "technique", "changed", "changed_by",
-        "verified", "estimated_score", "verified_by", "user_trace", "user_override_count", "pdf_filename",
-        "pdf_state", "deannualized_conference", "set_1_last_llm_features", "set_1_last_llm_technique",
-        "set_1_last_llm_is_offtopic", "set_1_last_llm_is_survey", "set_1_last_llm_is_through_hole",
-        "set_1_last_llm_is_smt", "set_1_last_llm_is_x_ray", "set_1_last_llm_relevance",
-        "set_1_last_llm_verified", "set_1_last_llm_estimated_score", "set_1_llm_log",
-        "set_2_last_llm_features", "set_2_last_llm_technique", "set_2_last_llm_is_offtopic",
-        "set_2_last_llm_is_survey", "set_2_last_llm_is_through_hole", "set_2_last_llm_is_smt",
-        "set_2_last_llm_is_x_ray", "set_2_last_llm_relevance", "set_2_last_llm_verified",
-        "set_2_last_llm_estimated_score", "set_2_llm_log", "set_3_last_llm_features",
-        "set_3_last_llm_technique", "set_3_last_llm_is_offtopic", "set_3_last_llm_is_survey",
-        "set_3_last_llm_is_through_hole", "set_3_last_llm_is_smt", "set_3_last_llm_is_x_ray",
-        "set_3_last_llm_relevance", "set_3_last_llm_verified", "set_3_last_llm_estimated_score",
-        "set_3_llm_log", "main_certainty", "last_llm_features", "last_llm_technique",
-        "last_llm_is_offtopic", "last_llm_is_survey", "last_llm_is_through_hole", "last_llm_is_smt",
-        "last_llm_is_x_ray", "last_llm_relevance", "last_llm_verified", "last_llm_estimated_score",
-        "llm_log", "set_1_last_llm_verified_by", "set_2_last_llm_verified_by", "set_3_last_llm_verified_by"
+        "doi", "issn", "abstract", "keywords", "deannualized_conference",
+        "user_trace", "changed", "changed_by", "verified", "verified_by", "estimated_score",
+        "user_override_count", "pdf_filename", "pdf_state", "main_certainty", "classification",
+        "set_1_llm", "set_2_llm", "set_3_llm", "set_1_llm_log", "set_2_llm_log", "set_3_llm_log", "llm_log"
     ]
+    
     total_entries = len(bib_db.entries)
     processed_count = 0
     duplicate_count = 0
@@ -398,7 +385,7 @@ def import_bibtex(bib_file, db_path):
         # Initialize all schema columns to None
         data = {col: None for col in schema_cols}
         
-        # Set required defaults expected by the v1.2 application logic
+        # Set required defaults expected by the application logic
         data['user_override_count'] = 0
         data['pdf_state'] = 'none'
         data['set_1_llm_log'] = '[]'
@@ -406,8 +393,7 @@ def import_bibtex(bib_file, db_path):
         data['set_3_llm_log'] = '[]'
         data['llm_log'] = '[]'
         data['main_certainty'] = '{}'
-        data['features'] = json.dumps(config.DEFAULT_FEATURES)
-        data['technique'] = json.dumps(config.DEFAULT_TECHNIQUE)
+        data['classification'] = '{}'
 
         title_raw = entry.get('title', '')
         cleaned_title = clean_latex_commands(title_raw)

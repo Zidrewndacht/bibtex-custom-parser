@@ -1,0 +1,138 @@
+domain_name: "PCB AOI"
+
+# Domain-specific editable text fields for the detail row.
+# Universal fields (Page Count, Relevance, User Comments) are hardcoded in the UI.
+editable_fields:
+  - label: "Research Area"
+    json_path: "research_area"
+  - label: "Model Name"
+    json_path: "technique.model"
+  - label: "Other Defects"
+    json_path: "features.other"
+
+groups:
+  # --- Single-field Tri-State Filters ---
+  - name: "survey"
+    friendly_name: "Survey"
+    filter_type: tri_state
+    json_path: "is_survey"
+    header_class: "inferred-header"
+
+  - name: "tht"
+    friendly_name: "THT"
+    filter_type: tri_state
+    json_path: "is_through_hole"
+    header_class: "inferred-header"
+
+  - name: "smt"
+    friendly_name: "SMT"
+    filter_type: tri_state
+    json_path: "is_smt"
+    header_class: "inferred-header"
+
+  - name: "xray"
+    friendly_name: "X-Ray"
+    filter_type: tri_state
+    json_path: "is_x_ray"
+    header_class: "inferred-header"
+
+  # --- Multi-field Inclusion Groups (Features) ---
+  - name: "pcb"
+    friendly_name: "PCB"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    keys:
+      - key: "tracks"
+        label: "Tracks"
+        highlight: true
+      - key: "holes"
+        label: "Holes / Vias"
+        highlight: true
+      - key: "bare_pcb_other"
+        label: "(Bare) PCB Other"
+        highlight: true
+
+  - name: "solder"
+    friendly_name: "Solder"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    keys:
+      - key: "solder_insufficient"
+        label: "Insufficient"
+      - key: "solder_excess"
+        label: "Excessive"
+      - key: "solder_void"
+        label: "Void / Hole"
+      - key: "solder_crack"
+        label: "Crack / Cold"
+      - key: "solder_other"
+        label: "Solder (Other)"
+
+  - name: "pcba"
+    friendly_name: "PCBA"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    keys:
+      - key: "missing_component"
+        label: "Missing Comp"
+        highlight: true
+      - key: "wrong_component"
+        label: "Wrong Comp"
+        highlight: true
+      - key: "orientation"
+        label: "Orientation"
+        highlight: true
+      - key: "component_other"
+        label: "Comp (Other)"
+        highlight: true
+      - key: "cosmetic"
+        label: "Cosmetic"
+        highlight: true
+
+  - name: "other_features"
+    friendly_name: "Other"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    keys:
+      - key: "other"
+        label: "Other"
+        render_type: text_presence
+        highlight: true
+
+  # --- Visual-Only Group (Techniques) ---
+  - name: "techniques"
+    friendly_name: "Techniques"
+    filter_type: none
+    json_path: "technique"
+    header_class: "inferred-header-3"
+    keys:
+      - key: "classic_cv_based"
+        label: "Classic CV"
+      - key: "ml_traditional"
+        label: "Traditional ML"
+      - key: "dl_cnn_classifier"
+        label: "CNN Classifier"
+      - key: "dl_cnn_detector"
+        label: "CNN Detector"
+      - key: "dl_rcnn_detector"
+        label: "R-CNN Detector"
+      - key: "dl_transformer"
+        label: "Transformer"
+      - key: "dl_other"
+        label: "Other DL"
+      - key: "hybrid"
+        label: "Hybrid"
+      - key: "available_dataset"
+        label: "Datasets"
+        highlight: true
+
+  # --- Tri-State Filter for Techniques ---
+  - name: "dataset"
+    friendly_name: "" # Empty hides the text label, just shows checkbox
+    filter_type: tri_state
+    json_path: "technique.available_dataset"
+    header_class: "inferred-header-3"

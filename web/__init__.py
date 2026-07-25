@@ -15,6 +15,7 @@ def create_web_app(db_path):
     app.jinja_env.filters['render_verified_by'] = filters.render_verified_by_filter
     app.jinja_env.filters['render_changed_by'] = filters.render_changed_by_filter
     app.jinja_env.filters['bibtex'] = filters.bibtex_filter
+    app.jinja_env.filters['get_json_path'] = filters.get_json_path_filter
     
     # Import db here to register the format_changed_timestamp filter
     from shared import db

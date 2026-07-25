@@ -20,13 +20,6 @@ def main():
     db_path = os.path.abspath(args.db)
     config.DATABASE_FILE = db_path
 
-    if not os.path.exists(db_path):
-        fallback = os.path.join(os.path.dirname(db_path), 'fallback.sqlite')
-        if os.path.exists(fallback):
-            import shutil
-            print(f"[Init] Database not found. Copying fallback to {db_path}")
-            shutil.copy2(fallback, db_path)
-
     def signal_handler(sig, frame):
         _log_to_file('dispatcher.log', event='shutdown', signal=sig)
         print("\n[SHUTDOWN] Received shutdown signal...")

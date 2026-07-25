@@ -287,8 +287,10 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
         min_page_count_value=str(min_page_count_value),
         is_lite_export=is_lite_export,
     )
+    domain_config = config.load_domain_config() # However you parse the YAML
+
     full_html_content = render_template(
-        'index_static_export.html',
+        'index_static_export.html', domain_config=domain_config, 
         papers_table_static_export=papers_table_static_export,
         hide_offtopic=hide_offtopic,
         year_from_value=year_from_value,

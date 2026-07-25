@@ -49,6 +49,18 @@ os.makedirs(PDF_STORAGE_DIR, exist_ok=True)
 ANNOTATED_PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf_annotated')
 os.makedirs(ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)
 
+import yaml
+
+DOMAIN_CONFIG_PATH = os.path.join(BASE_DIR, 'domain_config.yaml')
+
+def load_domain_config():
+    try:
+        with open(DOMAIN_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        print(f"Error loading domain config: {e}")
+        return {"domain_name": "Unknown", "groups": [], "editable_fields": []}
+    
 # --- Data Models / Dictionaries ---
 DEFAULT_FEATURES = {
     "tracks": None,

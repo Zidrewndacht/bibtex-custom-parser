@@ -21,19 +21,6 @@ const VERIFIED_BY_CYCLE = {
 };
 
 /**
- * Helper to update a cell's status symbol based on boolean/null value.
- * @param {Element} row - The main table row element.
- * @param {string} selector - The CSS selector for the cell within the row.
- * @param {*} value - The value (true, false, null, undefined) to determine the symbol.
- */
-function updateRowCell(row, selector, value) {
-    const cell = row.querySelector(selector);
-    if (cell) {
-        cell.textContent = renderStatus(value); // Use the renderStatus function
-    }
-}
-
-/**
  * Renders a status value (true, false, null, etc.) as an emoji.
  * Replicates Python's render_status logic on the client.
  * @param {*} value - The value to render.
@@ -82,53 +69,71 @@ function renderChangedBy(value) {
     }
 }
 
+/**
+ * Helper to update a cell's status symbol based on boolean/null value.
+ * @param {Element} row - The main table row element.
+ * @param {string} selector - The CSS selector for the cell within the row.
+ * @param {*} value - The value (true, false, null, undefined) to determine the symbol.
+ */
+function updateRowCell(row, selector, value) {
+    const cell = row.querySelector(selector);
+    if (cell) {
+        const emojiSpan = cell.querySelector('.emoji-content');
+        if (emojiSpan) emojiSpan.textContent = renderStatus(value);
+        else cell.textContent = renderStatus(value);
+    }
+}
+
+function updateInferredCells(row, classification) {
+    if (!classification) return;
+    for (const group of APP_CONFIG.groups) {
+        if (group.filter_type === 'tri_state') {
+            updateRowCell(row, `[data-field="${group.json_path}"]`, getJsonPath(classification, group.json_path));
+        } else if (group.filter_type === 'inclusion' || group.filter_type === 'none') {
+            for (const key of group.keys) {
+                const path = `${group.json_path}.${key.key}`;
+                if (key.render_type === 'text_presence') {
+                    const val = getJsonPath(classification, path);
+                    const cell = row.querySelector(`[data-field="${path}"]`);
+                    if (cell) {
+                        const emojiSpan = cell.querySelector('.emoji-content');
+                        if (emojiSpan) emojiSpan.textContent = (val && String(val).trim()) ? '✔️' : '❌';
+                    }
+                } else {
+                    updateRowCell(row, `[data-field="${path}"]`, getJsonPath(classification, path));
+                }
+            }
+        }
+    }
+}
+
 // --- Extracted AJAX logic for reuse ---
 function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
-    // Use the same endpoint as the form save
-    const saveButton = row.querySelector('.save-btn'); // Find save button in details if needed for disabling
+    const saveButton = row.querySelector('.save-btn');
     const wasSaveButtonDisabled = saveButton ? saveButton.disabled : false;
-    if (saveButton) saveButton.disabled = true; // Optional: disable main save while quick save happens
+    if (saveButton) saveButton.disabled = true;
 
     fetch('/update_paper', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSend)
     })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errData => {
-                throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-            }).catch(() => {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            });
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
-            // 4. Update other relevant cells in the row based on the response
             const mainRow = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (mainRow) {
                 if (data.main_certainty) {
                     for (const [fieldName, certainty] of Object.entries(data.main_certainty)) {
-                        const cell = mainRow.querySelector(`[data-field="${fieldName}"]`);
-                        if (cell) {
-                            // Remove old certainty classes
-                            cell.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
-                            // Add new certainty class
-                            if (certainty && certainty !== 'solid') {
-                                cell.classList.add(`certainty-${certainty}`);
-                            }
-                            // Handle conflict warning
-                            const emojiSpan = cell.querySelector('.emoji-content');
-                            const conflictWarning = cell.querySelector('.conflict-warning');
+                        const c = mainRow.querySelector(`[data-field="${fieldName}"]`);
+                        if (c) {
+                            c.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
+                            if (certainty && certainty !== 'solid') c.classList.add(`certainty-${certainty}`);
+                            const emojiSpan = c.querySelector('.emoji-content');
+                            const conflictWarning = c.querySelector('.conflict-warning');
                             if (certainty === 'conflict') {
                                 if (emojiSpan) emojiSpan.style.display = 'none';
-                                if (!conflictWarning) {
-                                    cell.innerHTML = '<span class="conflict-warning">⚠️</span>';
-                                }
+                                if (!conflictWarning) c.innerHTML = '<span class="conflict-warning">⚠️</span>';
                             } else {
                                 if (emojiSpan) emojiSpan.style.display = '';
                                 if (conflictWarning) conflictWarning.remove();
@@ -136,260 +141,106 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
                         }
                     }
                 }
-                // Update audit fields (using formatted timestamp sent back)
-                if (data.changed_formatted !== undefined) {
-                    mainRow.querySelector('.changed-cell').textContent = data.changed_formatted;
-                }
-                if (data.changed_by !== undefined) {
-                    mainRow.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
-                }
-                if (data.estimated_score !== undefined) {
-                    const estimatedScoreCell = mainRow.cells[estScoreCellIndex];
-                    if (estimatedScoreCell) {
-                        estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : '';
-                    }
-                }
-                // Update user_override_count cell
-                const userOverrideCountCell = mainRow.querySelector('[data-field="user_override_count"]');
-                if (userOverrideCountCell && data.user_override_count !== undefined) {
-                    userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
-                }
-                // Update verified cell
-                const verifiedCell = mainRow.querySelector('.editable-status[data-field="verified"]');
-                if (verifiedCell && data.verified !== undefined) {
-                    verifiedCell.textContent = renderStatus(data.verified);
-                }
-                // Update verified_by cell
-                const verifiedByCell = mainRow.querySelector('.editable-verify[data-field="verified_by"]');
-                if (verifiedByCell && data.verified_by !== undefined) {
-                    verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
-                }
                 
-                // Refresh history row if it's expanded
-                const historyRow = mainRow.nextElementSibling && mainRow.nextElementSibling.nextElementSibling &&
-                    mainRow.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
-                    mainRow.nextElementSibling.nextElementSibling : null;
-                if (historyRow && historyRow.classList.contains('expanded')) {
-                    const historyContentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
-                    if (historyContentPlaceholder) {
-                        fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
-                        .then(response => response.json())
-                        .then(historyData => {
-                            if (historyData.status === 'success' && historyData.html) {
-                                historyContentPlaceholder.innerHTML = historyData.html;
-                            }
-                        })
-                        .catch(error => {
-                            console.error(`Error refreshing history row for paper ${paperId}:`, error);
-                        });
-                    }
-                }
+                updateInferredCells(mainRow, data.classification);
+
+                if (data.changed_formatted !== undefined) mainRow.querySelector('.changed-cell').textContent = data.changed_formatted;
+                if (data.changed_by !== undefined) mainRow.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
+                
+                const estScoreCell = mainRow.querySelector('[data-field="estimated_score"]');
+                if (estScoreCell) estScoreCell.textContent = data.estimated_score ?? '';
+                
+                const userOverrideCell = mainRow.querySelector('[data-field="user_override_count"]');
+                if (userOverrideCell) userOverrideCell.textContent = data.user_override_count ?? '0';
+                
+                const verifiedCell = mainRow.querySelector('[data-field="verified"]');
+                if (verifiedCell) verifiedCell.innerHTML = `<span class="emoji-content">${renderStatus(data.verified)}</span>`;
+                
+                const verifiedByCell = mainRow.querySelector('[data-field="verified_by"]');
+                if (verifiedByCell) verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                
+                const pageCountCell = mainRow.cells[3]; // Fixed index for page count
+                if (pageCountCell && data.page_count !== undefined) pageCountCell.textContent = data.page_count ?? '';
+                
+                const relevanceCell = mainRow.cells[7]; // Fixed index for relevance
+                if (relevanceCell && data.relevance !== undefined) relevanceCell.textContent = data.relevance ?? '';
             }
-            updateCounts();
-            //console.log(`Quick save successful for ${paperId} field ${field}`);
+            if (typeof updateCounts === 'function') updateCounts();
         } else {
-            console.error('Quick save error:', data.message);
-            cell.textContent = currentText; // Revert text
+            cell.textContent = currentText;
         }
     })
-    .catch((error) => {
-        console.error('Quick save error:', error);
-        cell.textContent = currentText; // Revert text
-    })
-    .finally(() => {
-        if (saveButton) saveButton.disabled = wasSaveButtonDisabled;
-    });
+    .catch(() => { cell.textContent = currentText; })
+    .finally(() => { if (saveButton) saveButton.disabled = wasSaveButtonDisabled; });
 }
+
 
 function saveChanges(paperId) {
     const form = document.getElementById(`form-${paperId}`);
-    if (!form) {
-        console.error(`Form not found for paper ID: ${paperId}`);
-        return;
-    }
-    // --- Collect Main Fields ---
-    const researchAreaInput = form.querySelector('input[name="research_area"]');
-    const researchAreaValue = researchAreaInput ? researchAreaInput.value : '';
+    if (!form) return;
+
+    const data = { id: paperId };
+    
+    // Universal fields
     const pageCountInput = form.querySelector('input[name="page_count"]');
-    let pageCountValue = pageCountInput ? pageCountInput.value : '';
-    // Convert empty string or invalid input to NULL for the database
-    if (pageCountValue === '') {
-        pageCountValue = null;
-    } else {
-        const parsedValue = parseInt(pageCountValue, 10);
-        if (isNaN(parsedValue)) {
-            pageCountValue = null; // Or handle error as needed
-        } else {
-            pageCountValue = parsedValue;
-        }
-    }
-
-    // --- NEW: Collect Relevance Field ---
+    data.page_count = pageCountInput ? (pageCountInput.value === '' ? null : parseInt(pageCountInput.value)) : null;
+    
     const relevanceInput = form.querySelector('input[name="relevance"]');
-    let relevanceValue = relevanceInput ? relevanceInput.value : '';
-    // Convert empty string to NULL for the database consistency (optional but good practice)
-    if (relevanceValue === '') {
-        relevanceValue = null;
-    } else {
-        // If you want to ensure it's a number, uncomment the next lines:
-        const parsedRelevance = parseFloat(relevanceValue); // or parseInt if it's an integer
-        if (isNaN(parsedRelevance)) {
-            relevanceValue = null; // Or handle error
-        } else {
-            relevanceValue = parsedRelevance;
-        }
+    data.relevance = relevanceInput ? (relevanceInput.value === '' ? null : parseFloat(relevanceInput.value)) : null;
+    
+    const userTraceInput = form.querySelector('textarea[name="user_trace"]');
+    data.user_trace = userTraceInput ? userTraceInput.value : '';
+
+    // Domain specific fields (from YAML)
+    for (const field of APP_CONFIG.editable_fields) {
+        const input = form.querySelector(`[name="${field.json_path}"]`) || form.querySelector(`[name="${field.json_path.replace(/\./g, '_')}"]`);
+        if (input) data[field.json_path] = input.value;
     }
 
-
-    // --- Collect Additional Fields ---
-    // Model Name -> technique_model
-    const modelNameInput = form.querySelector('input[name="model_name"]');
-    const modelNameValue = modelNameInput ? modelNameInput.value : '';
-    // Other Defects -> features_other
-    const otherDefectsInput = form.querySelector('input[name="features_other"]');
-    const otherDefectsValue = otherDefectsInput ? otherDefectsInput.value : '';
-    // User Comments -> user_trace (stored in main table column, not features/technique JSON)
-    const userCommentsTextarea = form.querySelector('textarea[name="user_trace"]');
-    const userCommentsValue = userCommentsTextarea ? userCommentsTextarea.value : '';
-
-    // --- Prepare Data Payload ---
-    const data = {
-        id: paperId,
-        research_area: researchAreaValue,
-        page_count: pageCountValue,
-        // --- NEW: Add Relevance Field to Payload ---
-        relevance: relevanceValue,
-        // --- Add Additional Fields to Payload ---
-        // Prefix 'technique_' and 'features_' are handled by the backend
-        technique_model: modelNameValue,
-        features_other: otherDefectsValue,
-        user_trace: userCommentsValue // This one is a direct column update
-    };
-
-    // --- UI Feedback and AJAX Call (Remains Largely the Same) ---
     const saveButton = form.querySelector('.save-btn');
     const originalText = saveButton ? saveButton.textContent : 'Save Changes';
-    if (saveButton) {
-        saveButton.textContent = 'Saving...';
-        saveButton.disabled = true;
-    }
+    if (saveButton) { saveButton.textContent = 'Saving...'; saveButton.disabled = true; }
+
     fetch('/update_paper', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data) // <-- Send the updated data object
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
     })
-    .then(response => {
-        if (!response.ok) {
-             return response.json().then(errData => {
-                 throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-             }).catch(() => {
-                 throw new Error(`HTTP error! status: ${response.status}`);
-             });
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
             const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (row) {
-                // Update displayed audit fields if returned
-                if (data.changed_formatted !== undefined) {
-                    row.querySelector('.changed-cell').textContent = data.changed_formatted;
-                }
-                if (data.changed_by !== undefined) {
-                    row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
-                }
+                if (data.changed_formatted !== undefined) row.querySelector('.changed-cell').textContent = data.changed_formatted;
+                if (data.changed_by !== undefined) row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 
-                const userOverrideCountCell = row.querySelector('[data-field="user_override_count"]');
-                if (userOverrideCountCell) {
-                    userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
-                }
-                // Update verified cell
-                const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
-                if (verifiedCell && data.verified !== undefined) {
-                    verifiedCell.textContent = renderStatus(data.verified);
-                }
-                // Update verified_by cell
-                const verifiedByCell = row.querySelector('.editable-verify[data-field="verified_by"]');
-                if (verifiedByCell && data.verified_by !== undefined) {
-                    verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
-                }
-                // Update displayed page count if returned
-                const pageCountCell = row.cells[pageCountCellIndex];
-                if (pageCountCell) {
-                     pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
-                }
-                // --- NEW: Update displayed relevance if returned ---
-                // Find the relevance cell in the main row (adjust selector if needed)
-                const relevanceCell = row.cells[relevanceCellIndex]; // Or better, add a class like .relevance-cell to the <td> and use '.relevance-cell'
-                if (relevanceCell) {
-                     relevanceCell.textContent = data.relevance !== null && data.relevance !== undefined ? data.relevance : '';
-                }
-                            // Update PDF icon if state/filename changed via comment save
-                if (data.pdf_state !== undefined) {
-                    const pdfCell = row.cells[0]; // Column 0 is PDF
-                    if (pdfCell) {
-                        pdfCell.innerHTML = '';
-                        pdfCell.title = "PDF Status";
-                        if (data.pdf_filename) {
-                            const extRemoved = data.pdf_filename.replace(/\.pdf$/i, '');
-                            const pdfLink = document.createElement('a');
-                            pdfLink.href = `/static/pdfjs/web/viewer.html?file=/serve_pdf/${encodeURIComponent(extRemoved)}`;
-                            pdfLink.target = '_blank';
-                            pdfLink.className = 'pdf-link';
-                            pdfLink.textContent = data.pdf_state === 'annotated' ? '📗' : '📕';
-                            pdfLink.title = data.pdf_state === 'annotated' 
-                                ? 'Open this annotated PDF in the Annotator' 
-                                : 'Open this PDF in the Annotator';
-                            pdfCell.appendChild(pdfLink);
-                        } else {
-                            const uploadLink = document.createElement('a');
-                            uploadLink.href = '#';
-                            uploadLink.className = 'pdf-upload-link';
-                            uploadLink.setAttribute('data-paper-id', paperId);
-                            const isPaywalled = data.pdf_state === 'paywalled';
-                            uploadLink.title = isPaywalled 
-                                ? 'Article is paywalled. Click to upload if a copy is available' 
-                                : 'No PDF stored yet. Click to upload PDF for this article';
-                            uploadLink.textContent = isPaywalled ? '💰' : '❔';
-                            pdfCell.appendChild(uploadLink);
-                        }
-                    }
-                }
-                // Note: The UI fields (model_name, features_other, user_trace) are NOT updated here
-                // from the server response because update_paper_custom_fields doesn't return them.
-                // They retain the user-entered value after saving.
+                const userOverrideCell = row.querySelector('[data-field="user_override_count"]');
+                if (userOverrideCell) userOverrideCell.textContent = data.user_override_count ?? '0';
+                
+                const verifiedCell = row.querySelector('[data-field="verified"]');
+                if (verifiedCell) verifiedCell.innerHTML = `<span class="emoji-content">${renderStatus(data.verified)}</span>`;
+                
+                const verifiedByCell = row.querySelector('[data-field="verified_by"]');
+                if (verifiedByCell) verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                
+                const pageCountCell = row.cells[3];
+                if (pageCountCell && data.page_count !== undefined) pageCountCell.textContent = data.page_count ?? '';
+                
+                const relevanceCell = row.cells[7];
+                if (relevanceCell && data.relevance !== undefined) relevanceCell.textContent = data.relevance ?? '';
             }
-            // Collapse details row after successful save
             const toggleBtn = row ? row.querySelector('.toggle-btn:not(.history-btn)') : null;
-            if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) {
-                 toggleDetails(toggleBtn);
-            }
+            if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) toggleDetails(toggleBtn);
+            
             saveButton.textContent = 'Saved!';
-            setTimeout(() => {
-                if (saveButton) {
-                    saveButton.textContent = originalText;
-                    saveButton.disabled = false;
-                }
-            }, 1500);
-            updateCounts();
+            setTimeout(() => { if (saveButton) { saveButton.textContent = originalText; saveButton.disabled = false; } }, 1500);
+            if (typeof updateCounts === 'function') updateCounts();
         } else {
-            console.error('Save error:', data.message);
-            if (saveButton) {
-                saveButton.textContent = originalText;
-                saveButton.disabled = false;
-            }
+            if (saveButton) { saveButton.textContent = originalText; saveButton.disabled = false; }
         }
     })
-    .catch((error) => {
-        console.error('Error:', error);
-        saveButton.textContent = originalText;
-        saveButton.disabled = false;
-    });
+    .catch(() => { saveButton.textContent = originalText; saveButton.disabled = false; });
 }
-
 /**
  * Toggles the visibility of the history row for a given paper.
  * @param {HTMLElement} element - The button element clicked to trigger the toggle.

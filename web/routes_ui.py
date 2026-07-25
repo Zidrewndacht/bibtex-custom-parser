@@ -7,6 +7,8 @@ from . import export_logic
 
 ui_bp = Blueprint('ui', __name__)
 
+domain_config = config.load_domain_config()
+
 def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_param=None, min_page_count_param=None):
     """Fetches papers based on filters and renders the papers_table.html template. 
        Used for initial render from / and XHR updates."""
@@ -22,6 +24,7 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
 
     # Fetch papers with ALL the filters applied
     papers = db.fetch_papers(
+        domain_config=domain_config, # <-- ADD THIS
         hide_offtopic=hide_offtopic,
         year_from=year_from_value,
         year_to=year_to_value,
@@ -79,7 +82,7 @@ def index():
     hide_offtopic_checkbox_checked = hide_offtopic_param is None or hide_offtopic_param.lower() in ['1', 'true', 'yes', 'on']
 
     return render_template(
-        'index.html',
+        'index.html', domain_config=domain_config,
         papers_table_content=papers_table_content,
         hide_offtopic=hide_offtopic_checkbox_checked,
         year_from_value=year_from_input_value,
@@ -104,12 +107,9 @@ def get_detail_row():
     try:
         paper_dict = db.get_paper_by_id(paper_id)
         if paper_dict:
-            try: paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
-            except: paper_dict['features'] = {}
-            try: paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
-            except: paper_dict['technique'] = {}
-            
-            detail_html = render_template('detail_row.html', paper=paper_dict)
+            try: paper_dict['classification'] = json.loads(paper_dict['classification']) if paper_dict['classification'] else {}
+            except: paper_dict['classification'] = {}
+            detail_html = render_template('detail_row.html', paper=paper_dict, domain_config=domain_config)
             return jsonify({'status': 'success', 'html': detail_html})
         else:
             return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
@@ -129,23 +129,11 @@ def get_history_row():
             
         if paper:
             paper_dict = dict(paper)
-            # Parse main JSON fields
-            try:
-                paper_dict['features'] = json.loads(paper_dict['features']) if paper_dict['features'] else {}
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['features'] = {}
-                
-            try:
-                paper_dict['technique'] = json.loads(paper_dict['technique']) if paper_dict['technique'] else {}
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['technique'] = {}
-                
-            # Parse main_certainty
-            try:
-                paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
-            except (json.JSONDecodeError, TypeError):
-                paper_dict['main_certainty'] = {}
-                
+            try: paper_dict['classification'] = json.loads(paper_dict['classification']) if paper_dict['classification'] else {}
+            except: paper_dict['classification'] = {}
+            try: paper_dict['main_certainty'] = json.loads(paper_dict['main_certainty']) if paper_dict['main_certainty'] else {}
+            except: paper_dict['main_certainty'] = {}
+                    
             # Prepare ALL 4 logs using the SAME function
             paper_dict['llm_log_entries'] = export_logic.prepare_history_log_data(paper_dict, set_num=None)
             paper_dict['set_1_llm_log_entries'] = export_logic.prepare_history_log_data(paper_dict, set_num=1)
@@ -153,7 +141,7 @@ def get_history_row():
             paper_dict['set_3_llm_log_entries'] = export_logic.prepare_history_log_data(paper_dict, set_num=3)
             
             # Render the history row template
-            history_html = render_template('history_row.html', paper=paper_dict)
+            history_html = render_template('history_row.html', paper=paper_dict, domain_config=domain_config)
             return jsonify({'status': 'success', 'html': history_html})
         else:
             return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
