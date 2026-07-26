@@ -95,31 +95,36 @@ def embed_fonts_in_css(static_dir):
     
     return css_content
 
+# web/export_logic.py
+
+def _flatten_dict(d, parent_key=''):
+    items = {}
+    if not isinstance(d, dict):
+        return {parent_key: d} if parent_key else {}
+    for k, v in d.items():
+        if k == 'certainty_map': continue # Skip certainty map from diffing
+        new_key = f"{parent_key}.{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(_flatten_dict(v, new_key))
+        else:
+            items[new_key] = v
+    return items
+
 def prepare_history_log_data(paper_dict, set_num=None):
     """
     Prepares llm_log data for history row rendering.
     Marks malformed entries as invalid instead of scrapping them.
     """
-    # Determine which log column to use
     if set_num and set_num in [1, 2, 3]:
         raw_log = paper_dict.get(f'set_{set_num}_llm_log', '[]')
-        # has_certainty = False
     else:
         raw_log = paper_dict.get('llm_log', '[]')
-        # has_certainty = True
-    
+        
     try:
         log_entries = json.loads(raw_log) if raw_log else []
     except (json.JSONDecodeError, TypeError):
         log_entries = []
-    
-    # Required fields for classification entries
-    REQUIRED_CLASSIFICATION_FIELDS = [
-        'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray',
-        'relevance', 'features', 'technique'
-    ]
-    
-    # parse output JSON and validate
+        
     for entry in log_entries:
         try:
             output_raw = entry.get('output', '{}')
@@ -131,65 +136,37 @@ def prepare_history_log_data(paper_dict, set_num=None):
                 entry['output'] = {}
         except (json.JSONDecodeError, TypeError, AttributeError):
             entry['output'] = {}
-        
-        # Mark entry as valid by default, then check for malformed data
+            
+        # 2. Trust the Backend completely.
+        # The backend is the single source of truth. It stamped 'valid' 
+        # and 'invalid_reason' at the exact moment the entry was created.
+        # no, there's no such a thing as "legacy data" to care about.
         entry['valid'] = bool(entry.get('valid', False))
-        
-        # Only validate classification-type entries (not verifier entries)
-        if entry.get('type') in ['classifier', 'consensus', 'averaged_llm', 'user']:
-            output = entry.get('output', {})
-            if not isinstance(output, dict):
-                entry['valid'] = False
-                entry['invalid_reason'] = 'Output is not a dictionary'
-            else:
-                # Check for required classification fields
-                missing_fields = [f for f in REQUIRED_CLASSIFICATION_FIELDS if f not in output]
-                if missing_fields:
-                    entry['valid'] = False
-                    entry['invalid_reason'] = f'Missing required fields: {", ".join(missing_fields)}'
-                else:
-                    entry['valid'] = True  # Entry has all required fields
-    
+
     # PASS 1: Ascending order - Mark changed cells (valid entries only)
+    # averaged_llm IS included here so changes between averaged states are highlighted.
     table_entries = [e for e in log_entries
-                    if e.get('type') in ['classifier', 'consensus', 'averaged_llm', 'user']
-                    and e.get('valid', False)]  # ← Only use valid entries for change tracking
-    
+                     if e.get('type') in ['classifier', 'consensus', 'averaged_llm', 'user']
+                     and e.get('valid', False)]
+                     
     for i in range(len(table_entries)):
         current = table_entries[i]
         older = table_entries[i - 1] if i > 0 else None
         current['changed_fields'] = set()
         if older:
-            older_output = older.get('output', {}) or {}
-            current_output = current.get('output', {}) or {}
-            if not isinstance(older_output, dict):
-                older_output = {}
-            if not isinstance(current_output, dict):
-                current_output = {}
-            for field in ['is_offtopic', 'relevance', 'is_survey',
-                         'is_through_hole', 'is_smt', 'is_x_ray']:
-                if current_output.get(field) != older_output.get(field):
-                    current['changed_fields'].add(field)
-            current_features = current_output.get('features') or {}
-            older_features = older_output.get('features') or {}
-            if isinstance(current_features, dict) and isinstance(older_features, dict):
-                all_keys = set(current_features.keys()) | set(older_features.keys())
-                for key in all_keys:
-                    if current_features.get(key) != older_features.get(key):
-                        current['changed_fields'].add(f'features_{key}')
-            current_technique = current_output.get('technique') or {}
-            older_technique = older_output.get('technique') or {}
-            if isinstance(current_technique, dict) and isinstance(older_technique, dict):
-                all_keys = set(current_technique.keys()) | set(older_technique.keys())
-                for key in all_keys:
-                    if current_technique.get(key) != older_technique.get(key):
-                        current['changed_fields'].add(f'technique_{key}')
-    
+            older_flat = _flatten_dict(older.get('output', {}) or {})
+            current_flat = _flatten_dict(current.get('output', {}) or {})
+            
+            all_keys = set(older_flat.keys()) | set(current_flat.keys())
+            for key in all_keys:
+                if older_flat.get(key) != current_flat.get(key):
+                    current['changed_fields'].add(key)
+
     changed_fields_map = {
         entry['timestamp']: entry.get('changed_fields', set())
         for entry in table_entries
     }
-    
+
     # PASS 2: Reverse for UI, attach verifiers
     log_entries.reverse()
     processed_entries = []
@@ -197,6 +174,7 @@ def prepare_history_log_data(paper_dict, set_num=None):
     for entry in log_entries:
         entry_type = entry.get('type', '')
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
+        
         if entry_type == 'verifier':
             verifier_output = entry.get('output', {}) or {}
             if not isinstance(verifier_output, dict):
@@ -210,12 +188,19 @@ def prepare_history_log_data(paper_dict, set_num=None):
             }
             entry['verification_data'] = None
         elif entry_type in ['classifier', 'consensus']:
-            entry['verification_data'] = cached_verifier
-            cached_verifier = None
+            # CRITICAL RESTORATION: averaged_llm is intentionally EXCLUDED here.
+            # It derives its own verified/score mathematically from the sets in recalculate_main_set.
+            # It does NOT consume the verifier meant for the underlying classifier runs.
+            if entry.get('valid', False):
+                entry['verification_data'] = cached_verifier
+                cached_verifier = None # Consume it
+            else:
+                entry['verification_data'] = None
         else:
             entry['verification_data'] = None
+            
         processed_entries.append(entry)
-    
+        
     return processed_entries
 
 # Core Export Generation Functions
@@ -326,7 +311,7 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     )
     return loader_html_content
 
-def generate_xlsx_export_content(papers): #outdated, must be updated to be useful for v1.2:
+def generate_xlsx_export_content(papers): #outdated, must be updated to be useful for v1.4:
     # """Generates the Excel file content as bytes."""
     # from openpyxl import Workbook
     # from openpyxl.styles import Font, PatternFill 

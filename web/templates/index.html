@@ -11,8 +11,14 @@
     <script src="{{ url_for('static', filename='libs/chartjs-plugin-datalabels.min.js') }}"></script>
     <script src="{{ url_for('static', filename='libs/d3.min.js') }}"></script>
     <script src="{{ url_for('static', filename='libs/d3-cloud.min.js') }}"></script>
-    
+        
+    <script>
+        window.APP_CONFIG = {{ domain_config | tojson | safe }};
+    </script>
+
     <script src="{{ url_for('static', filename='stats.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='stats_domain.js') }}" defer></script> <!-- NEW -->
+
     <script src="{{ url_for('static', filename='comms.js') }}" defer></script>
     <script src="{{ url_for('static', filename='filtering.js') }}" defer></script>
     
@@ -21,15 +27,16 @@
 <input type="file" id="bibtex-file-input" accept=".bib,.csv" style="display: none;">
 <div class="table-container" id="papers-table-container">
     <table id="papersTable" style="table-layout: fixed;">
-{% set total_dynamic = 0 %}
+
+{% set ns = namespace(total_dynamic=0) %}
 {% for group in domain_config.groups %}
     {% if group.filter_type == 'tri_state' %}
-        {% set total_dynamic = total_dynamic + 1 %}
+        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
     {% elif group.filter_type in ['inclusion', 'none'] %}
-        {% set total_dynamic = total_dynamic + (group.keys | length) %}
+        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
     {% endif %}
 {% endfor %}
-{% set inferred_colspan = 2 + total_dynamic %}
+{% set inferred_colspan = 2 + ns.total_dynamic %}
 {% set total_cols = 6 + inferred_colspan + 9 %}
 
 <colgroup>
@@ -50,7 +57,7 @@
         {% if group.filter_type == 'tri_state' %}
             <col style="width: 27px; min-width: 27px; max-width: 27px;">
         {% elif group.filter_type in ['inclusion', 'none'] %}
-            {% for key in group.keys %}
+            {% for field_def in group.fields %}
                 <col style="width: 27px; min-width: 27px; max-width: 27px;">
             {% endfor %}
         {% endif %}
@@ -77,6 +84,7 @@
         <th id="main-header-wrapper" colspan="{{ total_cols }}">
             <div class="main-header">
                 <div class="header-controls">
+                    <button class="action-btn" id="import-btn" style="display:none">Import / Restore</button>
                     <button class="action-btn" id="import-bibtex-btn" title="Supported: Scopus, ACM, Zotero BibTeX, IEEE Xplore CSV">Import <strong>BibTeX / CSV</strong></button>
                 </div>
                 <div class="header-controls">
@@ -119,8 +127,7 @@
             <div>
                 <span>Inferred data </span>
                 <div style="margin:0; padding:0">
-                    Potential Misclassifications:
-                    <input type="checkbox" title="Enable to show only papers with NO features filled in" id="no-features-checkbox" style="margin-left:8px; margin-right:16px">
+                    Potential misclassifications:
                     <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox">
                 </div>
             </div>
@@ -148,21 +155,22 @@
         <!-- Dynamic Domain-Specific Group Headers -->
         {% for group in domain_config.groups %}
             {% if group.filter_type == 'tri_state' %}
-                <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="1">
-                    <div>
-                        {% if group.friendly_name %}<span>{{ group.friendly_name }}</span>{% endif %}
-                        <input type="checkbox" class="tri-state-checkbox" data-filter-group="{{ group.name }}" title="Toggle {{ group.friendly_name }} filter">
-                    </div>
-                </th>
+            <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="1">
+                <div>
+                    {% if group.friendly_name %}<span>{{ group.friendly_name }}</span>{% endif %}
+                    <input type="checkbox" class="tri-state-checkbox" data-filter-group="{{ group.name }}" title="Enable to only show {{ group.label }}">
+                </div>
+            </th>
             {% elif group.filter_type == 'inclusion' %}
-                <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.keys|length }}">
-                    <div>
-                        <span>{{ group.friendly_name }}</span>
-                        <input type="checkbox" class="inclusion-checkbox" data-filter-group="{{ group.name }}" title="Include {{ group.friendly_name }}">
-                    </div>
-                </th>
+            <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
+                <div>
+                    <span>{{ group.friendly_name }}</span>
+                    <!-- FIX: Restored original descriptive tooltip logic -->
+                    <input type="checkbox" class="inclusion-checkbox" data-filter-group="{{ group.name }}" title="Enable to include (or limit to if it's the only checkbox enabled) papers about {{ group.friendly_name | default('other', true) | lower }}">
+                </div>
+            </th>
             {% elif group.filter_type == 'none' %}
-                <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.keys|length }}">
+                <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
                     {{ group.friendly_name }}
                 </th>
             {% endif %}
@@ -189,12 +197,12 @@
         {% for group in domain_config.groups %}
             {% if group.filter_type == 'tri_state' %}
                 <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}">
-                    <span class="sort-indicator"></span><div><span>{{ group.friendly_name }}</span></div>
+                    <span class="sort-indicator"></span><div><span>{{ group.label }}</span></div>
                 </th>
             {% elif group.filter_type in ['inclusion', 'none'] %}
-                {% for key in group.keys %}
-                    <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}.{{ key.key }}">
-                        <span class="sort-indicator"></span><div><span>{{ key.label }}</span></div>
+                {% for field_def in group.fields %}
+                    <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}.{{ field_def.key }}">
+                        <span class="sort-indicator"></span><div><span>{{ field_def.label }}</span></div>
                     </th>
                 {% endfor %}
             {% endif %}
@@ -215,6 +223,7 @@
         <th style="display:none" colspan="5"></th>
     </tr>
 </thead>
+
             <!-- tbody and tfoot come from the papers_table template-->
             {{ papers_table_content | safe }}        
             
@@ -230,10 +239,10 @@
         </div>
         <div>
             <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong> </button>
-            <button class="action-btn" id="classify-impl-btn">Re-Classify <strong>Primary</strong></button>
+            <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
         </div>
         <div>
-            <button class="action-btn" id="classify-misclassified-btn">Re-Classify <strong>Suspects</strong> </button>
+            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button>
             <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
         </div>
         <span class="menu-message">Batch classifications also run corresponding verifications automatically. Run the tasks below if you still need just verification (e.g., if an earlier run was aborted after classification)</span>

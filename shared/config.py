@@ -21,10 +21,10 @@ QUEUE_MANAGER_PORT = 6001
 QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
 # Maximum concurrent limits for homogeneous workloads (only one task type running)
-MAX_CONCURRENT_WORKERS_CLASSIFY = 256 #256 #27B 60 
-MAX_CONCURRENT_WORKERS_VERIFY = 480  #480 #27B 90
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 180 #180 #27B 48
-MIN_CONCURRENT_WORKERS = 128     # Minimum concurrent limit for mixed workloads
+MAX_CONCURRENT_WORKERS_CLASSIFY = 60 #256 #27B 60 
+MAX_CONCURRENT_WORKERS_VERIFY = 90  #480 #27B 90
+MAX_CONCURRENT_WORKERS_RECLASSIFY = 48 #180 #27B 48
+MIN_CONCURRENT_WORKERS = 32     # Minimum concurrent limit for mixed workloads
 MAX_CONSENSUS_ITERATIONS = 15
 FRESH_CLASSIFY_FALLBACK_ITERATION = 8
 
@@ -317,3 +317,49 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
         error_msg = f"Unexpected Error: {type(e).__name__}: {str(e)}"
         print(f"Error during {context}LLM request: {error_msg}")
         return None, model_name, error_msg
+
+
+# Load domain config once at module level to derive required fields
+_domain_config = load_domain_config()
+
+def get_required_classification_fields():
+    fields = set()
+    # 1. Universal inferred fields (hardcoded by design)
+    fields.add('is_offtopic')
+    fields.add('relevance')
+    
+    # 2. Domain-specific fields dynamically extracted from YAML
+    for field in _domain_config.get('editable_fields', []):
+        path = field.get('json_path', '')
+        if path:
+            fields.add(path.split('.')[0]) # Extract top-level key
+            
+    for group in _domain_config.get('groups', []):
+        path = group.get('json_path', '')
+        if path:
+            fields.add(path.split('.')[0]) # Extract top-level key
+            
+    return list(fields)
+
+# Export these for the dispatcher and history renderer
+REQUIRED_CLASSIFICATION_FIELDS = get_required_classification_fields()
+REQUIRED_VERIFIER_FIELDS = ['verified', 'estimated_score']
+
+def validate_llm_output(llm_data, task_type):
+    """
+    Unified validation for all LLM outputs.
+    Returns: (is_valid: bool, invalid_reason: str or None)
+    """
+    if not isinstance(llm_data, dict):
+        return False, "Output is not a dictionary"
+    
+    if task_type == 'verify':
+        required = REQUIRED_VERIFIER_FIELDS
+    else:
+        required = get_required_classification_fields()
+        
+    missing = [f for f in required if f not in llm_data]
+    if missing:
+        return False, f"Missing required fields: {', '.join(missing)}"
+        
+    return True, None

@@ -25,7 +25,9 @@ def main():
     db.init_db(db_path)
     print(f"[Init] Database ready: {db_path}")
 
-    web_port = 5000
+    web_port = 5001
+
+    
     print(f"[Web] Starting Web UI on http://localhost:{web_port}")
     
     # Standard Werkzeug reloader check to prevent double browser opens

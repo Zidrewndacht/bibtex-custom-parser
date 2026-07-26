@@ -69,6 +69,71 @@ function renderChangedBy(value) {
     }
 }
 
+
+
+
+/**
+ * Formats a relevance float to 1 decimal place, stripping trailing zeros.
+ * Matches the Jinja template logic: (val|round(1)|string).rstrip('0').rstrip('.')
+ */
+function formatRelevance(val) {
+    if (val === null || val === undefined || val === '') return '';
+    let num = parseFloat(val);
+    if (isNaN(num)) return '';
+    let rounded = Math.round(num * 10) / 10;
+    let str = rounded.toFixed(1);
+    return str.replace(/\.?0+$/, '');
+}
+
+/**
+ * Centralized function to clear stuck CSS classes, apply new certainty states,
+ * update emojis, and format relevance. Fixes the "translucent ?" ghosting bug.
+ */
+function applyCertaintyAndUpdates(row, data) {
+    // 1. CRITICAL: Clear ALL certainty/conflict states from all inferred cells first.
+    // This prevents "stuck" translucent classes when a field drops out of the LLM output.
+    const inferredCells = row.querySelectorAll('[data-field]');
+    inferredCells.forEach(c => {
+        c.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
+        const conflictWarning = c.querySelector('.conflict-warning');
+        if (conflictWarning) conflictWarning.remove();
+        const emojiSpan = c.querySelector('.emoji-content');
+        if (emojiSpan) emojiSpan.style.display = '';
+    });
+
+    // 2. Apply new certainty classes only for fields present in the new map
+    if (data.main_certainty) {
+        for (const [fieldName, certainty] of Object.entries(data.main_certainty)) {
+            const c = row.querySelector(`[data-field="${fieldName}"]`);
+            if (c && certainty && certainty !== 'solid') {
+                c.classList.add(`certainty-${certainty}`);
+                if (certainty === 'conflict') {
+                    const emojiSpan = c.querySelector('.emoji-content');
+                    if (emojiSpan) emojiSpan.style.display = 'none';
+                    if (!c.querySelector('.conflict-warning')) {
+                        c.insertAdjacentHTML('beforeend', '<span class="conflict-warning">⚠️</span>');
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Update Inferred Cells (emojis)
+    if (typeof updateInferredCells === 'function') {
+        updateInferredCells(row, data.classification);
+    }
+
+    // 4. Update Relevance with proper formatting
+    const relevanceCell = row.querySelector('[data-field="relevance"]');
+    if (relevanceCell && data.classification && data.classification.relevance !== undefined) {
+        relevanceCell.textContent = formatRelevance(data.classification.relevance);
+    }
+}
+
+
+
+
+
 /**
  * Helper to update a cell's status symbol based on boolean/null value.
  * @param {Element} row - The main table row element.
@@ -90,9 +155,9 @@ function updateInferredCells(row, classification) {
         if (group.filter_type === 'tri_state') {
             updateRowCell(row, `[data-field="${group.json_path}"]`, getJsonPath(classification, group.json_path));
         } else if (group.filter_type === 'inclusion' || group.filter_type === 'none') {
-            for (const key of group.keys) {
-                const path = `${group.json_path}.${key.key}`;
-                if (key.render_type === 'text_presence') {
+            for (const field_def of group.fields) {
+                const path = `${group.json_path}.${field_def.key}`;
+                if (field_def.render_type === 'text_presence') {
                     const val = getJsonPath(classification, path);
                     const cell = row.querySelector(`[data-field="${path}"]`);
                     if (cell) {
@@ -107,7 +172,6 @@ function updateInferredCells(row, classification) {
     }
 }
 
-// --- Extracted AJAX logic for reuse ---
 function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
     const saveButton = row.querySelector('.save-btn');
     const wasSaveButtonDisabled = saveButton ? saveButton.disabled : false;
@@ -123,27 +187,10 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
         if (data.status === 'success') {
             const mainRow = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (mainRow) {
-                if (data.main_certainty) {
-                    for (const [fieldName, certainty] of Object.entries(data.main_certainty)) {
-                        const c = mainRow.querySelector(`[data-field="${fieldName}"]`);
-                        if (c) {
-                            c.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
-                            if (certainty && certainty !== 'solid') c.classList.add(`certainty-${certainty}`);
-                            const emojiSpan = c.querySelector('.emoji-content');
-                            const conflictWarning = c.querySelector('.conflict-warning');
-                            if (certainty === 'conflict') {
-                                if (emojiSpan) emojiSpan.style.display = 'none';
-                                if (!conflictWarning) c.innerHTML = '<span class="conflict-warning">⚠️</span>';
-                            } else {
-                                if (emojiSpan) emojiSpan.style.display = '';
-                                if (conflictWarning) conflictWarning.remove();
-                            }
-                        }
-                    }
-                }
+                // 1. Clear ghosts, apply certainty, update emojis, format relevance
+                applyCertaintyAndUpdates(mainRow, data);    
                 
-                updateInferredCells(mainRow, data.classification);
-
+                // 2. Update Audit / Universal Cells
                 if (data.changed_formatted !== undefined) mainRow.querySelector('.changed-cell').textContent = data.changed_formatted;
                 if (data.changed_by !== undefined) mainRow.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 
@@ -159,11 +206,27 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
                 const verifiedByCell = mainRow.querySelector('[data-field="verified_by"]');
                 if (verifiedByCell) verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                 
-                const pageCountCell = mainRow.cells[3]; // Fixed index for page count
+                const pageCountCell = mainRow.cells[pageCountCellIndex]; 
                 if (pageCountCell && data.page_count !== undefined) pageCountCell.textContent = data.page_count ?? '';
                 
-                const relevanceCell = mainRow.cells[7]; // Fixed index for relevance
-                if (relevanceCell && data.relevance !== undefined) relevanceCell.textContent = data.relevance ?? '';
+                // 3. Refresh history row if expanded
+                const historyRow = mainRow.nextElementSibling && mainRow.nextElementSibling.nextElementSibling &&
+                                   mainRow.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                                   mainRow.nextElementSibling.nextElementSibling : null;
+                // ... (rest of the history row fetch logic remains exactly the same)
+                if (historyRow && historyRow.classList.contains('expanded')) {
+                    const historyContentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
+                    if (historyContentPlaceholder) {
+                        fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
+                            .then(response => response.json())
+                            .then(historyData => {
+                                if (historyData.status === 'success' && historyData.html) {
+                                    historyContentPlaceholder.innerHTML = historyData.html;
+                                }
+                            })
+                            .catch(error => console.error(`Error refreshing history row for paper ${paperId}:`, error));
+                    }
+                }
             }
             if (typeof updateCounts === 'function') updateCounts();
         } else {
@@ -178,7 +241,6 @@ function sendAjaxRequest(cell, dataToSend, currentText, row, paperId, field) {
 function saveChanges(paperId) {
     const form = document.getElementById(`form-${paperId}`);
     if (!form) return;
-
     const data = { id: paperId };
     
     // Universal fields
@@ -211,6 +273,10 @@ function saveChanges(paperId) {
         if (data.status === 'success') {
             const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
             if (row) {
+                // 1. Clear ghosts, apply certainty, update emojis, format relevance
+                applyCertaintyAndUpdates(row, data);
+
+                // 2. Update Audit / Universal Cells
                 if (data.changed_formatted !== undefined) row.querySelector('.changed-cell').textContent = data.changed_formatted;
                 if (data.changed_by !== undefined) row.querySelector('.changed-by-cell').innerHTML = renderChangedBy(data.changed_by);
                 
@@ -223,14 +289,54 @@ function saveChanges(paperId) {
                 const verifiedByCell = row.querySelector('[data-field="verified_by"]');
                 if (verifiedByCell) verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
                 
-                const pageCountCell = row.cells[3];
+                const pageCountCell = row.cells[pageCountCellIndex]; // Use the constant from filtering.js
                 if (pageCountCell && data.page_count !== undefined) pageCountCell.textContent = data.page_count ?? '';
-                
-                const relevanceCell = row.cells[7];
-                if (relevanceCell && data.relevance !== undefined) relevanceCell.textContent = data.relevance ?? '';
+
+                // User Comment State
+                const userCommentStateCell = row.querySelector('[data-field="user_comment_state"]');
+                if (userCommentStateCell && data.user_trace !== undefined) {
+                    const hasTrace = data.user_trace && String(data.user_trace).trim();
+                    userCommentStateCell.innerHTML = `<span class="emoji-content">${hasTrace ? '✔️' : '❌'}</span>`;
+                }
+
+                // PDF State (if paywalled logic triggered via user comments)
+                if (data.pdf_state !== undefined) {
+                    const pdfCell = row.cells[0];
+                    if (pdfCell) {
+                        pdfCell.innerHTML = '';
+                        pdfCell.title = "PDF Status";
+                        if (data.pdf_filename) {
+                            const extRemoved = data.pdf_filename.replace(/\.pdf$/i, '');
+                            const pdfLink = document.createElement('a');
+                            pdfLink.href = `/static/pdfjs/web/viewer.html?file=/serve_pdf/${encodeURIComponent(extRemoved)}`;
+                            pdfLink.target = '_blank';
+                            pdfLink.className = 'pdf-link';
+                            pdfLink.textContent = data.pdf_state === 'annotated' ? '📗' : '📕';
+                            pdfLink.title = data.pdf_state === 'annotated'
+                                ? 'Open this annotated PDF in the Annotator'
+                                : 'Open this PDF in the Annotator';
+                            pdfCell.appendChild(pdfLink);
+                        } else {
+                            const uploadLink = document.createElement('a');
+                            uploadLink.href = '#';
+                            uploadLink.className = 'pdf-upload-link';
+                            uploadLink.setAttribute('data-paper-id', paperId);
+                            const isPaywalled = data.pdf_state === 'paywalled';
+                            uploadLink.title = isPaywalled
+                                ? 'Article is paywalled. Click to upload if a copy is available'
+                                : 'No PDF stored yet. Click to upload PDF for this article';
+                            uploadLink.textContent = isPaywalled ? '💰' : '❔';
+                            pdfCell.appendChild(uploadLink);
+                        }
+                    }
+                }
             }
+            
+            // Collapse details row after successful save
             const toggleBtn = row ? row.querySelector('.toggle-btn:not(.history-btn)') : null;
-            if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) toggleDetails(toggleBtn);
+            if (toggleBtn && row && row.nextElementSibling && row.nextElementSibling.classList.contains('expanded')) {
+                toggleDetails(toggleBtn);
+            }
             
             saveButton.textContent = 'Saved!';
             setTimeout(() => { if (saveButton) { saveButton.textContent = originalText; saveButton.disabled = false; } }, 1500);
@@ -239,8 +345,9 @@ function saveChanges(paperId) {
             if (saveButton) { saveButton.textContent = originalText; saveButton.disabled = false; }
         }
     })
-    .catch(() => { saveButton.textContent = originalText; saveButton.disabled = false; });
+    .catch(() => { if (saveButton) { saveButton.textContent = originalText; saveButton.disabled = false; } });
 }
+
 /**
  * Toggles the visibility of the history row for a given paper.
  * @param {HTMLElement} element - The button element clicked to trigger the toggle.
@@ -595,8 +702,7 @@ const applyButton = document.getElementById('apply-serverside-filters');
 // --- Batch Action Button Event Listeners ---
 const parçaToolsBtn = document.getElementById('parça-tools-btn');
 const classifyAllBtn = document.getElementById('classify-all-btn');
-const classifyMisclassifiedBtn = document.getElementById('classify-misclassified-btn');
-const classifyImplBtn = document.getElementById('classify-impl-btn');
+
 const classifyRemainingBtn = document.getElementById('classify-remaining-btn');
 const classifyConsensusBtn = document.getElementById('classify-consensus-btn');
 const verifyAllBtn = document.getElementById('verify-all-btn');
@@ -638,9 +744,7 @@ function showApplyButton(){  applyButton.style.opacity = '1'; applyButton.style.
 // Define all batch buttons so they can be managed together
 const allBatchButtons = [
     classifyAllBtn,
-    classifyRemainingBtn,
-    classifyMisclassifiedBtn,
-    classifyImplBtn,         
+    classifyRemainingBtn,        
     classifyConsensusBtn, 
     verifyAllBtn,
     verifyRemainingBtn
@@ -656,11 +760,6 @@ function runBatchAction(mode, actionType) {
         modeDescription = 'ALL';
     } else if (mode === 'remaining') {
         modeDescription = 'remaining'; 
-    } else if (mode === 'no_features') {
-        modeDescription = 'misclassification suspect';
-    } else if (mode === 'on_topic_implementation') {
-        modeDescription = 'on-topic primary/implementation'; 
-    // Add description for 'consensus' mode
     } else if (mode === 'consensus') {
         modeDescription = 'misclassifications until consensus (reclassify + verify loop)';
     }
@@ -839,8 +938,6 @@ document.addEventListener('DOMContentLoaded', function () {
     parçaToolsBtn.addEventListener('click', showBatchActions);
     classifyAllBtn.addEventListener('click', () => runBatchAction('all', 'classify'));
     classifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'classify'));
-    classifyMisclassifiedBtn.addEventListener('click', () => runBatchAction('no_features', 'classify'));
-    classifyImplBtn.addEventListener('click', () => runBatchAction('on_topic_implementation', 'classify'));
     classifyConsensusBtn.addEventListener('click', () => runBatchAction('consensus', 'classify'));
     verifyAllBtn.addEventListener('click', () => runBatchAction('all', 'verify'));
     verifyRemainingBtn.addEventListener('click', () => runBatchAction('remaining', 'verify'));
@@ -863,102 +960,49 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // Disable the button temporarily
             (classifyBtn || verifyBtn).disabled = true;
             (classifyBtn || verifyBtn).textContent = 'Running...';
 
-            // Send AJAX request
             fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: 'id', paper_id: paperId })
             })
-            .then(response => {
-                if (!response.ok) {
-                    return response.json().then(errData => {
-                         throw new Error(errData.message || `HTTP error! status: ${response.status}`);
-                    }).catch(() => {
-                         throw new Error(`HTTP error! status: ${response.status}`);
-                    });
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Update the row with the received data
                     const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
-                    const detailRow = row ? row.nextElementSibling : null;
                     if (row) {
-                        // Update main row cells
-                        updateRowCell(row, '.editable-status[data-field="is_offtopic"]', data.is_offtopic);
-                        updateRowCell(row, '.editable-status[data-field="is_survey"]', data.is_survey);
-                        updateRowCell(row, '.editable-status[data-field="is_through_hole"]', data.is_through_hole);
-                        updateRowCell(row, '.editable-status[data-field="is_smt"]', data.is_smt);
-                        updateRowCell(row, '.editable-status[data-field="is_x_ray"]', data.is_x_ray);
-
-                        // Replace the existing feature updates with:
-                        updateRowCell(row, '.editable-status[data-field="features_tracks"]', data.features?.tracks);
-                        updateRowCell(row, '.editable-status[data-field="features_holes"]', data.features?.holes);
-                        updateRowCell(row, '.editable-status[data-field="features_bare_pcb_othe"]', data.features?.bare_pcb_other);
-
-                        updateRowCell(row, '.editable-status[data-field="features_solder_insufficient"]', data.features?.solder_insufficient);
-                        updateRowCell(row, '.editable-status[data-field="features_solder_excess"]', data.features?.solder_excess);
-                        updateRowCell(row, '.editable-status[data-field="features_solder_void"]', data.features?.solder_void);
-                        updateRowCell(row, '.editable-status[data-field="features_solder_crack"]', data.features?.solder_crack);
-                        updateRowCell(row, '.editable-status[data-field="features_solder_other"]', data.features?.solder_other);
-
-                        updateRowCell(row, '.editable-status[data-field="features_orientation"]', data.features?.orientation);
-                        updateRowCell(row, '.editable-status[data-field="features_wrong_component"]', data.features?.wrong_component);
-                        updateRowCell(row, '.editable-status[data-field="features_missing_component"]', data.features?.missing_component);
-                        updateRowCell(row, '.editable-status[data-field="features_component_other"]', data.features?.component_other);
-
-                        updateRowCell(row, '.editable-status[data-field="features_cosmetic"]', data.features?.cosmetic);
-                        updateRowCell(row, '.editable-status[data-field="features_other"]', data.features?.other);
-
-                        // Replace the existing technique updates with:
-                        updateRowCell(row, '.editable-status[data-field="technique_classic_cv_based"]', data.technique?.classic_cv_based);
-                        updateRowCell(row, '.editable-status[data-field="technique_ml_traditional"]', data.technique?.ml_traditional);
-                        updateRowCell(row, '.editable-status[data-field="technique_dl_cnn_classifier"]', data.technique?.dl_cnn_classifier);
-                        updateRowCell(row, '.editable-status[data-field="technique_dl_cnn_detector"]', data.technique?.dl_cnn_detector);
-                        updateRowCell(row, '.editable-status[data-field="technique_dl_rcnn_detector"]', data.technique?.dl_rcnn_detector);
-                        updateRowCell(row, '.editable-status[data-field="technique_dl_transformer"]', data.technique?.dl_transformer);
-                        updateRowCell(row, '.editable-status[data-field="technique_dl_other"]', data.technique?.dl_other);
-                        updateRowCell(row, '.editable-status[data-field="technique_hybrid"]', data.technique?.hybrid);
-                        updateRowCell(row, '.editable-status[data-field="technique_available_dataset"]', data.technique?.available_dataset);
-
+                        // 1. Clear ghosts, apply certainty, update emojis, format relevance
+                        applyCertaintyAndUpdates(row, data);
+                        
+                        // 2. Update Audit / Universal Cells
                         const userOverrideCountCell = row.querySelector('[data-field="user_override_count"]');
-                        if (userOverrideCountCell) {
-                            userOverrideCountCell.textContent = data.user_override_count !== null && data.user_override_count !== undefined ? data.user_override_count : '0';
-                        }
-                        // Update audit/other fields
+                        if (userOverrideCountCell) userOverrideCountCell.textContent = data.user_override_count ?? '0';
+                        
                         const changedCell = row.querySelector('.changed-cell');
                         if (changedCell) changedCell.textContent = data.changed_formatted || '';
-
+                        
                         const changedByCell = row.querySelector('.changed-by-cell');
                         if (changedByCell) changedByCell.innerHTML = renderChangedBy(data.changed_by);
-
-                        const verifiedCell = row.querySelector('.editable-status[data-field="verified"]');
-                        if (verifiedCell) {
-                            verifiedCell.textContent = renderStatus(data.verified);
-                        }
-
-                        const verifiedByCell = row.querySelector('.editable-verify[data-field="verified_by"]');
-                        if (verifiedByCell) {
-                             verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
-                        }
-                        const estimatedScoreCell = row.cells[estScoreCellIndex];  //Updates score dynamically after verification.
-                        if (estimatedScoreCell) estimatedScoreCell.textContent = data.estimated_score !== null && data.estimated_score !== undefined ? data.estimated_score : ''; // Example formatting
-
-                        const pageCountCell = row.cells[pageCountCellIndex]; 
-                        if (pageCountCell) pageCountCell.textContent = data.page_count !== null && data.page_count !== undefined ? data.page_count : '';
-
-                        // Refresh history row if it's expanded
-                        const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
-                            row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
-                            row.nextElementSibling.nextElementSibling : null;
                         
+                        const verifiedCell = row.querySelector('[data-field="verified"]');
+                        if (verifiedCell) verifiedCell.innerHTML = `<span class="emoji-content">${renderStatus(data.verified)}</span>`;
+                        
+                        const verifiedByCell = row.querySelector('[data-field="verified_by"]');
+                        if (verifiedByCell) verifiedByCell.innerHTML = renderVerifiedBy(data.verified_by);
+                        
+                        const estScoreCell = row.querySelector('[data-field="estimated_score"]');
+                        if (estScoreCell) estScoreCell.textContent = data.estimated_score ?? '';
+                        
+                        const pageCountCell = row.cells[pageCountCellIndex];
+                        if (pageCountCell) pageCountCell.textContent = data.page_count ?? '';
+                        
+                        // 3. Refresh history row if expanded...
+
+                        const historyRow = row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
+                                        row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+                                        row.nextElementSibling.nextElementSibling : null;
                         if (historyRow && historyRow.classList.contains('expanded')) {
                             const historyContentPlaceholder = historyRow.querySelector('.detail-content-placeholder');
                             if (historyContentPlaceholder) {
@@ -969,16 +1013,13 @@ document.addEventListener('DOMContentLoaded', function () {
                                             historyContentPlaceholder.innerHTML = historyData.html;
                                         }
                                     })
-                                    .catch(error => {
-                                        console.error(`Error refreshing history row for paper ${paperId}:`, error);
-                                    });
+                                    .catch(error => console.error(`Error refreshing history row for paper ${paperId}:`, error));
                             }
                         }
                         updateCounts();
-                        //console.log(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} successful for paper ${paperId}`);
                     }
                 } else {
-                    console.error(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} error for paper ${paperId}:`, data.message);
+                    console.error(`${actionType} error for paper ${paperId}:`, data.message);
                     alert(`Failed to ${actionType} paper ${paperId}: ${data.message}`);
                 }
             })
@@ -991,12 +1032,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (actionType === 'classify') {
                     (classifyBtn || verifyBtn).innerHTML = 'Classify <strong>this paper</strong>';
                 } else if (actionType === 'verify') {
-                    (classifyBtn || verifyBtn).innerHTML = 'Verify <strong>this paper</strong>'; 
+                    (classifyBtn || verifyBtn).innerHTML = 'Verify <strong>this paper</strong>';
                 }
             });
         }
     });
-
 
     // --- BibTeX Import Logic ---
     const importBibtexBtn = document.getElementById('import-bibtex-btn');

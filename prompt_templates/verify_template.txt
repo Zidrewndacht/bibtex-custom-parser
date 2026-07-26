@@ -114,16 +114,6 @@ Now, here is the Paper Content (real data) for your task:
 
 Automated Classification to Verify (inferred by a language model):
 
-research_area: {research_area}
-is_offtopic: {is_offtopic}
-relevance: {relevance}
-is_survey: {is_survey}
-is_through_hole: {is_through_hole}
-is_smt: {is_smt}
-is_x_ray: {is_x_ray}
-features:
-{features}
-technique:
-{technique}
+{previous_classification_json}
 
 Your response is not being read by a human, it goes directly to an automated parser. Output only the result in JSON format in plaintext without any other tags like ```json or similar.

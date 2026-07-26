@@ -1,9 +1,18 @@
 <!-- templates/papers_table_tfoot.html -->
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+    {% if group.filter_type == 'tri_state' %}
+        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+    {% elif group.filter_type in ['inclusion', 'none'] %}
+        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+    {% endif %}
+{% endfor %}
+{% set total_cols = 6 + 2 + ns.total_dynamic + 9 %}
+
 <tfoot id="counts-footer">
 <tr>
-    <!-- 1. LEADING FIXED (6) -->
-    <td id="count-pdf_present" title=""></td>
-    <td colspan="4" style="font-weight: 400;" id="visible-count-cell">
+    <td id="count-pdf_present" title=""></td> 
+    <td colspan="4" style="font-weight: 400;" id="visible-count-cell"> 
         Filtered: <span style="font-weight: bold;" id="visible-papers-count"></span>,
         Loaded: <span style="font-weight: bold;" id="loaded-papers-count"></span>,
         Total: <span style="font-weight: bold;" id="total-papers-count">{{ total_paper_count | safe }}</span>,
@@ -14,40 +23,34 @@
             <button type="button" id="longtable-btn" title="Click to copy the currently filtered table to the clipboard as a LaTeX \longtable"><em>\longtable</em></button>
         </span>
     </td>
-
-    <!-- 2. UNIVERSAL INFERRED (2) -->
-    <td id="count-is_offtopic" class="count-cell" data-field="is_offtopic" title="Offtopic"></td>
+    
+    <!-- Universal Inferred Counts -->
+    <td data-count-field="is_offtopic" class="count-cell" title="Offtopic"></td>
     <td></td> <!-- Relevance -->
 
-    <!-- 3. DYNAMIC DOMAIN-SPECIFIC -->
+    <!-- Dynamic Domain-Specific Counts -->
     {% for group in domain_config.groups %}
         {% if group.filter_type == 'tri_state' %}
-            {% set path = group.json_path %}
-            <td id="count-{{ path | replace('.', '_') }}" class="count-cell" data-field="{{ path }}" title="{{ group.friendly_name }}"></td>
+            <td data-count-field="{{ group.json_path }}" class="count-cell" title="{{ group.label }}"></td>
         {% elif group.filter_type in ['inclusion', 'none'] %}
-            {% for key_def in group.keys %}
-                {% set path = group.json_path + '.' + key_def.key %}
-                <td id="count-{{ path | replace('.', '_') }}" class="count-cell" data-field="{{ path }}" title="{{ key_def.label }}"></td>
+            {% for field_def in group.fields %}
+                <td data-count-field="{{ group.json_path }}.{{ field_def.key }}" class="count-cell" title="{{ field_def.label }}"></td>
             {% endfor %}
         {% endif %}
     {% endfor %}
 
-    <!-- 4. TRAILING FIXED (9) -->
+    <!-- Trailing Fixed Counts -->
     <td></td> <!-- Last Changed -->
-    <td id="count-changed_by" class="count-cell" data-field="changed_by" title="Changed by User"></td>
-    <td id="count-verified" class="count-cell" data-field="verified" title="Verified"></td>
+    <td data-count-field="changed_by" class="count-cell" title="Changed by User"></td>
+    <td data-count-field="verified" class="count-cell" title="Verified"></td>
     <td></td> <!-- Estimated Score -->
-    <td id="count-verified_by" class="count-cell" data-field="verified_by" title="Verified by User"></td>
-    <td id="count-user_override_count" class="count-cell" data-field="user_override_count" title="User Override Count"></td>
-    <td id="count-user_comment_state" class="count-cell" data-field="user_comment_state" title="Commented by User"></td>
+    <td data-count-field="verified_by" class="count-cell" title="Verified by User"></td>
+    <td data-count-field="user_override_count" class="count-cell" title="User Override Count"></td>
+    <td data-count-field="user_comment_state" class="count-cell" title="Commented by User"></td>
     <td></td> <!-- History -->
-    <td></td> <!-- Details -->
-
-    <!-- 5. HIDDEN METADATA (5) -->
-    <td style="display:none"></td>
-    <td style="display:none"></td>
-    <td style="display:none"></td>
-    <td style="display:none"></td>
-    <td style="display:none"></td>
+    <td></td> <!-- Actions -->
+    
+    <!-- Hidden metadata fields -->
+    <td style="display:none" colspan="5"></td>
 </tr>
 </tfoot>

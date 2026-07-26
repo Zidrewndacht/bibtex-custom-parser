@@ -12,28 +12,34 @@ editable_fields:
 
 groups:
   # --- Single-field Tri-State Filters ---
+    # Friendly name is the group name (keep unused for single-field groups)
+    # label is the column name.
   - name: "survey"
-    friendly_name: "Survey"
+    friendly_name: ""
     filter_type: tri_state
     json_path: "is_survey"
+    label: "Survey"
     header_class: "inferred-header"
 
   - name: "tht"
-    friendly_name: "THT"
+    friendly_name: ""
     filter_type: tri_state
     json_path: "is_through_hole"
+    label: "THT" 
     header_class: "inferred-header"
 
   - name: "smt"
-    friendly_name: "SMT"
+    friendly_name: ""
     filter_type: tri_state
     json_path: "is_smt"
+    label: "SMT" 
     header_class: "inferred-header"
 
   - name: "xray"
-    friendly_name: "X-Ray"
+    friendly_name: ""
     filter_type: tri_state
     json_path: "is_x_ray"
+    label: "X-Ray"
     header_class: "inferred-header"
 
   # --- Multi-field Inclusion Groups (Features) ---
@@ -42,7 +48,7 @@ groups:
     filter_type: inclusion
     json_path: "features"
     header_class: "inferred-header-2"
-    keys:
+    fields:
       - key: "tracks"
         label: "Tracks"
         highlight: true
@@ -58,7 +64,7 @@ groups:
     filter_type: inclusion
     json_path: "features"
     header_class: "inferred-header-2"
-    keys:
+    fields:
       - key: "solder_insufficient"
         label: "Insufficient"
       - key: "solder_excess"
@@ -75,7 +81,7 @@ groups:
     filter_type: inclusion
     json_path: "features"
     header_class: "inferred-header-2"
-    keys:
+    fields:
       - key: "missing_component"
         label: "Missing Comp"
         highlight: true
@@ -93,11 +99,11 @@ groups:
         highlight: true
 
   - name: "other_features"
-    friendly_name: "Other"
+    friendly_name: ""
     filter_type: inclusion
     json_path: "features"
     header_class: "inferred-header-2"
-    keys:
+    fields:
       - key: "other"
         label: "Other"
         render_type: text_presence
@@ -109,7 +115,7 @@ groups:
     filter_type: none
     json_path: "technique"
     header_class: "inferred-header-3"
-    keys:
+    fields:
       - key: "classic_cv_based"
         label: "Classic CV"
       - key: "ml_traditional"
@@ -126,13 +132,10 @@ groups:
         label: "Other DL"
       - key: "hybrid"
         label: "Hybrid"
-      - key: "available_dataset"
-        label: "Datasets"
-        highlight: true
 
-  # --- Tri-State Filter for Techniques ---
   - name: "dataset"
-    friendly_name: "" # Empty hides the text label, just shows checkbox
+    friendly_name: ""
     filter_type: tri_state
     json_path: "technique.available_dataset"
+    label: "Datasets"
     header_class: "inferred-header-3"

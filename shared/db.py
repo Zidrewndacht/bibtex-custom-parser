@@ -158,7 +158,10 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
         params = []
         
         if hide_offtopic:
-            conditions.append("(json_extract(p.classification, '$.is_offtopic') = 0 OR json_extract(p.classification, '$.is_offtopic') IS NULL)")
+            # Bulletproof JSON boolean check: 
+            # Handles SQL NULL, JSON null, integer 0, string '0', and string 'false'
+            conditions.append("(json_extract(p.classification, '$.is_offtopic') IS NULL OR json_extract(p.classification, '$.is_offtopic') IN (0, '0', 'false', 'False'))")
+            
         if year_from is not None:
             try: conditions.append("p.year >= ?"); params.append(int(year_from))
             except: pass
@@ -166,7 +169,8 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
             try: conditions.append("p.year <= ?"); params.append(int(year_to))
             except: pass
         if min_page_count is not None:
-            try: conditions.append("(p.page_count IS NULL OR p.page_count = '' OR p.page_count >= ?)"); params.append(int(min_page_count))
+            # Added CAST to ensure string page counts from BibTeX don't break the >= comparison
+            try: conditions.append("(p.page_count IS NULL OR p.page_count = '' OR CAST(p.page_count AS INTEGER) >= ?)"); params.append(int(min_page_count))
             except: pass
             
         query_parts = [base_query]
@@ -184,7 +188,7 @@ def fetch_papers(hide_offtopic=True, year_from=None, year_to=None, min_page_coun
             p_dict['changed_formatted'] = format_changed_timestamp(p_dict.get('changed'))
             paper_list.append(p_dict)
         return paper_list
-
+    
 def calculate_field_certainty(values):
     if not values or len(values) != 3:
         return None, 'solid'
@@ -219,7 +223,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         cursor = conn.cursor()
         paper = dict(cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone())
         if not paper: return {'status': 'error', 'message': 'Paper not found'}
-
+        
         changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         
         try: current_class = json.loads(paper['classification'] or '{}')
@@ -228,78 +232,228 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
         except: last_llm_class = {}
         try: certainty_map = json.loads(paper['main_certainty'] or '{}')
         except: certainty_map = {}
+        try: existing_log = json.loads(paper['llm_log'] or '[]')
+        except: existing_log = []
         
         update_fields = []
         update_values = []
         
+        user_set_verified = 'verified' in data
+        user_set_verified_by = 'verified_by' in data
+        original_verified_by = paper.get('verified_by')
+        
+        # FIX: Track current_user_trace properly so the log entry gets the NEW trace immediately
+        current_user_trace = paper.get('user_trace') or ""
+
         # 1. Handle Baseline SQL Columns
         if 'page_count' in data:
             update_fields.append("page_count = ?")
             update_values.append(int(data['page_count']) if str(data['page_count']).isdigit() else None)
-        if 'user_trace' in data:
-            update_fields.append("user_trace = ?")
-            update_values.append(data['user_trace'])
+            data.pop('page_count')
             
+        if 'user_trace' in data:
+            current_user_trace = data['user_trace']
+            update_fields.append("user_trace = ?")
+            update_values.append(current_user_trace)
+            # Automated paywall detection
+            is_paywalled = 'paywalled' in str(current_user_trace).lower()
+            has_pdf = bool(paper.get('pdf_filename'))
+            if is_paywalled and not has_pdf and paper.get('pdf_state') != "paywalled":
+                update_fields.append("pdf_state = ?")
+                update_values.append("paywalled")
+            elif not is_paywalled and not has_pdf and paper.get('pdf_state') == "paywalled":
+                update_fields.append("pdf_state = ?")
+                update_values.append("none")
+            data.pop('user_trace')
+            
+        if 'verified' in data:
+            val = data['verified']
+            if isinstance(val, str):
+                db_val = 1 if val.lower() in ('true', '1', 'on') else (0 if val.lower() in ('false', '0') else None)
+            else:
+                db_val = 1 if val is True else (0 if val is False else None)
+            update_fields.append("verified = ?")
+            update_values.append(db_val)
+            current_class['verified'] = db_val
+            data.pop('verified')
+            
+        if 'verified_by' in data:
+            verified_by_value = data['verified_by']
+            db_val = None if verified_by_value == 'unknown' or verified_by_value is None else verified_by_value
+            update_fields.append("verified_by = ?")
+            update_values.append(db_val)
+            current_class['verified_by'] = db_val
+            data.pop('verified_by')
+            
+        if 'estimated_score' in data:
+            val = data['estimated_score']
+            db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) or (isinstance(val, str) and val.isdigit()) else None
+            update_fields.append("estimated_score = ?")
+            update_values.append(db_val)
+            current_class['estimated_score'] = db_val
+            data.pop('estimated_score')
+
         # 2. Handle Classification Blob (Dot-notation keys)
         for key, value in data.items():
-            if key in ['id', 'page_count', 'user_trace']: continue
-            
-            # Parse boolean strings
+            if key in ['id']: continue
             if isinstance(value, str):
-                if value.lower() == 'true': parsed_val = True
-                elif value.lower() == 'false': parsed_val = False
-                elif value == '': parsed_val = None
+                if value.lower() in ('true', '1', 'on'): parsed_val = True
+                elif value.lower() in ('false', '0', 'off'): parsed_val = False
+                elif value.lower() in ('', 'null', 'unknown', 'none'): parsed_val = None
                 else: parsed_val = value
             else:
                 parsed_val = value
                 
             _set_val_by_path(current_class, key, parsed_val)
-            certainty_map[key] = 'solid' # User edits are always 'solid' certainty
+            certainty_map[key] = 'solid' 
 
-        # 3. Calculate User Override Count
+        # 3. Verification Reset Logic
+        if changed_by == "user" and not user_set_verified and not user_set_verified_by:
+            was_llm_verified = (original_verified_by and 
+                                str(original_verified_by).strip() != '' and 
+                                original_verified_by != 'user')
+            if was_llm_verified:
+                update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
+                update_values.extend([None, None, ""])
+                current_class['verified'] = None
+                current_class['estimated_score'] = None
+                current_class['verified_by'] = ""
+
+        # 4. Calculate User Override Count
         def normalize_bool(val):
-            if val is None or val == '' or val == 'null': return None
-            if val is True or val == 1: return 1
-            if val is False or val == 0: return 0
+            if val is None or val == '' or val == 'null' or val == 'unknown' or val == 'none': return None
+            if val is True or val == 1 or val == '1' or val == 'true': return 1
+            if val is False or val == 0 or val == '0' or val == 'false': return 0
             return val
-
+            
         override_count = 0
         all_paths = set(_get_all_paths(current_class)) | set(_get_all_paths(last_llm_class))
         for path in all_paths:
             if normalize_bool(_get_val_by_path(current_class, path)) != normalize_bool(_get_val_by_path(last_llm_class, path)):
                 override_count += 1
 
-        # 4. Save
-        update_fields.extend(["classification = ?", "main_certainty = ?", "user_override_count = ?", "changed = ?", "changed_by = ?"])
-        update_values.extend([json.dumps(current_class), json.dumps(certainty_map), override_count, changed_timestamp, changed_by])
+        # 5. History Log Building (Strictly follows original compaction logic)
+        user_log_entry = {
+            "timestamp": changed_timestamp,
+            "type": "user",
+            "model": "user",
+            "trace": current_user_trace,
+            "output": json.dumps(current_class),
+            "valid": True,
+            "certainty_map": certainty_map
+        }
+        
+        # If the latest entry is from a user, compact the changes into it.
+        # Otherwise (if it's AI or empty), append a new user entry.
+        if existing_log and existing_log[-1].get('type') == 'user':
+            last_user_entry = existing_log[-1]
+            last_user_entry['output'] = json.dumps(current_class)
+            last_user_entry['trace'] = current_user_trace
+            last_user_entry['timestamp'] = changed_timestamp
+            last_user_entry['certainty_map'] = certainty_map
+        else:
+            existing_log.append(user_log_entry)
+
+        # 6. Save
+        update_fields.extend([
+            "classification = ?", "main_certainty = ?", "user_override_count = ?", 
+            "changed = ?", "changed_by = ?", "llm_log = ?"
+        ])
+        update_values.extend([
+            json.dumps(current_class), json.dumps(certainty_map), override_count, 
+            changed_timestamp, changed_by, json.dumps(existing_log)
+        ])
         
         cursor.execute(f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?", update_values + [paper_id])
         conn.commit()
         
-        # Return updated data for the frontend
         return fetch_updated_paper_data(paper_id)
     
-def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid, log_type="classifier", reset_verification=False):
+def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=True):
     with get_db() as conn:
         cursor = conn.cursor()
-        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        paper = dict(cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone())
+        if not paper: return None
+        changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         
-        # 1. Save the raw LLM output directly to the set blob
-        update_fields = [f"set_{set_num}_llm = ?"]
-        update_values = [json.dumps(llm_data)]
+        sets_data = []
+        for sn in [1, 2, 3]:
+            try: sets_data.append(json.loads(paper.get(f'set_{sn}_llm') or '{}'))
+            except: sets_data.append({})
+            
+        all_paths = set()
+        for s in sets_data:
+            all_paths.update(_get_all_paths(s))
+            
+        main_classification = {}
+        certainty_map = {}
+        main_output_log = {} 
         
-        # 2. Handle Log
-        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (paper_id,))
-        row = cursor.fetchone()
-        try: existing_log = json.loads(row[0]) if row and row[0] else []
-        except: existing_log = []
-        
-        existing_log.append({"timestamp": timestamp, "type": log_type, "model": model_name, "trace": reasoning_trace or "", "output": json_result or "{}", "valid": valid})
-        update_fields.append(f"set_{set_num}_llm_log = ?")
-        update_values.append(json.dumps(existing_log))
-        
-        cursor.execute(f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?", update_values + [paper_id])
+        for path in all_paths:
+            values = [_get_val_by_path(s, path) for s in sets_data]
+            
+            if path == 'relevance' or path == 'estimated_score':
+                valid_vals = [v for v in values if isinstance(v, (int, float))]
+                avg = sum(valid_vals) / len(valid_vals) if valid_vals else None
+                _set_val_by_path(main_classification, path, avg)
+                main_output_log[path] = avg
+                continue
+                
+            main_val, certainty = calculate_field_certainty([1 if v is True else (0 if v is False else None) for v in values])
+            final_val = True if main_val == 1 else (False if main_val == 0 else None)
+            _set_val_by_path(main_classification, path, final_val)
+            certainty_map[path] = certainty
+            main_output_log[path] = final_val
 
+        score_values = [_get_val_by_path(s, 'estimated_score') for s in sets_data]
+        verified_from_score = [1 if (s is not None and s >= 7) else (0 if s is not None else None) for s in score_values]
+        main_verified, verified_certainty = calculate_field_certainty(verified_from_score)
+        final_verified = True if main_verified == 1 else (False if main_verified == 0 else None)
+        
+        main_classification['verified'] = final_verified
+        certainty_map['verified'] = verified_certainty
+        main_output_log['verified'] = final_verified
+        
+        score_valid = [v for v in score_values if v is not None]
+        main_score = sum(score_valid) / len(score_valid) if score_valid else None
+        final_score = int(main_score) if main_score is not None else None
+        main_classification['estimated_score'] = final_score
+        main_output_log['estimated_score'] = final_score
+        
+        class_json = json.dumps(main_classification)
+        cert_json = json.dumps(certainty_map)
+        
+        sql_verified = 1 if final_verified is True else (0 if final_verified is False else None)
+        
+        cursor.execute("""
+            UPDATE papers SET
+                classification = ?,
+                last_llm_classification = ?,
+                main_certainty = ?,
+                changed = ?,
+                changed_by = ?,
+                verified = ?,
+                estimated_score = ?
+            WHERE id = ?
+        """, (class_json, class_json, cert_json, changed_timestamp, changed_by, sql_verified, final_score, paper_id))
+   
+        if create_log_entry:
+            row = cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,)).fetchone()
+            try: existing_log = json.loads(row[0]) if row and row[0] else []
+            except: existing_log = []
+            
+            log_entry = {
+                "timestamp": changed_timestamp, "type": "averaged_llm", "model": "averaged_3_sets",
+                "trace": "Averaged from 3 classification sets",
+                # FIX: Save the NESTED main_classification instead of the FLAT main_output_log
+                "output": json.dumps({**main_classification, "certainty_map": certainty_map}),
+                "valid": True, "certainty_map": certainty_map
+            }
+            existing_log.append(log_entry)
+            cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+            
+        return certainty_map
+    
 def fetch_updated_paper_data(paper_id):
     """Returns the parsed JSON blobs and baseline columns for frontend cell updates."""
     with get_db() as conn:
@@ -329,7 +483,41 @@ def fetch_updated_paper_data(paper_id):
             }
         return {'status': 'error', 'message': 'Paper not found after update.'}
 
-def update_set_verifier(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid):
+def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid, log_type="classifier", reset_verification=False, invalid_reason=None):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        
+        # 1. Save the raw LLM output directly to the set blob
+        update_fields = [f"set_{set_num}_llm = ?"]
+        update_values = [json.dumps(llm_data)]
+        
+        # 2. Handle Log
+        cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (paper_id,))
+        row = cursor.fetchone()
+        try: existing_log = json.loads(row[0]) if row and row[0] else []
+        except: existing_log = []
+        
+        log_entry = {
+            "timestamp": timestamp, 
+            "type": log_type, 
+            "model": model_name, 
+            "trace": reasoning_trace or "", 
+            "output": json_result or "{}", 
+            "valid": valid
+        }
+        if invalid_reason:
+            log_entry["invalid_reason"] = invalid_reason
+            
+        existing_log.append(log_entry)
+        
+        update_fields.append(f"set_{set_num}_llm_log = ?")
+        update_values.append(json.dumps(existing_log))
+        
+        cursor.execute(f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?", update_values + [paper_id])
+
+
+def update_set_verifier(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid, invalid_reason=None):
     """Writes verifier output (verified, estimated_score) into the set_N_llm JSON blob."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -350,13 +538,23 @@ def update_set_verifier(paper_id, set_num, llm_data, model_name, reasoning_trace
         try: existing_log = json.loads(row[0]) if row and row[0] else []
         except: existing_log = []
         
-        existing_log.append({
-            "timestamp": timestamp, "type": "verifier", "model": model_name, 
-            "trace": reasoning_trace or "", "output": json_result or "{}", "valid": valid
-        })
+        log_entry = {
+            "timestamp": timestamp, 
+            "type": "verifier", 
+            "model": model_name,
+            "trace": reasoning_trace or "", 
+            "output": json_result or "{}", 
+            "valid": valid
+        }
+        if invalid_reason:
+            log_entry["invalid_reason"] = invalid_reason
+            
+        existing_log.append(log_entry)
+        
         cursor.execute(f"UPDATE papers SET set_{set_num}_llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
 
-def update_set_log_only(paper_id, set_num, log_type, model_name, reasoning_trace, json_result, valid):
+
+def update_set_log_only(paper_id, set_num, log_type, model_name, reasoning_trace, json_result, valid, invalid_reason=None):
     """Appends an error/trace entry to the set_N_llm_log without modifying the classification blob."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -366,100 +564,17 @@ def update_set_log_only(paper_id, set_num, log_type, model_name, reasoning_trace
         try: existing_log = json.loads(row[0]) if row and row[0] else []
         except: existing_log = []
         
-        existing_log.append({
-            "timestamp": timestamp, "type": log_type, "model": model_name, 
-            "trace": reasoning_trace or "", "output": json_result or "{}", "valid": valid
-        })
+        log_entry = {
+            "timestamp": timestamp, 
+            "type": log_type, 
+            "model": model_name,
+            "trace": reasoning_trace or "", 
+            "output": json_result or "{}", 
+            "valid": valid
+        }
+        if invalid_reason:
+            log_entry["invalid_reason"] = invalid_reason
+            
+        existing_log.append(log_entry)
+        
         cursor.execute(f"UPDATE papers SET set_{set_num}_llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
-
-def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=True):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        paper = dict(cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone())
-        if not paper: return None
-
-        changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        
-        # Load the 3 sets
-        sets_data = []
-        for sn in [1, 2, 3]:
-            try: sets_data.append(json.loads(paper.get(f'set_{sn}_llm') or '{}'))
-            except: sets_data.append({})
-
-        # Discover all unique paths across all 3 sets
-        all_paths = set()
-        for s in sets_data:
-            all_paths.update(_get_all_paths(s))
-
-        main_classification = {}
-        certainty_map = {}
-        main_output_log = {} # For the llm_log
-
-        for path in all_paths:
-            values = [_get_val_by_path(s, path) for s in sets_data]
-            
-            # Handle Relevance / Estimated Score (Averages)
-            if path == 'relevance' or path == 'estimated_score':
-                valid_vals = [v for v in values if isinstance(v, (int, float))]
-                avg = sum(valid_vals) / len(valid_vals) if valid_vals else None
-                _set_val_by_path(main_classification, path, avg)
-                main_output_log[path] = avg
-                continue
-
-            # Handle Verified (Tri-state logic based on score >= 7)
-            if path == 'verified':
-                # Handled separately below
-                continue
-
-            # Tri-state averaging
-            main_val, certainty = calculate_field_certainty([1 if v is True else (0 if v is False else None) for v in values])
-            
-            # Convert 1/0/None back to True/False/None for the JSON blob
-            final_val = True if main_val == 1 else (False if main_val == 0 else None)
-            _set_val_by_path(main_classification, path, final_val)
-            certainty_map[path] = certainty
-            main_output_log[path] = final_val
-
-        # Handle Verification logic
-        score_values = [_get_val_by_path(s, 'estimated_score') for s in sets_data]
-        verified_from_score = [1 if (s is not None and s >= 7) else (0 if s is not None else None) for s in score_values]
-        main_verified, verified_certainty = calculate_field_certainty(verified_from_score)
-        final_verified = True if main_verified == 1 else (False if main_verified == 0 else None)
-        
-        main_classification['verified'] = final_verified
-        certainty_map['verified'] = verified_certainty
-        main_output_log['verified'] = final_verified
-        
-        score_valid = [v for v in score_values if v is not None]
-        main_score = sum(score_valid) / len(score_valid) if score_valid else None
-        main_classification['estimated_score'] = int(main_score) if main_score is not None else None
-        main_output_log['estimated_score'] = main_classification['estimated_score']
-
-        # Save to DB
-        class_json = json.dumps(main_classification)
-        cert_json = json.dumps(certainty_map)
-        
-        cursor.execute("""
-            UPDATE papers SET 
-                classification = ?, 
-                last_llm_classification = ?, 
-                main_certainty = ?,
-                changed = ?, 
-                changed_by = ?
-            WHERE id = ?
-        """, (class_json, class_json, cert_json, changed_timestamp, changed_by, paper_id))
-
-        if create_log_entry:
-            row = cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,)).fetchone()
-            try: existing_log = json.loads(row[0]) if row and row[0] else []
-            except: existing_log = []
-            log_entry = {
-                "timestamp": changed_timestamp, "type": "averaged_llm", "model": "averaged_3_sets",
-                "trace": "Averaged from 3 classification sets",
-                "output": json.dumps({**main_output_log, "certainty_map": certainty_map}),
-                "valid": True, "certainty_map": certainty_map
-            }
-            existing_log.append(log_entry)
-            cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
-            
-        return certainty_map

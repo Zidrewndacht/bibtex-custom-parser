@@ -12,7 +12,7 @@ import csv
 from typing import List
 import sys
 import os
-from shared import config
+# from shared import config
 
 def parse_authors(authors_str):
     if not authors_str: return ""

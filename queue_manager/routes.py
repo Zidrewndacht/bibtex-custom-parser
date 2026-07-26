@@ -67,33 +67,11 @@ def handle_classify_route():
                     ORDER BY id, set_num
                 """)
             elif mode == 'remaining':
+                # A set is "remaining" if the LLM blob is empty/null, or missing the universal 'is_offtopic' key
                 cursor.execute("""
-                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NULL OR set_1_last_llm_is_offtopic = ''
-                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NULL OR set_2_last_llm_is_offtopic = ''
-                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NULL OR set_3_last_llm_is_offtopic = ''
-                    ORDER BY id, set_num
-                """)
-            elif mode == 'no_features':
-                set_queries = []
-                for sn in [1, 2, 3]:
-                    col_name = f'set_{sn}_last_llm_features'
-                    conditions = [f"set_{sn}_last_llm_is_offtopic = 0"]
-                    for key in config.BOOLEAN_FEATURE_KEYS:
-                        conditions.append(f"""(
-                            CASE 
-                                WHEN {col_name} IS NULL OR {col_name} = '' THEN 1
-                                WHEN json_extract({col_name}, '$.{key}') IS NULL THEN 1
-                                WHEN json_extract({col_name}, '$.{key}') = 0 THEN 1
-                                ELSE 0
-                            END = 1
-                        )""")
-                    set_queries.append(f"SELECT id, {sn} as set_num FROM papers WHERE {' AND '.join(conditions)}")
-                cursor.execute(f" {' UNION ALL '.join(set_queries)} ORDER BY id, set_num")
-            elif mode == 'on_topic_implementation':
-                cursor.execute("""
-                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic = 0 AND (set_1_last_llm_is_survey = 0 OR set_1_last_llm_is_survey IS NULL)
-                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic = 0 AND (set_2_last_llm_is_survey = 0 OR set_2_last_llm_is_survey IS NULL)
-                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic = 0 AND (set_3_last_llm_is_survey = 0 OR set_3_last_llm_is_survey IS NULL)
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_llm IS NULL OR set_1_llm = '' OR json_extract(set_1_llm, '$.is_offtopic') IS NULL
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_llm IS NULL OR set_2_llm = '' OR json_extract(set_2_llm, '$.is_offtopic') IS NULL
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_llm IS NULL OR set_3_llm = '' OR json_extract(set_3_llm, '$.is_offtopic') IS NULL
                     ORDER BY id, set_num
                 """)
             else:
@@ -165,16 +143,17 @@ def handle_verify_route():
             cursor = conn.cursor()
             if mode == 'all':
                 cursor.execute("""
-                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != ''
-                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != ''
-                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != ''
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_llm IS NOT NULL AND set_1_llm != '' AND json_extract(set_1_llm, '$.is_offtopic') IS NOT NULL
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_llm IS NOT NULL AND set_2_llm != '' AND json_extract(set_2_llm, '$.is_offtopic') IS NOT NULL
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_llm IS NOT NULL AND set_3_llm != '' AND json_extract(set_3_llm, '$.is_offtopic') IS NOT NULL
                     ORDER BY id, set_num
                 """)
             elif mode == 'remaining':
+                # A set needs verification if it has been classified, but lacks the universal 'verified' key
                 cursor.execute("""
-                    SELECT id, 1 as set_num FROM papers WHERE set_1_last_llm_is_offtopic IS NOT NULL AND set_1_last_llm_is_offtopic != '' AND (set_1_last_llm_verified IS NULL OR set_1_last_llm_verified = '')
-                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_last_llm_is_offtopic IS NOT NULL AND set_2_last_llm_is_offtopic != '' AND (set_2_last_llm_verified IS NULL OR set_2_last_llm_verified = '')
-                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_last_llm_is_offtopic IS NOT NULL AND set_3_last_llm_is_offtopic != '' AND (set_3_last_llm_verified IS NULL OR set_3_last_llm_verified = '')
+                    SELECT id, 1 as set_num FROM papers WHERE set_1_llm IS NOT NULL AND set_1_llm != '' AND (json_extract(set_1_llm, '$.verified') IS NULL OR json_extract(set_1_llm, '$.verified') = '')
+                    UNION ALL SELECT id, 2 FROM papers WHERE set_2_llm IS NOT NULL AND set_2_llm != '' AND (json_extract(set_2_llm, '$.verified') IS NULL OR json_extract(set_2_llm, '$.verified') = '')
+                    UNION ALL SELECT id, 3 FROM papers WHERE set_3_llm IS NOT NULL AND set_3_llm != '' AND (json_extract(set_3_llm, '$.verified') IS NULL OR json_extract(set_3_llm, '$.verified') = '')
                     ORDER BY id, set_num
                 """)
             else:
@@ -252,14 +231,33 @@ def handle_consensus_route():
         with db.get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, 1 as set_num FROM papers WHERE (set_1_last_llm_verified IS NULL OR set_1_last_llm_estimated_score <= 7)
-                UNION ALL SELECT id, 2 FROM papers WHERE (set_2_last_llm_verified IS NULL OR set_2_last_llm_estimated_score <= 7)
-                UNION ALL SELECT id, 3 FROM papers WHERE (set_3_last_llm_verified IS NULL OR set_3_last_llm_estimated_score <= 7)
+                SELECT id, 1 as set_num FROM papers 
+                WHERE set_1_llm IS NULL OR set_1_llm = '' OR json_extract(set_1_llm, '$.is_offtopic') IS NULL 
+                    OR json_extract(set_1_llm, '$.verified') IS NULL 
+                    OR json_extract(set_1_llm, '$.verified') IN (0, 'false', 'False') 
+                    OR (json_extract(set_1_llm, '$.estimated_score') IS NOT NULL AND json_extract(set_1_llm, '$.estimated_score') <= 7)
+                
+                UNION ALL 
+                
+                SELECT id, 2 as set_num FROM papers 
+                WHERE set_2_llm IS NULL OR set_2_llm = '' OR json_extract(set_2_llm, '$.is_offtopic') IS NULL 
+                    OR json_extract(set_2_llm, '$.verified') IS NULL 
+                    OR json_extract(set_2_llm, '$.verified') IN (0, 'false', 'False') 
+                    OR (json_extract(set_2_llm, '$.estimated_score') IS NOT NULL AND json_extract(set_2_llm, '$.estimated_score') <= 7)
+                
+                UNION ALL 
+                
+                SELECT id, 3 as set_num FROM papers 
+                WHERE set_3_llm IS NULL OR set_3_llm = '' OR json_extract(set_3_llm, '$.is_offtopic') IS NULL 
+                    OR json_extract(set_3_llm, '$.verified') IS NULL 
+                    OR json_extract(set_3_llm, '$.verified') IN (0, 'false', 'False') 
+                    OR (json_extract(set_3_llm, '$.estimated_score') IS NOT NULL AND json_extract(set_3_llm, '$.estimated_score') <= 7)
+                
                 ORDER BY id, set_num
             """)
             paper_set_pairs = cursor.fetchall()
         # --- DB CONNECTION RELEASED HERE ---
-
+        
         log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
         if not paper_set_pairs:
             log(f"WARNING: No paper×set pairs need consensus")

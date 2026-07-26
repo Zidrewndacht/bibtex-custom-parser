@@ -15,7 +15,6 @@ const relevanceCellIndex = 7; // Leading 6 + Off-topic (6) = Relevance (7)
 const searchInput = document.getElementById('search-input');
 const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
 const hideApprovedCheckbox = document.getElementById('hide-approved-checkbox');
-const noFeaturesCheckbox = document.getElementById('no-features-checkbox');
 
 let filterTimeoutId = null;
 const FILTER_DEBOUNCE_DELAY = 250;
@@ -71,10 +70,11 @@ APP_CONFIG.groups.forEach(group => {
     if (group.filter_type === 'tri_state') {
         TRI_STATE_FILTERS[group.name] = {
             field: group.json_path,
-            cacheKey: `${group.name}Status`
+            cacheKey: `${group.name}Status`,
+            label: group.label || group.friendly_name || group.name
         };
     } else if (group.filter_type === 'inclusion') {
-        const fields = group.keys.map(k => `${group.json_path}.${k.key}`);
+        const fields = group.fields.map(f => `${group.json_path}.${f.key}`);
         INCLUSION_FILTERS[group.name] = fields;
         ALL_INCLUSION_FIELDS.push(...fields);
     }
@@ -90,19 +90,23 @@ function updateTriStateUI(filterKey) {
     const checkbox = document.querySelector(`.tri-state-checkbox[data-filter-group="${filterKey}"]`);
     if (!checkbox) return;
     const state = triStateFilterStates[filterKey];
+    const label = TRI_STATE_FILTERS[filterKey].label;
     checkbox.classList.remove('tri-state-indeterminate');
     switch(state) {
         case 'all':
             checkbox.checked = false;
             checkbox.indeterminate = false;
+            checkbox.title = `Currently showing all papers. Click to show only ${label}.`;
             break;
         case 'only_true':
             checkbox.checked = true;
             checkbox.indeterminate = false;
+            checkbox.title = `Currently showing only ${label} papers. Click to show only non-${label}.`;
             break;
         case 'only_false':
             checkbox.checked = false;
             checkbox.indeterminate = true;
+            checkbox.title = `Currently showing only non-${label} papers. Click to show all papers.`;
             break;
     }
 }
@@ -223,7 +227,6 @@ function getClientFilterState() {
     const state = {
         hide_approved: hideApprovedCheckbox.checked ? 1 : 0,
         hide_offtopic: hideOfftopicCheckbox.checked ? 1 : 0,
-        no_features: noFeaturesCheckbox.checked ? 1 : 0,
         search: searchInput.value.trim(),
         sort_by: currentClientSort.column || '',
         sort_dir: currentClientSort.direction || 'ASC'
@@ -267,8 +270,7 @@ function applyLocalFilters() {
         const rows = tbody.querySelectorAll('tr[data-paper-id]');
         
         // Pre-calculate filter values outside the loop
-        // const hideXrayChecked = hideXrayCheckbox.checked;
-        const showNoFeaturesChecked = noFeaturesCheckbox.checked;
+        const hideApprovedChecked = hideApprovedCheckbox.checked;
         const hideOfftopicChecked = document.body.id === 'html-export' ? hideOfftopicCheckbox.checked : false;
         const minPageCountValue = document.body.id === 'html-export' ? (document.getElementById('min-page-count').value.trim() || 0) : 0;
         const yearFromValue = document.body.id === 'html-export' ? (document.getElementById('year-from').value.trim() || 0) : 0;
@@ -372,15 +374,6 @@ function applyLocalFilters() {
                     if (cachedData.inclusionGroupMatches[g]) { matchesAnyGroup = true; break; }
                 }
                 if (!matchesAnyGroup) showRow = false;
-            }
-
-            if (showRow && showNoFeaturesChecked) {
-                let hasAnyFeatureFilled = false;
-                for (const fieldName of ALL_INCLUSION_FIELDS) {
-                    const cellText = cachedData.inclusionValues[fieldName];
-                    if (cellText !== '' && cellText !== '❌' && cellText !== '❔') { hasAnyFeatureFilled = true; break; }
-                }
-                if (hasAnyFeatureFilled) showRow = false;
             }
 
             const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ? row.nextElementSibling : null;
@@ -534,8 +527,8 @@ function updateCounts() {
                 cell.textContent = count;
             }
         } else if (group.filter_type === 'inclusion' || group.filter_type === 'none') {
-            for (const key of group.keys) {
-                const path = `${group.json_path}.${key.key}`;
+            for (const field_def of group.fields) {
+                const path = `${group.json_path}.${field_def.key}`;
                 const cell = document.getElementById(`count-${path.replace(/\./g, '_')}`) || document.getElementById(`count-${path}`) || document.querySelector(`[data-count-field="${path}"]`);
                 if (cell) {
                     let count = 0;
@@ -563,32 +556,24 @@ function updateCounts() {
 
 function initializeClientFilters() {
     const urlParams = new URLSearchParams(window.location.search);
-    
     if (urlParams.get('hide_approved') === '1') hideApprovedCheckbox.checked = true;
     if (urlParams.get('hide_offtopic') === '1') hideOfftopicCheckbox.checked = true;
-    if (urlParams.get('no_features') === '1') noFeaturesCheckbox.checked = true;
-
     const searchValueFromUrl = urlParams.get('search');
     if (searchValueFromUrl !== null) searchInput.value = searchValueFromUrl;
-
     const openDetailsParam = urlParams.get('open_details');
     openDetailIds = new Set(openDetailsParam ? openDetailsParam.split(',').map(id => id.trim()).filter(id => id !== '').slice(0, MAX_STORED_OPEN_DETAILS) : []);
-    
     const openHistoryParam = urlParams.get('open_history');
     openHistoryIds = new Set(openHistoryParam ? openHistoryParam.split(',').map(id => id.trim()).filter(id => id !== '').slice(0, MAX_STORED_OPEN_DETAILS) : []);
-
     for (const key of Object.keys(TRI_STATE_FILTERS)) {
         const paramVal = urlParams.get(`${key}_filter`);
         if (['all', 'only_true', 'only_false'].includes(paramVal)) triStateFilterStates[key] = paramVal;
         updateTriStateUI(key);
     }
-
     for (const key of Object.keys(INCLUSION_FILTERS)) {
         const paramVal = urlParams.get(`show_${key}`);
         if (paramVal === '1') inclusionFilterStates[key] = true;
         updateInclusionUI(key);
     }
-
     const sortColumnFromUrl = urlParams.get('sort_by');
     const sortDirectionFromUrl = urlParams.get('sort_dir');
     if (sortColumnFromUrl) {
@@ -642,11 +627,181 @@ function restoreDetailState() {
     });
 }
 
+
+/**
+ * Switches between history tabs (Main, Set 1, Set 2, Set 3)
+ * Pure client-side - no server communication needed
+ * @param {HTMLElement} tabButton - The clicked tab button element
+ */
+function switchHistoryTab(tabButton) {
+    const paperId = tabButton.getAttribute('data-paper-id');
+    const selectedTab = tabButton.getAttribute('data-tab');
+    const historyRow = tabButton.closest('.history-flex-container');
+    if (!historyRow) {
+        console.error(`History container not found for paper ${paperId}`);
+        return;
+    }
+
+    // Remove active class from all tabs
+    historyRow.querySelectorAll('.history-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // Remove active class from all tab panels
+    historyRow.querySelectorAll('.history-tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+
+    // Add active class to selected tab
+    tabButton.classList.add('active');
+
+    // Add active class to selected tab panel using data attributes
+    const selectedPanel = historyRow.querySelector(`.history-tab-panel[data-tab-panel="${selectedTab}"][data-paper-id="${paperId}"]`);
+    if (selectedPanel) {
+        selectedPanel.classList.add('active');
+    }
+}
+
+/**
+ * Copies the provided paper ID to the clipboard in the specified format.
+ */
+function copyPaperId(paperId, buttonElement, format = 'raw') {
+    if (!paperId) {
+        console.warn('Paper ID is empty or undefined.');
+        alert('Paper ID is empty and cannot be copied.');
+        return;
+    }
+    const originalText = buttonElement.innerHTML;
+    buttonElement.innerHTML = 'Copied!';
+    let textToCopy = paperId;
+    if (format === 'cite') {
+        textToCopy = `\\cite{${paperId}}`;
+    } else if (format === 'citen') {
+        textToCopy = `\\citen{${paperId}}`;
+    }
+    navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+            setTimeout(() => { buttonElement.innerHTML = originalText; }, 2000);
+        })
+        .catch(err => {
+            console.error(`Failed to copy: `, err);
+            alert(`Failed to copy to clipboard.`);
+            buttonElement.innerHTML = originalText;
+        });
+}
+
+/**
+ * Copies the provided BibTeX string to the clipboard.
+ */
+function copyBibtex(bibtexString, buttonElement) {
+    if (bibtexString) {
+        const originalText = buttonElement.textContent;
+        buttonElement.textContent = 'Copied!';
+        navigator.clipboard.writeText(bibtexString)
+            .then(() => {
+                setTimeout(() => { buttonElement.textContent = originalText; }, 2000);
+            })
+            .catch(err => {
+                console.error('Failed to copy BibTeX: ', err);
+                alert('Failed to copy BibTeX to clipboard.');
+                buttonElement.textContent = originalText;
+            });
+    } else {
+        console.warn('BibTeX content is empty.');
+        alert('BibTeX content is empty and cannot be copied.');
+    }
+}
+
+/**
+ * Generates a LaTeX longtable based on the currently visible (filtered) rows.
+ */
+function copyLatexLongtable() {
+    const buttonElement = document.getElementById('longtable-btn');
+    if (!buttonElement) {
+        console.error("Button #longtable-btn not found.");
+        alert('Error: Could not find the LaTeX copy button.');
+        return;
+    }
+    const originalText = buttonElement.innerHTML; 
+    const rows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+    if (rows.length === 0) {
+        alert('No visible rows found to generate LaTeX table.');
+        buttonElement.innerHTML = originalText;
+        return;
+    }
+    let latexContent = `
+% Ensure packages are loaded in your preamble:
+% \\usepackage{longtable}
+% \\usepackage{xcolor}
+% \\usepackage{pdflscape} % For landscape pages
+% \\usepackage[margin=1.5cm]{geometry} % Set smaller margins for the table area
+\\begin{landscape} % Start landscape environment
+% ----------------------------------------------------------
+\\chapter{Lista completa de artigos julgados como relevantes através do ResearchParça}
+% ----------------------------------------------------------
+\\definecolor{tableshade}{HTML}{EEEEEE}
+\\scriptsize % Use smaller font to fit more data
+\\begin{longtable}{p{2cm}p{8cm}p{5cm}c c p{6cm}}
+\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
+\\hline % Line only under the header row
+\\endfirsthead
+\\multicolumn{6}{c}{{\\bfseries \\tablename\\ \\thetable{} -- continuação dá página anterior}} \\\\
+\\rowcolor{tableshade}
+\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
+\\hline % Line only under the header row on subsequent pages
+\\endhead
+\\hline % Line before the footer
+\\multicolumn{6}{|r|}{{Continua na próxima página}} \\\\
+\\hline % Line after the footer text
+\\endfoot
+\\hline % Line before the last footer
+\\endlastfoot
+`; 
+    rows.forEach((row, index) => { 
+        const typeCell = row.cells[typeCellIndex]; 
+        const typeTitle = typeCell ? typeCell.getAttribute('title') || typeCell.textContent.trim() : '';
+        const titleCell = row.cells[titleCellIndex];
+        const titleText = titleCell ? titleCell.textContent.trim() : ''; 
+        const authorsCell = row.querySelector('td.hidden-data-cell[data-field="authors"]');
+        const authorsText = authorsCell ? authorsCell.textContent.trim() : '';
+        const yearCell = row.cells[yearCellIndex];
+        const yearText = yearCell ? yearCell.textContent.trim() : '';
+        const pageCountCell = row.cells[pageCountCellIndex];
+        const pageCountText = pageCountCell ? pageCountCell.textContent.trim() : '';
+        const venueCell = row.cells[journalCellIndex];
+        const venueText = venueCell ? venueCell.textContent.trim() : '';
+        
+        const sanitizeForLatex = (str) => typeof str !== 'string' ? String(str) : str;
+        
+        const type = sanitizeForLatex(typeTitle);
+        const title = sanitizeForLatex(titleText);
+        const authors = sanitizeForLatex(authorsText);
+        const year = sanitizeForLatex(yearText);
+        const pages = sanitizeForLatex(pageCountText);
+        const venue = sanitizeForLatex(venueText);
+        
+        const rowColor = (index % 2 === 0) ? '' : '\\rowcolor{tableshade} '; 
+        latexContent += `${rowColor}${type} & ${title} & ${authors} & ${year} & ${pages} & ${venue} \\\\ \n`; 
+    });
+    latexContent += `\\hline \n`;
+    latexContent += `\\end{longtable}\n\\end{landscape} \n`;
+    
+    navigator.clipboard.writeText(latexContent)
+        .then(() => {
+            buttonElement.innerHTML = 'Copied!';
+            setTimeout(() => { buttonElement.innerHTML = originalText; }, 2000);
+        })
+        .catch(err => {
+            console.error('Failed to copy LaTeX table: ', err);
+            alert('Failed to copy LaTeX table to clipboard.');
+            buttonElement.innerHTML = originalText;
+        });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     initializeClientFilters();
     
     hideApprovedCheckbox.addEventListener('change', applyLocalFilters);
-    noFeaturesCheckbox.addEventListener('change', applyLocalFilters);
     
     document.querySelectorAll('.tri-state-checkbox').forEach(cb => {
         const group = cb.getAttribute('data-filter-group');
@@ -675,5 +830,17 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     
     headers.forEach(header => header.addEventListener('click', sortTable));
+    
+    // RESTORED: Event delegation for history tab switching
+    document.addEventListener('click', function(event) {
+        const tabButton = event.target.closest('.history-tab-btn');
+        if (tabButton) {
+            switchHistoryTab(tabButton);
+        }
+    });
+
+    // RESTORED: Event listener for LaTeX longtable button
+    document.getElementById('longtable-btn')?.addEventListener('click', copyLatexLongtable);
+
     applyLocalFilters();
 });
