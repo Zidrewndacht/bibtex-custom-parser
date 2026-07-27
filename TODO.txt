@@ -295,4 +295,4 @@ OK              Actual implementation uses configurable YAML instead, probably m
 
         Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
 
-        Fix broken history layout when amount of inferred colums change
+        Fix broken history layout when amount of inferred colums change.
