@@ -313,7 +313,7 @@ def main():
     FILE_LIST = [
         # Root files
         "browse_db.py",
-        # "queue_manager.py",
+        "queue_manager.py",
         # "README.md",
         
         # Prompt templates
@@ -322,11 +322,11 @@ def main():
         # "prompt_templates/verify_template.txt",
         
         # Queue manager module
-        # "queue_manager/__init__.py",
-        # "queue_manager/dispatcher.py",
-        # "queue_manager/logging_utils.py",
-        # "queue_manager/routes.py",
-        # "queue_manager/state.py",
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
         
         # Shared module
         "shared/__init__.py",
@@ -336,23 +336,23 @@ def main():
         # Web module
         "web/__init__.py",
         "web/export_logic.py",
-        # "web/filters.py",
+        "web/filters.py",
         # "web/importer.py",
-        # "web/routes_data.py",
+        "web/routes_data.py",
         "web/routes_files.py",
         "web/routes_ui.py",
         
         # Web static files
-        # "web/static/comms.js",
+        "web/static/comms.js",
         "web/static/filtering.js",
         # "web/static/js/ghpages.js",
-        "web/static/js/stats/stats_core.js",
-        "web/static/js/stats/stats_generic.js",
-        "web/static/js/stats/stats_domain.js",
-        "web/static/js/stats/stats_charts.js",
-        "web/static/js/stats/stats_latex.js",
+        # "web/static/js/stats/stats_core.js",
+        # "web/static/js/stats/stats_generic.js",
+        # "web/static/js/stats/stats_domain.js",
+        # "web/static/js/stats/stats_charts.js",
+        # "web/static/js/stats/stats_latex.js",
 
-        # "web/static/css/style.css",
+        "web/static/css/style.css",
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
@@ -361,16 +361,16 @@ def main():
         # "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
-        # "web/templates/about_modal_content.html",
-        # "web/templates/detail_row.html",
-        # "web/templates/history_row.html",
+        "web/templates/detail_row.html",
+        "web/templates/history_row.html",
         "web/templates/index.html",
-        "web/templates/index_static_export.html",
-        # "web/templates/loader.html",
         "web/templates/papers_table.html",
-        "web/templates/papers_table_static_export.html",
+        # "web/templates/about_modal_content.html",
         # "web/templates/papers_table_tfoot.html",
         # "web/templates/stats_modal_content.html",
+        # "web/templates/static_export/loader.html",
+        # "web/templates/static_export/index_static_export.html",
+        # "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list

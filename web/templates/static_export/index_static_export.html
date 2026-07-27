@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="busyCursor">
+<head>
+    <title>HTML Export - ResearchParça - {{ domain_config.domain_name }}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <style>
+        {{ style_css_content | safe }}
+        .editable-status:active,.editable-status:hover,.editable-verify:active,.editable-verify:hover{transform:unset;background-color:unset;cursor:default}
+        .editable-status:hover,.editable-verify:hover{box-shadow:0 1px 2px rgba(0,0,0,.1)}
+        .header-filters > div:last-child { display: flex; align-items: center; gap: 4px; }
+    </style>
+    <script>
+        window.APP_CONFIG = {{ domain_config | tojson | safe }};
+        {{ chart_js_content | safe }}
+        {{ chart_js_datalabels_content | safe }}
+        {{ d3_js_content | safe }}
+        {{ d3_cloud_js_content | safe }}
+    </script>
+</head>
+<body id="html-export">
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+    {% if group.filter_type == 'tri_state' %}
+        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+    {% elif group.filter_type in ['inclusion', 'none'] %}
+        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+    {% endif %}
+{% endfor %}
+{% set inferred_colspan = 2 + ns.total_dynamic %}
+{% set total_cols = 6 + inferred_colspan + 9 %}
+
+<div class="table-container" id="papers-table-container">
+    <table id="papersTable" style="table-layout: fixed;">
+        <colgroup>
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 66%"><col style="width: 40px; min-width: 40px; max-width:40px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 34%"><col style="width: 27px; min-width: 27px; max-width: 27px;">
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;">
+            {% for group in domain_config.groups %}
+                {% if group.filter_type == 'tri_state' %}<col style="width: 27px; min-width: 27px; max-width: 27px;">
+                {% elif group.filter_type in ['inclusion', 'none'] %}{% for field_def in group.fields %}<col style="width: 27px; min-width: 27px; max-width: 27px;">{% endfor %}{% endif %}
+            {% endfor %}
+            <col style="width: 56px; min-width: 56px; max-width: 56px;"><col style="width: 40px; min-width: 40px; max-width: 40px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 32px; min-width: 32px; max-width: 32px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 44px; min-width: 44px; max-width: 44px;"><col style="width: 44px; min-width: 44px; max-width: 44px;">
+            <col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none">
+        </colgroup>
+        <thead>
+            <tr>
+                <th id="main-header-wrapper" colspan="{{ total_cols }}" style="display: none;"></th>
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="ontop-header" colspan="6" rowspan="2">
+                    <div class="header-filters">
+                        <div class="filter-item">
+                            <input type="checkbox" id="hide-short-checkbox" style="display: none;">
+                            <label for="min-page-count">Min. page count ≥</label>
+                            <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="{{ min_page_count_value }}" max="9" title="Exported file contains papers with at least {{ min_page_count_value }} pages">
+                        </div>
+                        <div class="filter-item">
+                            <label for="year-from">Year:</label>
+                            <input type="number" id="year-from" value="{{ year_from_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
+                            <label for="year-to">to</label>
+                            <input type="number" id="year-to" value="{{ year_to_value }}" min="{{ year_from_value }}" max="{{ year_to_value }}" title="Exported file contains papers from {{ year_from_value }} to {{ year_to_value }}.">
+                        </div>
+                        <div>
+                            <button class="action-btn" id="about-btn" title="(F1) About / Help"><span>?</span></button>
+                            <button class="action-btn" id="stats-btn">View <strong>Statistics</strong></button>
+                        </div>
+                    </div>
+                </th>
+                <th class="inferred-header" id="inferred-header-title" colspan="{{ inferred_colspan }}">
+                    <div>
+                        <span>Inferred data</span>
+                        <div style="font-size: 7pt; font-family: 'Arial Narrow'; text-shadow: var(--light-shadow); transform:scale(2.2) translateY(-1px);">
+                            <span style="font-weight: 400; opacity: 0.7;">Research</span><span style="font-weight: 600; opacity: 0.85;">Parça</span> 
+                        </div>                            
+                        <div style="margin:0; padding:0">
+                            Potential Misclassifications:
+                            <input type="checkbox" title="Enable to show only papers with NO features filled in (including 'Other')" id="no-features-checkbox" style="margin-left:8px; margin-right:16px">
+                            <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox">
+                        </div>
+                    </div>
+                </th>
+                <th class="ontop-header" colspan="9" rowspan="2">
+                    <div class="search-container">
+                        <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="">
+                        <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">×</button>
+                    </div>
+                </th>
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked disabled title="Can't unhide offtopic papers. File was exported only with ontopic papers"{% endif %}>
+                    </div>
+                </th>
+                <th class="inferred-header ontop-header" colspan="1"></th>
+                
+                {% for group in domain_config.groups %}
+                    {% if group.filter_type == 'tri_state' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="1">
+                            <div>
+                                <input type="checkbox" class="tri-state-checkbox" data-filter-group="{{ group.name }}" title="Currently showing all papers. Click to show only {{ group.label }}.">
+                            </div>
+                        </th>
+                    {% elif group.filter_type == 'inclusion' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
+                            <div>
+                                <span>{{ group.friendly_name }}</span>
+                                <input type="checkbox" class="inclusion-checkbox" data-filter-group="{{ group.name }}" title="Enable to include (or limit to if it's the only checkbox enabled) papers about {{ group.friendly_name | default('other', true) | lower }} features.">
+                            </div>
+                        </th>
+                    {% elif group.filter_type == 'none' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
+                            {{ group.friendly_name }}
+                        </th>
+                    {% endif %}
+                {% endfor %}
+
+                <th style="display:none" colspan="5"></th>
+            </tr>
+            <tr>
+                <th class="rotate-header status-header editable-header" data-sort="pdf-link"><div><span>PDF</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span></th>
+                <th data-sort="year">Year <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="page_count"><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>    
+                <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div> <span class="sort-indicator"></span></th>
+                
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
+                <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
+                
+                {% for group in domain_config.groups %}
+                    {% if group.filter_type == 'tri_state' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}">
+                            <span class="sort-indicator"></span><div><span>{{ group.label }}</span></div>
+                        </th>
+                    {% elif group.filter_type in ['inclusion', 'none'] %}
+                        {% for field_def in group.fields %}
+                            <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}.{{ field_def.key }}">
+                                <span class="sort-indicator"></span><div><span>{{ field_def.label }}</span></div>
+                            </th>
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+
+                <th data-sort="changed">Last Changed <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="changed_by"><div><span>Changed By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified"><div><span>Verified</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="user_override_count"><div><span>User Changes</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
+                <th class="rotate-header"><div>History</div></th>
+                <th class="rotate-header"><div>Details</div></th>
+
+                <th style="display:none" colspan="5"></th>
+            </tr>
+        </thead>
+        {{ papers_table_static_export | safe }}
+        {% include 'papers_table_tfoot.html' %}
+    </table>
+</div>
+
+<div id="statsModal" class="modal"><div class="modal-content"><span class="close">&times;</span>{% include 'stats_modal_content.html' %}</div></div>
+<div id="aboutModal" class="modal"><div class="modal-small-content"><span class="close">&times;</span>{% include 'about_modal_content.html' %}</div></div>
+
+<script>
+    {{ stats_core_js | safe }}
+    {{ stats_generic_js | safe }}
+    {{ stats_charts_js | safe }}
+    {{ stats_domain_js | safe }}
+    {{ stats_latex_js | safe }}
+    {{ filtering_js | safe }}
+    {{ ghpages_js | safe }}
+</script>
+</body>
+</html>

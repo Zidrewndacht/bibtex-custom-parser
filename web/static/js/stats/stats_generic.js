@@ -316,8 +316,17 @@ function renderGenericLineCharts() {
 function renderGenericStats() {
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
     const totalVisiblePaperCount = visibleRows.length;
-    const totalAllPaperCount = parseInt(document.getElementById('total-papers-count').textContent.trim(), 10);
-
+    
+    let totalAllPaperCount;
+    if (document.body.id === 'html-export') {
+        // In a static export, the "total" is simply all the rows that were exported into the file
+        totalAllPaperCount = document.querySelectorAll('#papersTable tbody tr[data-paper-id]').length;
+    } else {
+        // In the live app, read from the server-rendered footer
+        const totalPaperCountCell = document.getElementById('total-papers-count');
+        totalAllPaperCount = totalPaperCountCell ? parseInt(totalPaperCountCell.textContent.trim(), 10) : 0;
+    }
+    
     destroyChartInstance('surveyVsImplDistChart');
     registerChartInstance('surveyVsImplDistChart', renderBarOrPieChart(
         document.getElementById('surveyVsImplPieChart').getContext('2d'), 

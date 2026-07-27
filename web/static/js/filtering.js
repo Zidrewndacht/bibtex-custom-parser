@@ -503,16 +503,29 @@ function sortTable() {
     }, 50);
 }
 
+/**
+ * Updates footer counts and dynamic inferred field counts.
+ * Used by filtering.js on every filter application (including initial page load).
+ * as well as comms.js and stats.js
+ */
 function updateCounts() {
     const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
     const visibleCount = visibleRows.length;
     const loadedCount = tbody.querySelectorAll('tr[data-paper-id]').length;
     
-    const visibleCountEl = document.getElementById('visible-papers-count');
-    if (visibleCountEl) visibleCountEl.textContent = visibleCount;
-    
-    const loadedCountEl = document.getElementById('loaded-papers-count');
-    if (loadedCountEl) loadedCountEl.textContent = loadedCount;
+    // Handle Static Export Footer vs Live App Footer
+    if (document.body.id === 'html-export') {
+        const visibleCountCell = document.getElementById('visible-count-cell');
+        if (visibleCountCell) {
+            visibleCountCell.innerHTML = `<strong>${visibleCount}</strong> paper${visibleCount !== 1 ? 's' : ''} of <strong>${loadedCount}</strong>`;
+        }
+    } else {
+        const visibleCountEl = document.getElementById('visible-papers-count');
+        if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+        
+        const loadedCountEl = document.getElementById('loaded-papers-count');
+        if (loadedCountEl) loadedCountEl.textContent = loadedCount;
+    }
 
     // Dynamic counts for inferred fields
     for (const group of APP_CONFIG.groups) {

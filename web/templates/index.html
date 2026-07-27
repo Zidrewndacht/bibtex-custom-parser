@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en" class="busyCursor">
 <head>
-    <title>ResearchParça - PCB AOI</title>    
+    <title>ResearchParça - {{ domain_config.domain_name }}</title>    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
@@ -242,10 +242,10 @@
         </div>
         <div>
             <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong> </button>
-            <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
+            <!-- <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
         </div>
         <div>
-            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button>
+            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button> -->
             <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
         </div>
         <span class="menu-message">Batch classifications also run corresponding verifications automatically. Run the tasks below if you still need just verification (e.g., if an earlier run was aborted after classification)</span>

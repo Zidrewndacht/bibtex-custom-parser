@@ -696,7 +696,6 @@ const minPageCountInput = document.getElementById('min-page-count');
 const yearFromInput = document.getElementById('year-from');
 const yearToInput = document.getElementById('year-to');
 const applyButton = document.getElementById('apply-serverside-filters');
-// const totalPapersCountCell = document.getElementById('total-papers-count');
 
 
 // --- Batch Action Button Event Listeners ---

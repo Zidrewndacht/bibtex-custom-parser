@@ -263,7 +263,7 @@ background: linear-gradient(180deg, hsl(210, 24%, 82%) 0%, hsl(210, 32%, 88%) 60
 .sort-indicator {
     position: absolute;
     right: 8px;
-    top: 36px;
+    top: 9px;
     transform: translateY(-50%);
     font-size: .9em
 }

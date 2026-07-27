@@ -419,11 +419,15 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
         final_score = int(main_score) if main_score is not None else None
         main_classification['estimated_score'] = final_score
         main_output_log['estimated_score'] = final_score
+
+        sql_verified = 1 if final_verified is True else (0 if final_verified is False else None)
         
+        # Simple logic: if the AI made a verification decision, it was done by computer.
+        main_verified_by = 'computer' if sql_verified is not None else None
+        main_classification['verified_by'] = main_verified_by
+
         class_json = json.dumps(main_classification)
         cert_json = json.dumps(certainty_map)
-        
-        sql_verified = 1 if final_verified is True else (0 if final_verified is False else None)
         
         cursor.execute("""
             UPDATE papers SET
@@ -433,9 +437,10 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
                 changed = ?,
                 changed_by = ?,
                 verified = ?,
-                estimated_score = ?
+                estimated_score = ?,
+                verified_by = ?
             WHERE id = ?
-        """, (class_json, class_json, cert_json, changed_timestamp, changed_by, sql_verified, final_score, paper_id))
+        """, (class_json, class_json, cert_json, changed_timestamp, changed_by, sql_verified, final_score, main_verified_by, paper_id))
    
         if create_log_entry:
             row = cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,)).fetchone()

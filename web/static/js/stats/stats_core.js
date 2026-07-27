@@ -58,9 +58,9 @@ function collectCoreStatsData() {
     Object.assign(counts, { pdf_present: 0, pdf_annotated: 0, pdf_paywalled: 0, is_offtopic: 0, verified: 0, changed_by: 0, verified_by: 0, user_comment_state: 0, model: 0 });
 
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
-    const visiblePaperCount = visibleRows.length;
-    const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-    const loadedPaperCount = allRows.length;
+    // const visiblePaperCount = visibleRows.length;
+    // const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+    // const loadedPaperCount = allRows.length;
 
     const yearlySurveyImpl = {};
     const yearlyPubTypes = {};
@@ -116,12 +116,13 @@ function collectCoreStatsData() {
     latestCounts = counts;
     latestYearlyData = { surveyImpl: yearlySurveyImpl, pubTypes: yearlyPubTypes };
 
-    if (document.body.id === 'html-export') {
-        document.getElementById('visible-count-cell').innerHTML = `<strong>${visiblePaperCount}</strong> paper${visiblePaperCount !== 1 ? 's' : ''} of <strong>${document.getElementById('total-papers-count').textContent}</strong>`;
-    } else {
-        document.getElementById('loaded-papers-count').textContent = loadedPaperCount;
-        document.getElementById('visible-papers-count').textContent = visiblePaperCount;
-    }
+    // if (document.body.id === 'html-export') {
+    //     // There is NO such a field in a static export. The only "Total" that makes sense on an export is the exported total itself:
+    //     document.getElementById('visible-count-cell').innerHTML = `<strong>${visiblePaperCount}</strong> paper${visiblePaperCount !== 1 ? 's' : ''} of <strong>${loadedPaperCount}</strong>`;
+    // } else {
+    //     document.getElementById('loaded-papers-count').textContent = loadedPaperCount;
+    //     document.getElementById('visible-papers-count').textContent = visiblePaperCount;
+    // }
 
     const updateCountCell = (field, count) => {
         const cell = document.querySelector(`[data-count-field="${field}"]`) || document.getElementById(`count-${field.replace(/\./g, '_')}`);

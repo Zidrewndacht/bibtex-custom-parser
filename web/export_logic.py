@@ -45,69 +45,39 @@ def font_to_data_uri(font_path):
     return f"data:{mime_type};base64,{base64_data}", format_str
 
 def embed_fonts_in_css(static_dir):
-    """Convert font files to Base64 data URIs and return CSS with embedded fonts."""
     fonts_dir = os.path.join(static_dir, 'fonts')
-    
-    # Define font files to embed
     font_files = [
         ('Twemoji.mozilla.ttf', 'Twemoji Mozilla', 400, 'normal'),
         ('inter-tight-v7-latin_latin-ext-300.woff2', 'Inter Tight', 300, 'normal'),
         ('inter-tight-v7-latin_latin-ext-regular.woff2', 'Inter Tight', 400, 'normal'),
         ('inter-tight-v7-latin_latin-ext-600.woff2', 'Inter Tight', 600, 'normal'),
     ]
-    
     css_content = "/* Embedded Fonts */\n"
-    
-    # Group fonts by family to create proper @font-face rules
     font_faces = {}
-    
     for filename, font_family, font_weight, font_style in font_files:
         font_path = os.path.join(fonts_dir, filename)
         try:
             data_uri, format_str = font_to_data_uri(font_path)
-            
             key = (font_family, font_weight, font_style)
-            if key not in font_faces:
-                font_faces[key] = []
-            
+            if key not in font_faces: font_faces[key] = []
             font_faces[key].append((data_uri, format_str))
-        except FileNotFoundError:
-            print(f"Warning: Font file not found: {font_path}")
-            continue
-    
-    # Generate @font-face CSS rules
+        except FileNotFoundError: continue
+
     for (font_family, font_weight, font_style), sources in font_faces.items():
-        css_content += f"""
-/* {font_family} - {font_weight} */
-@font-face {{
-    font-display: swap;
-    font-family: '{font_family}';
-    font-style: {font_style};
-    font-weight: {font_weight};
-    src: """
-        
-        # Add all sources for this font face
-        src_parts = []
-        for data_uri, format_str in sources:
-            src_parts.append(f"url('{data_uri}') format('{format_str}')")
-        
-        css_content += ",\n        ".join(src_parts) + ";\n}\n"
-    
+        css_content += f"\n@font-face {{\n    font-display: swap;\n    font-family: '{font_family}';\n    font-style: {font_style};\n    font-weight: {font_weight};\n    src: "
+        src_parts = [f"url('{data_uri}') format('{format_str}')" for data_uri, format_str in sources]
+        css_content += ",\n    ".join(src_parts) + ";\n}\n"
     return css_content
 
-# web/export_logic.py
 
 def _flatten_dict(d, parent_key=''):
     items = {}
-    if not isinstance(d, dict):
-        return {parent_key: d} if parent_key else {}
+    if not isinstance(d, dict): return {parent_key: d} if parent_key else {}
     for k, v in d.items():
-        if k == 'certainty_map': continue # Skip certainty map from diffing
+        if k == 'certainty_map': continue
         new_key = f"{parent_key}.{k}" if parent_key else k
-        if isinstance(v, dict):
-            items.update(_flatten_dict(v, new_key))
-        else:
-            items[new_key] = v
+        if isinstance(v, dict): items.update(_flatten_dict(v, new_key))
+        else: items[new_key] = v
     return items
 
 def prepare_history_log_data(paper_dict, set_num=None):
@@ -203,113 +173,83 @@ def prepare_history_log_data(paper_dict, set_num=None):
         
     return processed_entries
 
-# Core Export Generation Functions
+
 def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to_value, min_page_count_value, is_lite_export=False):
-    """Generates the full HTML content string for the static export."""
-     
-    # Prepare history log data for the FILTERED papers only (already passed in)
     for paper in papers:
         paper['llm_log_entries'] = prepare_history_log_data(paper, set_num=None)
         paper['set_1_llm_log_entries'] = prepare_history_log_data(paper, set_num=1)
         paper['set_2_llm_log_entries'] = prepare_history_log_data(paper, set_num=2)
         paper['set_3_llm_log_entries'] = prepare_history_log_data(paper, set_num=3)
 
-    
-    style_css_content = ""
-    chart_js_content = ""
-    chart_js_datalabels_content = ""
-    d3_js_content = ""
-    d3_cloud_js_content = ""
-    ghpages_js_content = ""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     static_dir = os.path.join(script_dir, 'static')
-    
-    # Load and embed fonts as Base64 data URIs
-    fonts_css_content = embed_fonts_in_css(static_dir)
-    
-    with open(os.path.join(static_dir, 'libs/chart.min.js'), 'r', encoding='utf-8') as f:
-        chart_js_content = f.read()
-    with open(os.path.join(static_dir, 'libs/chartjs-plugin-datalabels.min.js'), 'r', encoding='utf-8') as f:
-        chart_js_datalabels_content = f.read()
-    with open(os.path.join(static_dir, 'libs/d3.min.js'), 'r', encoding='utf-8') as f:
-        d3_js_content = f.read()
-    with open(os.path.join(static_dir, 'libs/d3-cloud.min.js'), 'r', encoding='utf-8') as f:
-        d3_cloud_js_content = f.read()
+    fonts_parent_dir = os.path.join(script_dir, 'static/css')
 
-    with open(os.path.join(static_dir, 'style.css'), 'r', encoding='utf-8') as f:
-        style_css_content = f.read()
-    with open(os.path.join(static_dir, 'ghpages.js'), 'r', encoding='utf-8') as f:
-        ghpages_js_content = f.read()
-    with open(os.path.join(static_dir, 'stats.js'), 'r', encoding='utf-8') as f:
-        stats_js_content = f.read()
-    with open(os.path.join(static_dir, 'filtering.js'), 'r', encoding='utf-8') as f:
-        filtering_js_content = f.read()
+    def read_static(rel_path):
+        path = os.path.join(static_dir, rel_path)
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f: return f.read()
+        print(f"Warning: Static file not found: {rel_path}")
+        return ""
 
-    # Combine fonts CSS with main CSS
+    fonts_css_content = embed_fonts_in_css(fonts_parent_dir)
+    style_css_content = read_static('css/style.css')
     style_css_content = fonts_css_content + "\n" + style_css_content
-    
-    # style_css_content = rcssmin.cssmin(style_css_content)
-    
-    chart_js_content = rjsmin.jsmin(chart_js_content)
-    chart_js_datalabels_content = rjsmin.jsmin(chart_js_datalabels_content)
-    d3_js_content = rjsmin.jsmin(d3_js_content)
-    d3_cloud_js_content = rjsmin.jsmin(d3_cloud_js_content)
 
-    stats_js_content = rjsmin.jsmin(stats_js_content)
-    filtering_js_content = rjsmin.jsmin(filtering_js_content)
-    ghpages_js_content = rjsmin.jsmin(ghpages_js_content)
+    chart_js_content = read_static('libs/chart.min.js')
+    chart_js_datalabels_content = read_static('libs/chartjs-plugin-datalabels.min.js')
+    d3_js_content = read_static('libs/d3.min.js')
+    d3_cloud_js_content = read_static('libs/d3-cloud.min.js')
+    pako_js_content = read_static('libs/pako.min.js')
+    
+    stats_core_js = read_static('js/stats/stats_core.js')
+    stats_generic_js = read_static('js/stats/stats_generic.js')
+    stats_charts_js = read_static('js/stats/stats_charts.js')
+    stats_domain_js = read_static('js/stats/stats_domain.js')
+    stats_latex_js = read_static('js/stats/stats_latex.js')
+    
+    filtering_js = read_static('js/filtering.js')
+    ghpages_js = read_static('js/ghpages.js') or read_static('ghpages.js')
 
-    # --- Render the static export template ---
+    # Minify JS
+    for var in ['chart_js_content', 'chart_js_datalabels_content', 'd3_js_content', 'd3_cloud_js_content', 
+                'stats_core_js', 'stats_generic_js', 'stats_charts_js', 'stats_domain_js', 'stats_latex_js',
+                'filtering_js', 'ghpages_js']:
+        locals()[var] = rjsmin.jsmin(locals()[var])
+
+    domain_config = config.load_domain_config()
+    
     papers_table_static_export = render_template(
-        'papers_table_static_export.html',
-        papers=papers,
-        type_emojis=config.TYPE_EMOJIS,
-        pdf_emojis=config.PDF_EMOJIS,
-        default_type_emoji=config.DEFAULT_TYPE_EMOJI,
-        hide_offtopic=hide_offtopic,
-        year_from_value=str(year_from_value),
-        year_to_value=str(year_to_value),
-        min_page_count_value=str(min_page_count_value),
-        is_lite_export=is_lite_export,
+        'static_export/papers_table_static_export.html', papers=papers, domain_config=domain_config,
+        type_emojis=config.TYPE_EMOJIS, pdf_emojis=config.PDF_EMOJIS, default_type_emoji=config.DEFAULT_TYPE_EMOJI,
+        hide_offtopic=hide_offtopic, year_from_value=str(year_from_value), year_to_value=str(year_to_value),
+        min_page_count_value=str(min_page_count_value), is_lite_export=is_lite_export,
     )
-    domain_config = config.load_domain_config() # However you parse the YAML
-
+    
     full_html_content = render_template(
-        'index_static_export.html', domain_config=domain_config, 
-        papers_table_static_export=papers_table_static_export,
-        hide_offtopic=hide_offtopic,
-        year_from_value=year_from_value,
-        year_to_value=year_to_value,
-        min_page_count_value=min_page_count_value,
-
-        style_css_content=Markup(style_css_content),
-        
-        chart_js_content=Markup(chart_js_content),
-        chart_js_datalabels_content=Markup(chart_js_datalabels_content),
-        d3_js_content=Markup(d3_js_content),
-        d3_cloud_js_content=Markup(d3_cloud_js_content),
-
-        filtering_js_content=Markup(filtering_js_content),
-        stats_js_content=Markup(stats_js_content),
-        ghpages_js_content=Markup(ghpages_js_content)
+        'static_export/index_static_export.html', domain_config=domain_config,
+        papers_table_static_export=papers_table_static_export, hide_offtopic=hide_offtopic,
+        year_from_value=year_from_value, year_to_value=year_to_value, min_page_count_value=min_page_count_value,
+        # total_paper_count=len(papers),
+        style_css_content=Markup(style_css_content), chart_js_content=Markup(chart_js_content),
+        chart_js_datalabels_content=Markup(chart_js_datalabels_content), d3_js_content=Markup(d3_js_content),
+        d3_cloud_js_content=Markup(d3_cloud_js_content), stats_core_js=Markup(stats_core_js),
+        stats_generic_js=Markup(stats_generic_js), stats_charts_js=Markup(stats_charts_js),
+        stats_domain_js=Markup(stats_domain_js), stats_latex_js=Markup(stats_latex_js),
+        filtering_js=Markup(filtering_js), ghpages_js=Markup(ghpages_js)
     )
-
+    
     # --- Compress the full HTML content ---
-    html_bytes = full_html_content.encode('utf-8')  # 1. Encode the HTML string to bytes (UTF-8)
-    compressed_bytes = gzip.compress(html_bytes)    # 2. Compress the bytes
-    compressed_base64 = base64.b64encode(compressed_bytes).decode('ascii')  # 3. Encode the compressed bytes to Base64 for embedding in JS
-
-    pako_js_content = ""
-    with open(os.path.join(static_dir, 'libs/pako.min.js'), 'r', encoding='utf-8') as f:
-        pako_js_content = f.read()
-
+    html_bytes = full_html_content.encode('utf-8')
+    compressed_bytes = gzip.compress(html_bytes)
+    compressed_base64 = base64.b64encode(compressed_bytes).decode('ascii')
+    
     # --- Render the LOADER template, passing the compressed data ---
     loader_html_content = render_template(
-        'loader.html',
-        compressed_html_data=compressed_base64,
-        pako_js_content=Markup(pako_js_content)
+        'static_export/loader.html', compressed_html_data=compressed_base64, pako_js_content=Markup(pako_js_content)
     )
     return loader_html_content
+
 
 def generate_xlsx_export_content(papers): #outdated, must be updated to be useful for v1.4:
     # """Generates the Excel file content as bytes."""
@@ -507,16 +447,10 @@ def generate_xlsx_export_content(papers): #outdated, must be updated to be usefu
     return
 
 def generate_filename(base_name, year_from, year_to, min_page_count, hide_offtopic, extra_suffix=""):
-    """Generates a filename based on filters."""
     filename_parts = [base_name]
-    if year_from == year_to:
-        filename_parts.append(str(year_from))
-    else:
-        filename_parts.append(f"{year_from}-{year_to}")
-    if min_page_count > 0:
-        filename_parts.append(f"min{min_page_count}pg")
-    if hide_offtopic:
-        filename_parts.append("noOfftopic")
-    if extra_suffix:
-        filename_parts.append(extra_suffix)
+    if year_from == year_to: filename_parts.append(str(year_from))
+    else: filename_parts.append(f"{year_from}-{year_to}")
+    if min_page_count > 0: filename_parts.append(f"min{min_page_count}pg")
+    if hide_offtopic: filename_parts.append("noOfftopic")
+    if extra_suffix: filename_parts.append(extra_suffix)
     return "_".join(filename_parts)
