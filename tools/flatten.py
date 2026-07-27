@@ -322,11 +322,11 @@ def main():
         # "prompt_templates/verify_template.txt",
         
         # Queue manager module
-        "queue_manager/__init__.py",
-        "queue_manager/dispatcher.py",
-        "queue_manager/logging_utils.py",
-        "queue_manager/routes.py",
-        "queue_manager/state.py",
+        # "queue_manager/__init__.py",
+        # "queue_manager/dispatcher.py",
+        # "queue_manager/logging_utils.py",
+        # "queue_manager/routes.py",
+        # "queue_manager/state.py",
         
         # Shared module
         "shared/__init__.py",
@@ -337,7 +337,7 @@ def main():
         "web/__init__.py",
         "web/export_logic.py",
         "web/filters.py",
-        # "web/importer.py",
+        "web/importer.py",
         "web/routes_data.py",
         "web/routes_files.py",
         "web/routes_ui.py",
@@ -352,7 +352,7 @@ def main():
         # "web/static/js/stats/stats_charts.js",
         # "web/static/js/stats/stats_latex.js",
 
-        "web/static/css/style.css",
+        # "web/static/css/style.css",
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)

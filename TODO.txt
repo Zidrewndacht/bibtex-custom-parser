@@ -247,28 +247,12 @@ OK?             Change the server-side API for changes: every change from user o
 OK?             Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
 OK?             User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
 
-        Add further 'agentic' functionality:
-                Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
-                        check existing conference names before creating to ensure no two names for the same conference;
-                        Also look at the existing model names and research areas, etc. when inferring a new one?
-                        Access DB for "memory" of existing conferences so it doesn't deannualize the same conference in different ways somehow.
-                Automatic group together synonym keywords
-                Potential tools: 
-                        PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
-                                ...?
-
         Better onboarding for both main and Lite:
  OK             Automatic delete placeholder ID 1 when first importing
 
         Import papers from exactly 2000 (somehow missing?)
         Import new papers from 2026
 
-        Isolate most domain-specific logic where possible -- long term, complicated refactor with little usefulness for now:
-                separate fixed from domain-specific HTML templates;
-                add a python file exclusive for the domain-specific details (DB schema, JSON schemas, etc) and change existing scripts to use it accordingly;
-                separate JS for logic that access the domain-specific HTML parts from generic JS
-                See docs.md for info on some domain-specific scattered code.
-                
 OK      Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other research.
 
         Add multiuser capability (naming users, user-selectable DB) -- good for offline "sneakernet" collaboration;
@@ -280,14 +264,31 @@ OK?             Update commented&other field displays on save.
 
 OK      Hide history row when a parent is filtered out
 
-        Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
+OK      Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
 
-        convert "conference" to "inproceedings" on import, fix such existing offline entries from Scopus.
+OK      convert "conference" to "inproceedings" on import, fix such existing offline entries from Scopus.
 
-        Implement average-of-3 full runs:
+OK      Implement average-of-3 full runs:
                 record 3 full sets of fields(last_llm)+history logs
                 When asked to classify, classify all three runs in parallel (not sequentially, of course) - same when asking to verify
                 Add automatic classify until consensus for this paper (does consensus for all 3 runs - at least 6 inference requests, more if consensus isn't reached for all of then in first verification)
                 Change the main set to be the average result of the 3 sets:
                         For display, make it proportionally translucent when it's a mix like YYU, NNU, YUU, NUU; show a solid warning sign instead if it's YYN, YNN, YUN
                         Change history row to have 4 tabs: main (for final averaged/warnings results and user results), set 1, set 2, set 3.
+
+OK      Isolate most domain-specific logic where possible -- long term, complicated refactor with little usefulness for now:
+skipped         separate fixed from domain-specific HTML templates;
+skipped         add a python file exclusive for the domain-specific details (DB schema, JSON schemas, etc) and change existing scripts to use it accordingly;
+stats-only      separate JS for logic that access the domain-specific HTML parts from generic JS
+OK              Actual implementation uses configurable YAML instead, probably much better than original proposal
+                
+        Add further 'agentic' functionality:
+                Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
+                        check existing conference names before creating to ensure no two names for the same conference;
+                        Also look at the existing model names and research areas, etc. when inferring a new one?
+                        Access DB for "memory" of existing conferences so it doesn't deannualize the same conference in different ways somehow.
+                Automatic group together synonym keywords
+                Potential tools: 
+                        PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
+                                ...?
+                Automatic generation of domain_config.yaml

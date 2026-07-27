@@ -1,109 +1,121 @@
 # shared/config.py
-# v1.2nightly16 - Configuration and shared utilities
+import os
+import sys
+import yaml
 import requests
 import json
 import re
 import threading
-import os
-import sys
 from datetime import datetime, timezone
 
-# --- Web App Specific Constants ---
-DEFAULT_YEAR_FROM = 2016
-DEFAULT_YEAR_TO = 2025
-DEFAULT_MIN_PAGE_COUNT = 4
-
-# --- Queue Manager & LLM Constants ---
-LLM_SERVER_URL = "http://localhost:8086"
-
-QUEUE_MANAGER_HOST = "localhost"
-QUEUE_MANAGER_PORT = 6001
-QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
-
-# Maximum concurrent limits for homogeneous workloads (only one task type running)
-MAX_CONCURRENT_WORKERS_CLASSIFY = 60 #256 #27B 60 
-MAX_CONCURRENT_WORKERS_VERIFY = 90  #480 #27B 90
-MAX_CONCURRENT_WORKERS_RECLASSIFY = 48 #180 #27B 48
-MIN_CONCURRENT_WORKERS = 32     # Minimum concurrent limit for mixed workloads
-MAX_CONSENSUS_ITERATIONS = 15
-FRESH_CLASSIFY_FALLBACK_ITERATION = 8
-
 # --- Paths and Directories ---
-# BASE_DIR is the parent of the 'shared' directory (the project root)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
+DOMAIN_CONFIG_PATH = os.path.join(BASE_DIR, 'domain_config.yaml')
 
-PROMPT_TEMPLATES_DIR = os.path.join(BASE_DIR, 'prompt_templates')
-PROMPT_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'classify_template.txt')
-VERIFIER_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'verify_template.txt')
-RECLASSIFY_PROMPT_TEMPLATE = os.path.join(PROMPT_TEMPLATES_DIR, 'reclassify_template.txt')
+LLM_API_KEY = None # Will be overwritten by config loader
 
-LLM_API_KEY = None
-
-# Data directories
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
-
 DATABASE_FILE = os.path.join(DATA_DIR, 'db.sqlite')
 PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf')
 os.makedirs(PDF_STORAGE_DIR, exist_ok=True)
 ANNOTATED_PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf_annotated')
 os.makedirs(ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)
 
-import yaml
+PERFORMANCE_LOG_FILE = os.path.join(DATA_DIR, 'performance_log.jsonl')
 
-DOMAIN_CONFIG_PATH = os.path.join(BASE_DIR, 'domain_config.yaml')
+# --- 1. General Config Loader ---
+def load_general_config():
+    defaults = {
+        'default_year_from': 2016, 'default_year_to': 2025, 'default_min_page_count': 4,
+        'frontend_port': 5001,
+        'llm_server_url': "http://localhost:8086", 
+        'llm_api_key': None,
+        'queue_manager_host': "localhost", 'queue_manager_port': 6001,
+        'max_concurrent_workers_classify': 60, 'max_concurrent_workers_verify': 90,
+        'max_concurrent_workers_reclassify': 48, 'min_concurrent_workers': 32,
+        'max_consensus_iterations': 15, 'fresh_classify_fallback_iteration': 8,
+    }
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f)
+                if cfg and isinstance(cfg, dict):
+                    defaults.update(cfg)
+    except Exception as e:
+        print(f"Warning: Could not load {CONFIG_PATH}. Using defaults. Error: {e}")
+    return defaults
+
+_general_config = load_general_config()
+
+# Map loaded YAML keys to Python constants
+DEFAULT_YEAR_FROM = _general_config.get('default_year_from', 2016)
+DEFAULT_YEAR_TO = _general_config.get('default_year_to', 2025)
+DEFAULT_MIN_PAGE_COUNT = _general_config.get('default_min_page_count', 4)
+FRONTEND_PORT = _general_config.get('frontend_port', 5001) # <--- NEW
+
+LLM_SERVER_URL = _general_config.get('llm_server_url', "http://localhost:8086")
+LLM_API_KEY = _general_config.get('llm_api_key', None)    # <--- NEW
+QUEUE_MANAGER_HOST = _general_config.get('queue_manager_host', "localhost")
+QUEUE_MANAGER_PORT = _general_config.get('queue_manager_port', 6001)
+QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
+
+MAX_CONCURRENT_WORKERS_CLASSIFY = _general_config.get('max_concurrent_workers_classify', 60)
+MAX_CONCURRENT_WORKERS_VERIFY = _general_config.get('max_concurrent_workers_verify', 90)
+MAX_CONCURRENT_WORKERS_RECLASSIFY = _general_config.get('max_concurrent_workers_reclassify', 48)
+MIN_CONCURRENT_WORKERS = _general_config.get('min_concurrent_workers', 32)
+
+MAX_CONSENSUS_ITERATIONS = _general_config.get('max_consensus_iterations', 15)
+FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config.get('fresh_classify_fallback_iteration', 8)
+
+# --- 2. Domain Config & Dynamic Theme/Prompt Engine ---
+def generate_theme_css(domain_config):
+    """Dynamically converts the 'theme' dict into CSS :root variables."""
+    theme = domain_config.get('theme', {})
+    if not theme or not isinstance(theme, dict):
+        return ""
+    
+    css_vars = []
+    for key, value in theme.items():
+        if value is not None:
+            css_var = "--" + str(key).replace('_', '-')
+            css_vars.append(f"    {css_var}: {value};")
+            
+    if css_vars:
+        return ":root {\n" + "\n".join(css_vars) + "\n}"
+    return ""
 
 def load_domain_config():
     try:
         with open(DOMAIN_CONFIG_PATH, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            cfg = yaml.safe_load(f)
+            if not cfg or not isinstance(cfg, dict):
+                cfg = {}
     except Exception as e:
         print(f"Error loading domain config: {e}")
-        return {"domain_name": "Unknown", "groups": [], "editable_fields": []}
+        cfg = {}
+        
+    cfg.setdefault("domain_name", "Unknown")
+    cfg.setdefault("groups", [])
+    cfg.setdefault("editable_fields", [])
     
-# --- Data Models / Dictionaries ---
-DEFAULT_FEATURES = {
-    "tracks": None,
-    "holes": None,
-    "bare_pcb_other": None,
-    "solder_insufficient": None,
-    "solder_excess": None,
-    "solder_void": None,
-    "solder_crack": None,
-    "solder_other": None,
-    "orientation": None,
-    "wrong_component": None,
-    "missing_component": None,
-    "component_other": None,
-    "cosmetic": None,
-    "other": None
-}
+    # Parse Prompt Templates
+    prompts = cfg.get('prompts', {})
+    cfg['PROMPT_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('classify', 'prompt_templates/classify_template.txt'))
+    cfg['VERIFIER_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('verify', 'prompt_templates/verify_template.txt'))
+    cfg['RECLASSIFY_PROMPT_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('reclassify', 'prompt_templates/reclassify_template.txt'))
+    
+    # Inject generated CSS into the config dictionary for templates to use
+    cfg["theme_css"] = generate_theme_css(cfg)
+    return cfg
 
-# Calculate user_override_count
-BOOLEAN_FEATURE_KEYS = [
-    'tracks', 'holes', 'bare_pcb_other', 'solder_insufficient',
-    'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
-    'orientation', 'wrong_component', 'missing_component',
-    'component_other', 'cosmetic'
-]
-BOOLEAN_TECHNIQUE_KEYS = [
-    'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
-    'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
-    'dl_other', 'hybrid', 'available_dataset'
-]
+_domain_config = load_domain_config()
 
-DEFAULT_TECHNIQUE = {
-    "classic_cv_based": None,
-    "ml_traditional": None,
-    "dl_cnn_classifier": None,
-    "dl_cnn_detector": None,
-    "dl_rcnn_detector": None,
-    "dl_transformer": None,
-    "dl_other": None,
-    "hybrid": None,
-    "model": None,
-    "available_dataset": None
-}
+# Expose prompt paths globally for the queue manager and LLM callers
+PROMPT_TEMPLATE = _domain_config.get('PROMPT_TEMPLATE')
+VERIFIER_TEMPLATE = _domain_config.get('VERIFIER_TEMPLATE')
+RECLASSIFY_PROMPT_TEMPLATE = _domain_config.get('RECLASSIFY_PROMPT_TEMPLATE')
 
 TYPE_EMOJIS = {
     'article': '📄',

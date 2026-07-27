@@ -194,7 +194,9 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
 
     fonts_css_content = embed_fonts_in_css(fonts_parent_dir)
     style_css_content = read_static('css/style.css')
-    style_css_content = fonts_css_content + "\n" + style_css_content
+
+    # Append the theme CSS directly to the bundled stylesheet
+    style_css_content = fonts_css_content + "\n" + style_css_content + "\n" + domain_config.get('theme_css', '')
 
     chart_js_content = read_static('libs/chart.min.js')
     chart_js_datalabels_content = read_static('libs/chartjs-plugin-datalabels.min.js')

@@ -7,6 +7,13 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
 
+    <!-- Inject Dynamic Theme Overrides -->
+    {% if domain_config.theme_css %}
+    <style>
+    {{ domain_config.theme_css | safe }}
+    </style>
+    {% endif %}
+    
     <script src="{{ url_for('static', filename='libs/chart.min.js') }}"></script>
     <script src="{{ url_for('static', filename='libs/chartjs-plugin-datalabels.min.js') }}"></script>
     <script src="{{ url_for('static', filename='libs/d3.min.js') }}"></script>

@@ -141,3 +141,23 @@ groups:
     json_path: "technique.available_dataset"
     label: "Datasets"
     header_class: "inferred-header-3"
+
+
+# Prompt Templates (Relative to project root)
+prompts:
+  classify: "prompt_templates/classify_template.txt"
+  verify: "prompt_templates/verify_template.txt"
+  reclassify: "prompt_templates/reclassify_template.txt"
+
+
+# Basic Theme Overrides
+theme:
+  primary_ui_color: "hsl(188, 31%, 29%)"
+  primary_ui_color_darker: "hsl(188, 34%, 27%)"
+  inferred_ui_color: "hsl(154.6, 35.8%, 32.4%)"
+  inferred_gradient_end_color: "rgb(57, 106, 53)"
+  stats_primary_ui_color: "var(--primary-ui-color)"
+  detail_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)"
+  history_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)"
+  min_width: "1590px"
+  max_width: "2340px"

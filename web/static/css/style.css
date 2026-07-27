@@ -36,7 +36,7 @@
     --link-color: rgb(0, 45, 115);
     --detail-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
     --history-button-background: linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%);
-    --min-width: 1650px;
+    --min-width: 1590px;
     --max-width: 2340px;
     --detail-border-color: #dfdfdf
 }
