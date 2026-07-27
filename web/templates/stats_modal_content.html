@@ -39,19 +39,49 @@
         <h3>Repeating <strong>Research Areas</strong> <span style="font-size:0.75em">↓</span></h3>
         <ul id="researchAreaStatsList" class="stats-list-multicolumn-2"></ul>
     </div>
-    <div class="stats-section">
-        <h3>Mentioned <strong>Models</strong> <span style="font-size:0.75em">↓</span>
-            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
-                <button type="button" class="tabularx-btn" id="models-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
-            </span> 
-        </h3>
-        <ul id="modelNamesStatsList" class="stats-list-multicolumn-2"></ul>
-    </div>
-    <div class="stats-section">
-        <h3>Mentioned <strong>other features</strong> <span style="font-size:0.75em">↓</span></h3>
-        <ul id="otherDetectedFeaturesStatsList" class="stats-list-multicolumn-2"></ul>
-    </div>
-    <!-- <div class="stats-section" style="grid-column: 1/3;"> -->
+
+    
+{% set ns = namespace(slot1=null, slot2=null, count=0) %}
+{% for field in domain_config.editable_fields %}
+    {% if field.stats_list %}
+        {% if ns.count == 0 %}
+            {% set ns.slot1 = field %}
+            {% set ns.count = 1 %}
+        {% elif ns.count == 1 %}
+            {% set ns.slot2 = field %}
+            {% set ns.count = 2 %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+<!-- ... (Keep Journals, Conferences, Keywords, Authors, Research Areas, and Other Metrics exactly as they are) ... -->
+
+<!-- SLOT 1 -->
+<div class="stats-section">
+    <h3>Mentioned <strong>{{ ns.slot1.label if ns.slot1 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
+        {% if ns.slot1 %}
+        <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+            <button type="button" class="tabularx-btn" id="slot1-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+        </span>
+        {% endif %}
+    </h3>
+    <ul id="slot1StatsList" class="stats-list-multicolumn-2"></ul>
+</div>
+
+<!-- SLOT 2 -->
+<div class="stats-section">
+    <h3>Mentioned <strong>{{ ns.slot2.label if ns.slot2 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
+        {% if ns.slot2 %}
+        <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+            <button type="button" class="tabularx-btn" id="slot2-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+        </span>
+        {% endif %}
+    </h3>
+    <ul id="slot2StatsList" class="stats-list-multicolumn-2"></ul>
+</div>
+
+
+    
     <div class="stats-section">
         <h3><strong>Other</strong> Metrics
             <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">

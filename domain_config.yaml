@@ -7,8 +7,10 @@ editable_fields:
     json_path: "research_area"
   - label: "Model Name"
     json_path: "technique.model"
+    stats_list: true     # <--- Maps to Slot 1 - there are two slots.
   - label: "Other Defects"
     json_path: "features.other"
+    stats_list: true     # <--- Maps to Slot 2
 
 groups:
   # --- Single-field Tri-State Filters ---

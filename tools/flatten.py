@@ -331,24 +331,29 @@ def main():
         # Shared module
         "shared/__init__.py",
         "shared/config.py",
-        # "shared/db.py",
+        "shared/db.py",
         
         # Web module
         "web/__init__.py",
-        # "web/export_logic.py",
+        "web/export_logic.py",
         # "web/filters.py",
         # "web/importer.py",
         # "web/routes_data.py",
-        # "web/routes_files.py",
+        "web/routes_files.py",
         "web/routes_ui.py",
         
         # Web static files
-        "web/static/comms.js",
+        # "web/static/comms.js",
         "web/static/filtering.js",
-        # "web/static/fonts.css",
-        # "web/static/ghpages.js",
-        # "web/static/stats.js",
-        # "web/static/style.css",
+        # "web/static/js/ghpages.js",
+        "web/static/js/stats/stats_core.js",
+        "web/static/js/stats/stats_generic.js",
+        "web/static/js/stats/stats_domain.js",
+        "web/static/js/stats/stats_charts.js",
+        "web/static/js/stats/stats_latex.js",
+
+        # "web/static/css/style.css",
+        # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
         # "web/static/pdfjs/web/autosave.js",
@@ -357,14 +362,14 @@ def main():
         
         # Web templates
         # "web/templates/about_modal_content.html",
-        "web/templates/detail_row.html",
-        "web/templates/history_row.html",
+        # "web/templates/detail_row.html",
+        # "web/templates/history_row.html",
         "web/templates/index.html",
-        # "web/templates/index_static_export.html",
+        "web/templates/index_static_export.html",
         # "web/templates/loader.html",
         "web/templates/papers_table.html",
-        # "web/templates/papers_table_static_export.html",
-        "web/templates/papers_table_tfoot.html",
+        "web/templates/papers_table_static_export.html",
+        # "web/templates/papers_table_tfoot.html",
         # "web/templates/stats_modal_content.html",
     ]
     
