@@ -2,18 +2,13 @@
 # General Configuration for Research Parça
 
 # Web App Defaults
-frontend_port: 5001 
-
-default_year_from: 2016
-default_year_to: 2025
-default_min_page_count: 4
+frontend_port: 5001
+queue_manager_port: 6001
 
 # Queue Manager & LLM
 llm_server_url: "http://localhost:8086"
 llm_api_key: null   
 
-queue_manager_host: "localhost"
-queue_manager_port: 6001
 
 # Concurrency Limits
 max_concurrent_workers_classify: 60
@@ -24,3 +19,7 @@ min_concurrent_workers: 32
 # Consensus
 max_consensus_iterations: 15
 fresh_classify_fallback_iteration: 8
+
+default_year_from: 2016
+default_year_to: 2025
+default_min_page_count: 4

@@ -1,4 +1,4 @@
-<!-- templates/index.html -->
+{# templates/index.html #}
 <!DOCTYPE html>
 <html lang="en" class="busyCursor">
 <head>
@@ -7,7 +7,7 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <!-- Inject Dynamic Theme Overrides -->
+    {# Inject Dynamic Theme Overrides #}
     {% if domain_config.theme_css %}
     <style>
     {{ domain_config.theme_css | safe }}
@@ -50,19 +50,19 @@
 {% set total_cols = 6 + inferred_colspan + 9 %}
 
 <colgroup>
-    <!-- 1. LEADING FIXED (6) -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- PDF -->
-    <col style="width: 66%"> <!-- Title -->
-    <col style="width: 40px; min-width: 40px; max-width:40px;"> <!-- Year -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Pages -->
-    <col style="width: 34%"> <!-- Journal -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Type -->
+    {# 1. LEADING FIXED (6) #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# PDF #}
+    <col style="width: 66%"> {# Title #}
+    <col style="width: 40px; min-width: 40px; max-width:40px;"> {# Year #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Pages #}
+    <col style="width: 34%"> {# Journal #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Type #}
     
-    <!-- 2. UNIVERSAL INFERRED (2) -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Off-topic -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Relevance -->
+    {# 2. UNIVERSAL INFERRED (2) #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Off-topic #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Relevance #}
 
-    <!-- 3. DYNAMIC DOMAIN-SPECIFIC -->
+    {# 3. DYNAMIC DOMAIN-SPECIFIC #}
     {% for group in domain_config.groups %}
         {% if group.filter_type == 'tri_state' %}
             <col style="width: 27px; min-width: 27px; max-width: 27px;">
@@ -73,23 +73,23 @@
         {% endif %}
     {% endfor %}
 
-    <!-- 4. TRAILING FIXED (9) -->
-    <col style="width: 56px; min-width: 56px; max-width: 56px;"> <!-- Last Changed -->
-    <col style="width: 40px; min-width: 40px; max-width: 40px;"> <!-- Changed By -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified -->
-    <col style="width: 32px; min-width: 32px; max-width: 32px;"> <!-- Accr. Score -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Verified By -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- User Changes -->
-    <col style="width: 27px; min-width: 27px; max-width: 27px;"> <!-- Commented -->
-    <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- History -->
-    <col style="width: 44px; min-width: 44px; max-width: 44px;"> <!-- Details -->
+    {# 4. TRAILING FIXED (9) #}
+    <col style="width: 56px; min-width: 56px; max-width: 56px;"> {# Last Changed #}
+    <col style="width: 40px; min-width: 40px; max-width: 40px;"> {# Changed By #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Verified #}
+    <col style="width: 32px; min-width: 32px; max-width: 32px;"> {# Accr. Score #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Verified By #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# User Changes #}
+    <col style="width: 27px; min-width: 27px; max-width: 27px;"> {# Commented #}
+    <col style="width: 44px; min-width: 44px; max-width: 44px;"> {# History #}
+    <col style="width: 44px; min-width: 44px; max-width: 44px;"> {# Details #}
 
-    <!-- 5. HIDDEN METADATA (5) -->
+    {# 5. HIDDEN METADATA (5) #}
     <col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none">
 </colgroup>
 
 <thead>
-    <!-- ROW 1: Main Header Wrapper -->
+    {# ROW 1: Main Header Wrapper #}
     <tr>
         <th id="main-header-wrapper" colspan="{{ total_cols }}">
             <div class="main-header">
@@ -100,7 +100,7 @@
                 <div class="header-controls">
                     <button class="action-btn" id="export-btn"><strong>Export</strong> & Backup</button>
                 </div>
-                <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parça</span> - <span style="font-size: 0.7em;">{{ domain_config.domain_name }}</span></div>
+                <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parça</span> - <span style="font-size: 0.667em;">{{ domain_config.domain_name }}</span></div>
                 <div class="header-controls">
                     <button class="action-btn" id="parça-tools-btn" ><strong>Batch</strong> Tasks</button>
                 </div>
@@ -115,7 +115,7 @@
         <th style="display:none" colspan="5"></th>
     </tr>
 
-    <!-- ROW 2: Server Filters | Inferred Data Wrapper | Search -->
+    {# ROW 2: Server Filters | Inferred Data Wrapper | Search #}
     <tr>
         <th class="ontop-header" colspan="6" rowspan="2">
             <div class="header-filters">
@@ -137,7 +137,7 @@
             <div>
                 <span>Inferred data </span>
                 <div style="margin:0; padding:0">
-                    Potential misclassifications:
+                    <!-- Potential misclassifications: -->
                     <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox" style="margin: 0 0 0 8px;">
                 </div>
             </div>
@@ -152,17 +152,17 @@
         <th style="display:none" colspan="5"></th>
     </tr>
 
-    <!-- ROW 3: Group Headers & Filter Checkboxes -->
+    {# ROW 3: Group Headers & Filter Checkboxes #}
     <tr>
-        <!-- Universal Inferred Checkboxes -->
+        {# Universal Inferred Checkboxes #}
         <th class="inferred-header ontop-header" colspan="1">
             <div>
                 <input type="checkbox" title="Enable to Hide Offtopic papers" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked{% endif %}>
             </div>
         </th>
-        <th class="inferred-header ontop-header" colspan="1"></th> <!-- Empty space above Relevance -->
+        <th class="inferred-header ontop-header" colspan="1"></th> {# Empty space above Relevance #}
 
-        <!-- Dynamic Domain-Specific Group Headers -->
+        {# Dynamic Domain-Specific Group Headers #}
         {% for group in domain_config.groups %}
             {% if group.filter_type == 'tri_state' %}
             <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="1">
@@ -175,7 +175,7 @@
             <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
                 <div>
                     <span>{{ group.friendly_name }}</span>
-                    <!-- FIX: Restored original descriptive tooltip logic -->
+                    {# FIX: Restored original descriptive tooltip logic #}
                     <input type="checkbox" class="inclusion-checkbox" data-filter-group="{{ group.name }}" title="Enable to include (or limit to if it's the only checkbox enabled) papers about {{ group.friendly_name | default('other', true) | lower }}">
                 </div>
             </th>
@@ -189,9 +189,9 @@
         <th style="display:none" colspan="5"></th>
     </tr>
 
-    <!-- ROW 4: Actual Column Headers (Sortable) -->
+    {# ROW 4: Actual Column Headers (Sortable) #}
     <tr>
-        <!-- 1. Leading Fixed -->
+        {# 1. Leading Fixed #}
         <th class="rotate-header status-header editable-header" data-sort="pdf-link"><div><span>PDF</span></div> <span class="sort-indicator"></span></th>
         <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span> </th>
         <th data-sort="year">Year <span class="sort-indicator"></span></th>
@@ -199,11 +199,11 @@
         <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>
         <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div> <span class="sort-indicator"></span></th>
 
-        <!-- 2. Universal Inferred -->
+        {# 2. Universal Inferred #}
         <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
         <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
 
-        <!-- 3. Dynamic Domain-Specific -->
+        {# 3. Dynamic Domain-Specific #}
         {% for group in domain_config.groups %}
             {% if group.filter_type == 'tri_state' %}
                 <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}">
@@ -218,7 +218,7 @@
             {% endif %}
         {% endfor %}
 
-        <!-- 4. Trailing Fixed -->
+        {# 4. Trailing Fixed #}
         <th data-sort="changed">Last Changed <span class="sort-indicator"></span></th>
         <th class="rotate-header" data-sort="changed_by"><div><span>Changed By</span></div> <span class="sort-indicator"></span></th>
         <th class="rotate-header" data-sort="verified"><div><span>Verified</span></div> <span class="sort-indicator"></span></th>
@@ -229,16 +229,16 @@
         <th class="rotate-header"><div>History</div></th>
         <th class="rotate-header"><div>Details</div></th>
 
-        <!-- 5. Hidden Metadata -->
+        {# 5. Hidden Metadata #}
         <th style="display:none" colspan="5"></th>
     </tr>
 </thead>
 
-            <!-- tbody and tfoot come from the papers_table template-->
+            {# tbody and tfoot come from the papers_table template#}
             {{ papers_table_content | safe }}        
             
             {% include 'papers_table_tfoot.html' %}
-            <!-- Use the rendered table content passed from the server --> 
+            {# Use the rendered table content passed from the server #} 
     </table>
 </div>
 
@@ -249,10 +249,10 @@
         </div>
         <div>
             <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong> </button>
-            <!-- <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
+            {# <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
         </div>
         <div>
-            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button> -->
+            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button> #}
             <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
         </div>
         <span class="menu-message">Batch classifications also run corresponding verifications automatically. Run the tasks below if you still need just verification (e.g., if an earlier run was aborted after classification)</span>
@@ -268,7 +268,7 @@
 
 <div id="importModal" class="modal">
     <div id="import-actions">
-        <!-- unused, kept if a menu is desired here later (animations, etc. already done) -->
+        {# unused, kept if a menu is desired here later (animations, etc. already done) #}
     </div>
 </div>
 
@@ -277,10 +277,10 @@
         <div>
             <button class="action-btn" id="export-html-btn">Export <strong>HTML</strong></button>
             <button disabled class="action-btn" id="export-xlsx-btn">Export <strong>XLSX</strong></button>            
-            <!-- <label style="font-size: 9pt;">
+            {# <label style="font-size: 9pt;">
                 <input type="checkbox" id="lite-export-checkbox" checked>
                 Lite export (no thinking traces)
-            </label> -->
+            </label> #}
         </div>        
         <div>
             <button class="action-btn" id="backup-btn" > <strong>Create </strong>Backup</button>

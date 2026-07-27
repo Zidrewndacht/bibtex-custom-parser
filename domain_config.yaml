@@ -159,5 +159,3 @@ theme:
   stats_primary_ui_color: "var(--primary-ui-color)"
   detail_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)"
   history_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)"
-  min_width: "1590px"
-  max_width: "2340px"

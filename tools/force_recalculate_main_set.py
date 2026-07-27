@@ -1,64 +1,49 @@
-# patch_db.py
-# Forces recalculate_main_set;
 import sys
 import os
-import json
 
+# Ensure the shared modules can be imported
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from shared import config, db
+
+from shared import db, config
 
 def main():
-    db.init_db(config.DATABASE_FILE)
+    db_path = config.DATABASE_FILE
+    print(f"Initializing database at: {db_path}")
+    db.init_db(db_path)
     
     with db.get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, verified, verified_by, classification FROM papers")
+        # Fetch all paper IDs and titles
+        cursor.execute("SELECT id, title FROM papers")
         papers = cursor.fetchall()
         
-        sql_updates = []
-        json_updates = []
+    total = len(papers)
+    print(f"Found {total} papers in the database.\n")
+    
+    recalculated_count = 0
+    for i, row in enumerate(papers):
+        paper_id = row['id']
+        title = row['title'] or ""
         
-        for row in papers:
-            paper_id, sql_verified, sql_verified_by, class_json = row
+        # Skip the default placeholder paper
+        if paper_id == '1' and 'Database is missing or empty' in title:
+            print("Skipping placeholder paper...")
+            continue
             
-            # Parse JSON blob
-            try:
-                c = json.loads(class_json) if class_json else {}
-            except Exception:
-                c = {}
-                
-            json_verified = c.get('verified')
-            json_verified_by = c.get('verified_by')
+        # Recalculate without creating a new history log entry to avoid spamming the UI
+        db.recalculate_main_set(
+            paper_id, 
+            changed_by="Script_Force_Recalculate", 
+            create_log_entry=False
+        )
+        recalculated_count += 1
+        
+        # Print progress every 50 papers
+        if (i + 1) % 50 == 0 or (i + 1) == total:
+            print(f"Progress: {i + 1}/{total} papers processed...")
             
-            # Ground truth: Is there an active AI verification decision?
-            is_ai_verified = (sql_verified in (0, 1)) or (json_verified in (True, False, 0, 1))
-            
-            # Respect explicit 'user' overrides
-            if sql_verified_by == 'user' or json_verified_by == 'user':
-                continue
-                
-            target_verified_by = 'computer' if is_ai_verified else None
-            
-            # Queue SQL column update if needed
-            if sql_verified_by != target_verified_by:
-                sql_updates.append((target_verified_by, paper_id))
-                
-            # Queue JSON blob update if needed (keeps backend state perfectly synced)
-            if json_verified_by != target_verified_by:
-                c['verified_by'] = target_verified_by
-                json_updates.append((json.dumps(c), paper_id))
-
-        # Execute batch updates
-        if sql_updates:
-            cursor.executemany("UPDATE papers SET verified_by = ? WHERE id = ?", sql_updates)
-        if json_updates:
-            cursor.executemany("UPDATE papers SET classification = ? WHERE id = ?", json_updates)
-            
-        if sql_updates or json_updates:
-            conn.commit()
-            print(f"✅ Patched {len(sql_updates)} SQL rows and {len(json_updates)} JSON blobs.")
-        else:
-            print("✨ Database is already perfectly synced. Nothing to patch.")
+    print(f"\n✅ Successfully recalculated {recalculated_count} papers.")
+    print("👉 You can now refresh the frontend to see the updated text fields.")
 
 if __name__ == '__main__':
     main()

@@ -222,27 +222,34 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
     with get_db() as conn:
         cursor = conn.cursor()
         paper = dict(cursor.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone())
-        if not paper: return {'status': 'error', 'message': 'Paper not found'}
-        
+        if not paper: 
+            return {'status': 'error', 'message': 'Paper not found'}
+
         changed_timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         
         try: current_class = json.loads(paper['classification'] or '{}')
         except: current_class = {}
         try: last_llm_class = json.loads(paper['last_llm_classification'] or '{}')
         except: last_llm_class = {}
-        try: certainty_map = json.loads(paper['main_certainty'] or '{}')
-        except: certainty_map = {}
+        
+        # FIX 1: Load existing certainty map to prevent wiping conflicts on comment-only saves
+        try: 
+            existing_certainty = json.loads(paper['main_certainty'] or '{}')
+            certainty_map = dict(existing_certainty)
+        except: 
+            certainty_map = {}
+            
         try: existing_log = json.loads(paper['llm_log'] or '[]')
         except: existing_log = []
-        
+
         update_fields = []
         update_values = []
-        
+
         user_set_verified = 'verified' in data
         user_set_verified_by = 'verified_by' in data
         original_verified_by = paper.get('verified_by')
-        
-        # FIX: Track current_user_trace properly so the log entry gets the NEW trace immediately
+
+        # Track current_user_trace properly so the log entry gets the NEW trace immediately
         current_user_trace = paper.get('user_trace') or ""
 
         # 1. Handle Baseline SQL Columns
@@ -250,11 +257,12 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_fields.append("page_count = ?")
             update_values.append(int(data['page_count']) if str(data['page_count']).isdigit() else None)
             data.pop('page_count')
-            
+
         if 'user_trace' in data:
             current_user_trace = data['user_trace']
             update_fields.append("user_trace = ?")
             update_values.append(current_user_trace)
+            
             # Automated paywall detection
             is_paywalled = 'paywalled' in str(current_user_trace).lower()
             has_pdf = bool(paper.get('pdf_filename'))
@@ -265,7 +273,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 update_fields.append("pdf_state = ?")
                 update_values.append("none")
             data.pop('user_trace')
-            
+
         if 'verified' in data:
             val = data['verified']
             if isinstance(val, str):
@@ -276,7 +284,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(db_val)
             current_class['verified'] = db_val
             data.pop('verified')
-            
+
         if 'verified_by' in data:
             verified_by_value = data['verified_by']
             db_val = None if verified_by_value == 'unknown' or verified_by_value is None else verified_by_value
@@ -284,7 +292,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             update_values.append(db_val)
             current_class['verified_by'] = db_val
             data.pop('verified_by')
-            
+
         if 'estimated_score' in data:
             val = data['estimated_score']
             db_val = max(0, min(100, int(val))) if isinstance(val, (int, float)) or (isinstance(val, str) and val.isdigit()) else None
@@ -303,34 +311,42 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
                 else: parsed_val = value
             else:
                 parsed_val = value
-                
+            
             _set_val_by_path(current_class, key, parsed_val)
-            certainty_map[key] = 'solid' 
+            # FIX 2: Only update certainty for fields the user actually changed
+            certainty_map[key] = 'solid'
 
-        # 3. Verification Reset Logic
-        if changed_by == "user" and not user_set_verified and not user_set_verified_by:
-            was_llm_verified = (original_verified_by and 
-                                str(original_verified_by).strip() != '' and 
-                                original_verified_by != 'user')
-            if was_llm_verified:
-                update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
-                update_values.extend([None, None, ""])
-                current_class['verified'] = None
-                current_class['estimated_score'] = None
-                current_class['verified_by'] = ""
-
-        # 4. Calculate User Override Count
+        # 3. Calculate User Override Count (Moved UP & Exclude verification metadata)
         def normalize_bool(val):
             if val is None or val == '' or val == 'null' or val == 'unknown' or val == 'none': return None
             if val is True or val == 1 or val == '1' or val == 'true': return 1
             if val is False or val == 0 or val == '0' or val == 'false': return 0
             return val
-            
+
         override_count = 0
         all_paths = set(_get_all_paths(current_class)) | set(_get_all_paths(last_llm_class))
+        
+        # Exclude verification metadata from override count; these are audit fields, not classification overrides
+        exclude_paths = {'verified', 'estimated_score', 'verified_by'}
         for path in all_paths:
+            if path in exclude_paths:
+                continue
             if normalize_bool(_get_val_by_path(current_class, path)) != normalize_bool(_get_val_by_path(last_llm_class, path)):
                 override_count += 1
+
+        # 4. Verification Reset Logic (Moved DOWN & Condition Added)
+        # Only reset verification if the user ACTUALLY changed an inferred classification field.
+        if changed_by == "user" and not user_set_verified and not user_set_verified_by:
+            if override_count > 0:
+                was_llm_verified = (original_verified_by and
+                                    str(original_verified_by).strip() != '' and
+                                    original_verified_by != 'user')
+                if was_llm_verified:
+                    update_fields.extend(["verified = ?", "estimated_score = ?", "verified_by = ?"])
+                    update_values.extend([None, None, ""])
+                    current_class['verified'] = None
+                    current_class['estimated_score'] = None
+                    current_class['verified_by'] = ""
 
         # 5. History Log Building (Strictly follows original compaction logic)
         user_log_entry = {
@@ -342,7 +358,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             "valid": True,
             "certainty_map": certainty_map
         }
-        
+
         # If the latest entry is from a user, compact the changes into it.
         # Otherwise (if it's AI or empty), append a new user entry.
         if existing_log and existing_log[-1].get('type') == 'user':
@@ -363,7 +379,7 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             json.dumps(current_class), json.dumps(certainty_map), override_count, 
             changed_timestamp, changed_by, json.dumps(existing_log)
         ])
-        
+
         cursor.execute(f"UPDATE papers SET {', '.join(update_fields)} WHERE id = ?", update_values + [paper_id])
         conn.commit()
         
@@ -389,6 +405,7 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
         certainty_map = {}
         main_output_log = {} 
         
+
         for path in all_paths:
             values = [_get_val_by_path(s, path) for s in sets_data]
             
@@ -398,6 +415,30 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
                 _set_val_by_path(main_classification, path, avg)
                 main_output_log[path] = avg
                 continue
+
+            # --- NEW: Handle Text Fields (Strings) ---
+            is_text = any(isinstance(v, str) and v.strip() for v in values)
+            if is_text:
+                seen_lower = set()
+                unique_vals = []
+                # Iterating in order (Set 1 -> Set 3) ensures Set 1's capitalization is kept
+                for v in values:
+                    if isinstance(v, str):
+                        # Strip whitespace and trailing commas/periods to prevent false mismatches
+                        cleaned = v.strip().rstrip(',.')
+                        if not cleaned:
+                            continue
+                        lower_v = cleaned.lower()
+                        if lower_v not in seen_lower:
+                            seen_lower.add(lower_v)
+                            unique_vals.append(cleaned)
+                
+                final_val = "; ".join(unique_vals) if unique_vals else None
+                _set_val_by_path(main_classification, path, final_val)
+                certainty_map[path] = 'solid' # Text fields don't conflict, they combine
+                main_output_log[path] = final_val
+                continue
+            # -----------------------------------------
                 
             main_val, certainty = calculate_field_certainty([1 if v is True else (0 if v is False else None) for v in values])
             final_val = True if main_val == 1 else (False if main_val == 0 else None)

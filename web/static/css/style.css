@@ -162,7 +162,7 @@ th.rotate-header {
 }
 
 .header-branding {
-    font-size: 24pt;
+    font-size: 21.5pt;
     justify-self: center;
     font-family: "Arial Narrow";
     font-weight: 400;
@@ -1529,7 +1529,7 @@ li {
     overflow: hidden;
     transition: max-height .4s ease-in-out,opacity .6s ease-in-out;
     display: grid;
-    grid-template-columns: 1fr 1107px;
+    grid-template-columns: 1fr var(--history-table-width);
     grid-template-rows: min-content 1fr min-content;
     gap: 0;
     box-sizing: border-box;
@@ -1651,11 +1651,6 @@ li {
     display: none;
     overflow: hidden;
     height: 0;
-}
-
-.history-tab-panel.active {
-    /*! display: flex; */
-    flex-direction: column;
 }
 
 /* Certainty opacity classes - apply to emoji-content span ONLY */

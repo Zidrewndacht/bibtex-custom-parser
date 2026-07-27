@@ -313,7 +313,7 @@ def main():
     FILE_LIST = [
         # Root files
         "browse_db.py",
-        "queue_manager.py",
+        # "queue_manager.py",
         # "README.md",
         
         # Prompt templates
@@ -345,14 +345,14 @@ def main():
         # Web static files
         "web/static/comms.js",
         "web/static/filtering.js",
-        # "web/static/js/ghpages.js",
+        "web/static/js/ghpages.js",
         # "web/static/js/stats/stats_core.js",
         # "web/static/js/stats/stats_generic.js",
         # "web/static/js/stats/stats_domain.js",
         # "web/static/js/stats/stats_charts.js",
         # "web/static/js/stats/stats_latex.js",
 
-        # "web/static/css/style.css",
+        "web/static/css/style.css",
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
@@ -368,9 +368,9 @@ def main():
         # "web/templates/about_modal_content.html",
         # "web/templates/papers_table_tfoot.html",
         # "web/templates/stats_modal_content.html",
-        # "web/templates/static_export/loader.html",
-        # "web/templates/static_export/index_static_export.html",
-        # "web/templates/static_export/papers_table_static_export.html"
+        "web/templates/static_export/loader.html",
+        "web/templates/static_export/index_static_export.html",
+        "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list

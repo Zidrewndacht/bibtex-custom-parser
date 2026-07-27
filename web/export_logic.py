@@ -4,6 +4,7 @@ import base64
 import gzip
 import json
 import rjsmin
+import rcssmin
 from flask import render_template
 from markupsafe import Markup
 from shared import config
@@ -185,6 +186,8 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     static_dir = os.path.join(script_dir, 'static')
     fonts_parent_dir = os.path.join(script_dir, 'static/css')
 
+    domain_config = config.load_domain_config()
+    
     def read_static(rel_path):
         path = os.path.join(static_dir, rel_path)
         if os.path.exists(path):
@@ -197,6 +200,7 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
 
     # Append the theme CSS directly to the bundled stylesheet
     style_css_content = fonts_css_content + "\n" + style_css_content + "\n" + domain_config.get('theme_css', '')
+    style_css_content = rcssmin.cssmin(style_css_content)
 
     chart_js_content = read_static('libs/chart.min.js')
     chart_js_datalabels_content = read_static('libs/chartjs-plugin-datalabels.min.js')
@@ -219,8 +223,6 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
                 'filtering_js', 'ghpages_js']:
         locals()[var] = rjsmin.jsmin(locals()[var])
 
-    domain_config = config.load_domain_config()
-    
     papers_table_static_export = render_template(
         'static_export/papers_table_static_export.html', papers=papers, domain_config=domain_config,
         type_emojis=config.TYPE_EMOJIS, pdf_emojis=config.PDF_EMOJIS, default_type_emoji=config.DEFAULT_TYPE_EMOJI,

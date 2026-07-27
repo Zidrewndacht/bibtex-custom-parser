@@ -293,7 +293,9 @@ OK              Actual implementation uses configurable YAML instead, probably m
                                 ...?
                 Automatic generation of domain_config.yaml
 
-        Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
-
-        Fix broken history layout when amount of inferred colums change.
-        Re-enable CSS minification
+OK      Re-enable CSS minification
+OK      Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
+OK      Prevent changing verification during comments and fix correpsonding XHR updates
+OK      Fix broken history layout when amount of inferred colums change.
+OK      Automatic CSS width according to domain_config column counts
+OK      Convert HTML comments to Jinja2 server-side comments

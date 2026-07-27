@@ -9,6 +9,8 @@
 {% endfor %}
 {% set inferred_colspan = 2 + ns.total_dynamic %}
 {% set total_cols = 6 + inferred_colspan + 9 %}
+{# 378px is the width of the fixed contents #}
+{% set history_table_width = 378 + ns.total_dynamic * 27 %}
 
 <tbody style="position: relative;">
     <tr>
@@ -158,7 +160,7 @@
     
     <tr class="history-row">
         <td colspan="{{ total_cols }}">
-            <div class="history-flex-container">
+            <div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">
                 <div class="history-tabs-nav">
                     <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Main <span class="arrow">▼</span></span></button>
                     <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Set 1 <span class="arrow">▼</span></span></button>

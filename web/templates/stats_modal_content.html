@@ -1,8 +1,8 @@
-<!-- templates/stats_modal_content.html -->
-<!-- <p> Data in <strong>all lists</strong> below is dynamically calculated based on <strong>currently visible</strong> papers:</p> -->
+{# templates/stats_modal_content.html #}
+{# <p> Data in <strong>all lists</strong> below is dynamically calculated based on <strong>currently visible</strong> papers:</p> #}
 <div class="stats-lists">
     <div class="stats-section">
-        <h3>Repeating <strong>Journals</strong> <span style="font-size:0.75em"><!-- — Scroll down on each list for more--> ↓</span></h3>
+        <h3>Repeating <strong>Journals</strong> <span style="font-size:0.75em">{# — Scroll down on each list for more#} ↓</span></h3>
         <ul id="journalStatsList" class="stats-list-multicolumn-2"></ul>
     </div>
     <div class="stats-section">
@@ -24,7 +24,7 @@
         <ul id="keywordStatsList" class="stats-list-multicolumn-short"></ul>     
         <div id="keywordCloudCanvas"
             style="display: block; margin: auto; width: 100%; height: 285px;box-sizing: border-box;">
-            <!-- <canvas width="640" height="280"></canvas> -->
+            {# <canvas width="640" height="280"></canvas> #}
         </div>
     </div>
     <div class="stats-section">
@@ -54,9 +54,9 @@
     {% endif %}
 {% endfor %}
 
-<!-- ... (Keep Journals, Conferences, Keywords, Authors, Research Areas, and Other Metrics exactly as they are) ... -->
+{# ... (Keep Journals, Conferences, Keywords, Authors, Research Areas, and Other Metrics exactly as they are) ... #}
 
-<!-- SLOT 1 -->
+{# SLOT 1 #}
 <div class="stats-section">
     <h3>Mentioned <strong>{{ ns.slot1.label if ns.slot1 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
         {% if ns.slot1 %}
@@ -68,7 +68,7 @@
     <ul id="slot1StatsList" class="stats-list-multicolumn-2"></ul>
 </div>
 
-<!-- SLOT 2 -->
+{# SLOT 2 #}
 <div class="stats-section">
     <h3>Mentioned <strong>{{ ns.slot2.label if ns.slot2 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
         {% if ns.slot2 %}

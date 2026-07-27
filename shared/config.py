@@ -100,6 +100,28 @@ def load_domain_config():
     cfg.setdefault("groups", [])
     cfg.setdefault("editable_fields", [])
     
+    # --- Automatically calculate min/max widths based on dynamic columns ---
+    total_dynamic = 0
+    for group in cfg.get('groups', []):
+        filter_type = group.get('filter_type')
+        if filter_type == 'tri_state':
+            total_dynamic += 1
+        elif filter_type in ['inclusion', 'none']:
+            total_dynamic += len(group.get('fields', []))
+            
+    extra_cells = max(0, total_dynamic - 9)
+    min_width = 1140 + (extra_cells * 27)
+    max_width = max(1880, min_width + 720)
+    
+    # Inject into theme dict so generate_theme_css picks them up as CSS variables
+    theme = cfg.get('theme', {})
+    if not isinstance(theme, dict):
+        theme = {}
+    theme['min_width'] = f"{min_width}px"
+    theme['max_width'] = f"{max_width}px"
+    cfg['theme'] = theme
+    # ----------------------------------------------------------------------
+
     # Parse Prompt Templates
     prompts = cfg.get('prompts', {})
     cfg['PROMPT_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('classify', 'prompt_templates/classify_template.txt'))

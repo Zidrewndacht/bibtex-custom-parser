@@ -1,4 +1,4 @@
-<!-- templates/detail_row.html -->
+{# templates/detail_row.html #}
 {% block detail_row_content %}
 <div class="detail-flex-container">
     <div class="detail-content detail-abstract">
@@ -8,7 +8,7 @@
             <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')" title="Click to copy this ID to the clipboard as a LaTeX citation in the \citen{} format"><em>\citeN</em></button>
             <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')" title="Click to copy this ID to the clipboard as plain text">Copy</button>
         </div>
-        <!-- <strong>Type:</strong> {{ paper.type }}</p> -->
+        {# <strong>Type:</strong> {{ paper.type }}</p> #}
         <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
     </div>
 
@@ -29,11 +29,11 @@
                         {% for keyword in keywords_list %}
                             {% set trimmed_keyword = keyword.strip() %}
                             {% if trimmed_keyword %}
-                                <span class="clickable-item" data-search-field="keywords" data-search-term="{{ trimmed_keyword }}">{{ trimmed_keyword }};<!--🔍--></span>
+                                <span class="clickable-item" data-search-field="keywords" data-search-term="{{ trimmed_keyword }}">{{ trimmed_keyword }};{#🔍#}</span>
                             {% endif %}
                         {% endfor %}
                     {% else %}
-                        {{ paper.keywords }} <!-- In case it's empty or None -->
+                        {{ paper.keywords }} {# In case it's empty or None #}
                     {% endif %}
                 </span>
             </p>
@@ -44,11 +44,11 @@
                         {% for author in authors_list %}
                             {% set trimmed_author = author.strip() %}
                             {% if trimmed_author %}
-                                <span class="clickable-item" data-search-field="authors" data-search-term="{{ trimmed_author }}">{{ trimmed_author }};<!--🔍--></span>
+                                <span class="clickable-item" data-search-field="authors" data-search-term="{{ trimmed_author }}">{{ trimmed_author }};{#🔍#}</span>
                             {% endif %}
                         {% endfor %}
                     {% else %}
-                        {{ paper.authors }} <!-- In case it's empty or None -->
+                        {{ paper.authors }} {# In case it's empty or None #}
                     {% endif %}
                 </span>
             </p>
@@ -72,7 +72,7 @@
     </div>
     <div class="edit-section detail-edit">
         <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
-            <!-- 1. DOMAIN-SPECIFIC FIELDS (From YAML) -->
+            {# 1. DOMAIN-SPECIFIC FIELDS (From YAML) #}
             {% for field in domain_config.editable_fields %}
             <label>{{ field.label }}:
                 <input type="text" class="editable" name="{{ field.json_path | replace('.', '_') }}" 
@@ -80,7 +80,7 @@
             </label>
             {% endfor %}
 
-            <!-- 2. UNIVERSAL PURPOSE FIELDS (Hardcoded) -->
+            {# 2. UNIVERSAL PURPOSE FIELDS (Hardcoded) #}
             <label>Page count:
                 <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
             </label>

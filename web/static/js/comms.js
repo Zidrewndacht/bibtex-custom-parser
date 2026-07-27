@@ -87,40 +87,52 @@ function formatRelevance(val) {
 
 /**
  * Centralized function to clear stuck CSS classes, apply new certainty states,
- * update emojis, and format relevance. Fixes the "translucent ?" ghosting bug.
+ * update emojis, and format relevance. 
+ * FIX: Swapped order so emojis are populated BEFORE conflict overlays are applied,
+ * preventing both from being visible simultaneously.
  */
 function applyCertaintyAndUpdates(row, data) {
     // 1. CRITICAL: Clear ALL certainty/conflict states from all inferred cells first.
-    // This prevents "stuck" translucent classes when a field drops out of the LLM output.
     const inferredCells = row.querySelectorAll('[data-field]');
     inferredCells.forEach(c => {
-        c.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict');
+        c.classList.remove('certainty-60', 'certainty-80', 'certainty-conflict', 'certainty-solid');
         const conflictWarning = c.querySelector('.conflict-warning');
         if (conflictWarning) conflictWarning.remove();
         const emojiSpan = c.querySelector('.emoji-content');
         if (emojiSpan) emojiSpan.style.display = '';
     });
 
-    // 2. Apply new certainty classes only for fields present in the new map
+    // 2. Update Inferred Cells (emojis) FIRST
+    // This ensures every cell has an .emoji-content span with the latest value.
+    if (typeof updateInferredCells === 'function') {
+        updateInferredCells(row, data.classification);
+    }
+
+    // 3. Apply new certainty classes and handle conflicts SECOND
     if (data.main_certainty) {
         for (const [fieldName, certainty] of Object.entries(data.main_certainty)) {
             const c = row.querySelector(`[data-field="${fieldName}"]`);
-            if (c && certainty && certainty !== 'solid') {
+            if (c && certainty) {
                 c.classList.add(`certainty-${certainty}`);
+                
+                const emojiSpan = c.querySelector('.emoji-content');
+                const conflictWarning = c.querySelector('.conflict-warning');
+
                 if (certainty === 'conflict') {
-                    const emojiSpan = c.querySelector('.emoji-content');
+                    // Hide the emoji (which now definitely exists thanks to step 2)
                     if (emojiSpan) emojiSpan.style.display = 'none';
-                    if (!c.querySelector('.conflict-warning')) {
+                    // Add warning if missing
+                    if (!conflictWarning) {
                         c.insertAdjacentHTML('beforeend', '<span class="conflict-warning">⚠️</span>');
                     }
+                } else {
+                    // Ensure emoji is visible if not a conflict
+                    if (emojiSpan) emojiSpan.style.display = '';
+                    // Remove conflict warning if it exists but certainty is no longer conflict
+                    if (conflictWarning) conflictWarning.remove();
                 }
             }
         }
-    }
-
-    // 3. Update Inferred Cells (emojis)
-    if (typeof updateInferredCells === 'function') {
-        updateInferredCells(row, data.classification);
     }
 
     // 4. Update Relevance with proper formatting
@@ -130,22 +142,23 @@ function applyCertaintyAndUpdates(row, data) {
     }
 }
 
-
-
-
-
 /**
  * Helper to update a cell's status symbol based on boolean/null value.
- * @param {Element} row - The main table row element.
- * @param {string} selector - The CSS selector for the cell within the row.
- * @param {*} value - The value (true, false, null, undefined) to determine the symbol.
+ * CRITICAL FIX: Never use cell.textContent directly, as it destroys inner spans (like conflict warnings).
  */
 function updateRowCell(row, selector, value) {
     const cell = row.querySelector(selector);
     if (cell) {
         const emojiSpan = cell.querySelector('.emoji-content');
-        if (emojiSpan) emojiSpan.textContent = renderStatus(value);
-        else cell.textContent = renderStatus(value);
+        if (emojiSpan) {
+            emojiSpan.textContent = renderStatus(value);
+        } else {
+            // If the span doesn't exist, create it instead of wiping the cell's innerHTML
+            const newSpan = document.createElement('span');
+            newSpan.className = 'emoji-content';
+            newSpan.textContent = renderStatus(value);
+            cell.appendChild(newSpan);
+        }
     }
 }
 
