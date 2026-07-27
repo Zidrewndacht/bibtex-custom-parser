@@ -292,3 +292,5 @@ OK              Actual implementation uses configurable YAML instead, probably m
                         PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
                                 ...?
                 Automatic generation of domain_config.yaml
+
+        Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
