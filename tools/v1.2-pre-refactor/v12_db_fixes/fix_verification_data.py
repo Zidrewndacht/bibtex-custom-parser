@@ -16,7 +16,7 @@ from datetime import datetime
 
 # Import globals for paths
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import globals
+import tools.obsolete.v12_db_fixes.globals as globals
 
 def get_latest_valid_verification_from_set_llm_log(db_path, paper_id, set_num):
     """

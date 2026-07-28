@@ -39,7 +39,8 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
         hide_offtopic=hide_offtopic,
         year_from_value=str(year_from_value),
         year_to_value=str(year_to_value),
-        min_page_count_value=str(min_page_count_value)
+        min_page_count_value=str(min_page_count_value),
+        search_query_value = request.args.get('search_query', '')
     )
     return rendered_table
 

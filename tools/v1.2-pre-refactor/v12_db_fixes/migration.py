@@ -11,7 +11,7 @@ import sys
 
 # Import globals for database path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import globals
+import tools.obsolete.v12_db_fixes.globals as globals
 
 def get_field_list():
     """Returns the list of classification fields to duplicate for each set."""

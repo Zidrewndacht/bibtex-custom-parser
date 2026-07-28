@@ -75,7 +75,7 @@
             {#<!-- 1. DOMAIN-SPECIFIC FIELDS (From YAML) -->#}
             {% for field in domain_config.editable_fields %}
             <label>{{ field.label }}:
-                <input type="text" class="editable" name="{{ field.json_path | replace('.', '_') }}" 
+                <input type="text" class="editable" name="{{ field.json_path }}"
                     value="{{ paper.classification | get_json_path(field.json_path) or '' }}">
             </label>
             {% endfor %}

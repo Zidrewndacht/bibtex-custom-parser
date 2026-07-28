@@ -215,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         statsHooks.renderCharts.forEach(fn => fn());
     });
 
+    //Keyboard shortcuts:
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
             closeModal(); closeSmallModal();
@@ -225,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
         if (event.key === 'F1') { event.preventDefault(); displayAbout(); }
+        if (event.key === 'F3') { event.preventDefault();searchInput.focus(); }
         if (event.key === 'F4') {
             event.preventDefault(); document.documentElement.classList.add('busyCursor'); closeSmallModal();
             if (document.body.id !== "html-export") {

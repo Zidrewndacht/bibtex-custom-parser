@@ -313,20 +313,20 @@ def main():
     FILE_LIST = [
         # # Root files
         "browse_db.py",
-        # "queue_manager.py",
-        # "README.md",
+        "queue_manager.py",
+        "README.md",
         
         # # # Prompt templates
-        # "prompt_templates/classify_template.txt",
-        # "prompt_templates/reclassify_template.txt",
-        # "prompt_templates/verify_template.txt",
+        "prompt_templates/classify_template.txt",
+        "prompt_templates/reclassify_template.txt",
+        "prompt_templates/verify_template.txt",
         
         # # # Queue manager module
-        # "queue_manager/__init__.py",
-        # "queue_manager/dispatcher.py",
-        # "queue_manager/logging_utils.py",
-        # "queue_manager/routes.py",
-        # "queue_manager/state.py",
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
         
         # Shared module
         "shared/__init__.py",
@@ -356,9 +356,9 @@ def main():
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
-        # "web/static/pdfjs/web/autosave.js",
-        # "web/static/pdfjs/web/viewer.html",
-        # "web/static/pdfjs/web/viewer_mods.css",
+        "web/static/pdfjs/web/autosave.js",
+        "web/static/pdfjs/web/viewer.html",
+        "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
         "web/templates/detail_row.html",
@@ -368,9 +368,9 @@ def main():
         "web/templates/about_modal_content.html",
         "web/templates/papers_table_tfoot.html",
         "web/templates/stats_modal_content.html",
-        # "web/templates/static_export/loader.html",
-        # "web/templates/static_export/index_static_export.html",
-        # "web/templates/static_export/papers_table_static_export.html"
+        "web/templates/static_export/loader.html",
+        "web/templates/static_export/index_static_export.html",
+        "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list
