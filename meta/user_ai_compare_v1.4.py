@@ -1,35 +1,24 @@
 #!/usr/bin/env python3
-# v1.2_user_vs_ai_comparison.py (v1.2.1 - Certainty-Aware)
+# v1.4_user_vs_ai_comparison.py (v1.4 - Configurable DB & Certainty-Aware)
 # Compares user-modified main_set data vs AI-averaged main_set data across two separate SQLite DBs.
-# NEW: Explicitly handles AI internal certainty/conflicts from main_certainty.
+# Refactored to read settings from domain_config.yaml and support nested JSON classification blobs.
 
 import argparse
 import sqlite3
 import json
 import sys
+import os
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from collections import Counter
 import numpy as np
 import pandas as pd
 from scipy import stats
+import yaml
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-MAIN_BOOL_FIELDS = ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray', 'verified']
-JSON_FEATURE_FIELDS = [
-    'tracks', 'holes', 'bare_pcb_other',
-    'solder_insufficient', 'solder_excess', 'solder_void', 'solder_crack', 'solder_other',
-    'missing_component', 'wrong_component', 'orientation', 'component_other', 'cosmetic'
-]
-JSON_TECHNIQUE_FIELDS = [
-    'classic_cv_based', 'ml_traditional', 'dl_cnn_classifier',
-    'dl_cnn_detector', 'dl_rcnn_detector', 'dl_transformer',
-    'dl_other', 'hybrid', 'available_dataset'
-]
-COMPARISON_FIELDS = MAIN_BOOL_FIELDS + JSON_FEATURE_FIELDS + JSON_TECHNIQUE_FIELDS
-
 RELEVANCE_BINS = [
     (0, 1, "Very Low (0-1)"),
     (2, 3, "Low (2-3)"),
@@ -38,6 +27,84 @@ RELEVANCE_BINS = [
     (8, 10, "Very High (8-10)")
 ]
 MIN_N_FOR_CI = 100
+
+# ============================================================================
+# DOMAIN CONFIG LOADER & HELPERS
+# ============================================================================
+def load_domain_config() -> Optional[Dict]:
+    """Attempts to load domain_config.yaml from standard relative paths."""
+    paths_to_try = [
+        'domain_config.yaml',
+        os.path.join(os.path.dirname(__file__), 'domain_config.yaml'),
+        os.path.join(os.path.dirname(__file__), '..', 'domain_config.yaml'),
+        os.path.join(os.path.dirname(__file__), '..', '..', 'domain_config.yaml')
+    ]
+    for p in paths_to_try:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f)
+            except Exception as e:
+                print(f"Warning: Failed to parse {p}: {e}")
+    print("Warning: domain_config.yaml not found. Will attempt to infer fields from DB.")
+    return None
+
+def get_val_by_path(d: Dict, path: str):
+    """Safely get a value from a nested dict using dot-notation."""
+    if not d or not path: return None
+    keys = path.split('.')
+    for k in keys:
+        if isinstance(d, dict) and k in d:
+            d = d[k]
+        else:
+            return None
+    return d
+
+def get_all_paths(d: Dict, prefix: str = '') -> List[str]:
+    """Recursively discover all leaf-node paths in a nested dict."""
+    paths = []
+    if not isinstance(d, dict): return paths
+    for k, v in d.items():
+        path = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            paths.extend(get_all_paths(v, path))
+        else:
+            paths.append(path)
+    return paths
+
+def get_comparison_fields(domain_cfg: Optional[Dict], sample_classification: Dict) -> List[str]:
+    """Dynamically determines which boolean/tri-state fields to compare."""
+    fields = []
+    # Universal fields that were hardcoded in v1.2.1
+    fields.extend(['is_offtopic', 'verified', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray'])
+    
+    if domain_cfg:
+        for group in domain_cfg.get('groups', []):
+            json_path = group.get('json_path', '')
+            if not json_path: continue
+            if group.get('filter_type') == 'tri_state':
+                fields.append(json_path)
+            elif group.get('filter_type') in ['inclusion', 'none']:
+                for f in group.get('fields', []):
+                    key = f.get('key', '')
+                    if key:
+                        fields.append(f"{json_path}.{key}")
+    else:
+        # Fallback: extract all paths from sample classification blob
+        paths = get_all_paths(sample_classification)
+        for p in paths:
+            # Exclude known non-boolean/string fields
+            if p not in ('relevance', 'estimated_score', 'verified_by', 'research_area', 'model', 'other'):
+                fields.append(p)
+                
+    # Deduplicate while preserving order
+    seen = set()
+    unique_fields = []
+    for f in fields:
+        if f and f not in seen:
+            seen.add(f)
+            unique_fields.append(f)
+    return unique_fields
 
 # ============================================================================
 # STATISTICAL HELPERS
@@ -64,37 +131,43 @@ def normalize_val(val) -> int:
     if val in (0, False, '0', 'false'): return 1
     return 0
 
-def extract_paper_data(row: Dict) -> Dict:
+def extract_paper_data(row: Dict, comparison_fields: List[str]) -> Dict:
     data = {}
-    for f in MAIN_BOOL_FIELDS:
-        data[f] = normalize_val(row.get(f))
-        
+    
+    # Parse classification blob (new schema stores inferred data here)
     try:
-        feat = json.loads(row.get('features', '{}') or '{}') or {}
-    except: feat = {}
-    for f in JSON_FEATURE_FIELDS:
-        data[f] = normalize_val(feat.get(f))
+        classification = json.loads(row.get('classification', '{}') or '{}') or {}
+    except:
+        classification = {}
         
+    # Parse main_certainty blob
     try:
-        tech = json.loads(row.get('technique', '{}') or '{}') or {}
-    except: tech = {}
-    for f in JSON_TECHNIQUE_FIELDS:
-        data[f] = normalize_val(tech.get(f))
+        certainty = json.loads(row.get('main_certainty', '{}') or '{}') or {}
+    except:
+        certainty = {}
         
-    rel = row.get('relevance')
+    for f in comparison_fields:
+        # Try to get from classification blob
+        val = get_val_by_path(classification, f)
+        # Fallback to top-level row column (e.g. 'verified' might be top-level in some transitions)
+        if val is None and '.' not in f:
+            val = row.get(f)
+        data[f] = normalize_val(val)
+        
+    # Relevance can be in classification or top-level
+    rel = get_val_by_path(classification, 'relevance')
+    if rel is None:
+        rel = row.get('relevance')
     data['_relevance'] = int(rel) if isinstance(rel, (int, float)) else None
     
-    # NEW: Parse AI certainty/conflict metadata
-    try:
-        data['_certainty'] = json.loads(row.get('main_certainty', '{}') or '{}')
-        if data['_certainty'] is None: data['_certainty'] = {}
-    except: data['_certainty'] = {}
+    # AI internal certainty/conflict metadata
+    data['_certainty'] = certainty
     return data
 
 # ============================================================================
 # DATA LOADING & ALIGNMENT
 # ============================================================================
-def load_comparison_data(user_db_path: str, ai_db_path: str) -> Tuple[Dict[int, Dict], List[int]]:
+def load_comparison_data(user_db_path: str, ai_db_path: str, domain_cfg: Optional[Dict]) -> Tuple[Dict[int, Dict], List[int], List[str]]:
     print(f"  Loading User DB: {user_db_path}")
     conn_u = sqlite3.connect(user_db_path)
     conn_u.row_factory = sqlite3.Row
@@ -114,19 +187,33 @@ def load_comparison_data(user_db_path: str, ai_db_path: str) -> Tuple[Dict[int, 
     if missing_user: print(f"  ⚠️  {len(missing_user)} papers in AI DB missing from User DB")
     if missing_ai: print(f"  ⚠️  {len(missing_ai)} papers in User DB missing from AI DB")
     
+    # Determine fields to compare
+    sample_class = {}
+    if common_ids:
+        try:
+            sample_class = json.loads(ai_rows[common_ids[0]].get('classification', '{}') or '{}') or {}
+        except:
+            pass
+            
+    comparison_fields = get_comparison_fields(domain_cfg, sample_class)
+    print(f"  📋 Comparing {len(comparison_fields)} fields: {', '.join(comparison_fields[:5])}{'...' if len(comparison_fields) > 5 else ''}")
+    
     comparison_data = {}
     for pid in common_ids:
         comparison_data[pid] = {
-            'user': extract_paper_data(user_rows[pid]),
-            'ai': extract_paper_data(ai_rows[pid])
+            'user': extract_paper_data(user_rows[pid], comparison_fields),
+            'ai': extract_paper_data(ai_rows[pid], comparison_fields)
         }
-    return comparison_data, common_ids
+    return comparison_data, common_ids, comparison_fields
 
 # ============================================================================
 # COMPARISON LOGIC (CERTAINTY-AWARE)
 # ============================================================================
 def get_ai_cert_level(ai_certainty: Dict, field: str) -> str:
-    cert = ai_certainty.get(field, 'unknown')
+    # main_certainty is now a nested dictionary matching the classification structure
+    cert = get_val_by_path(ai_certainty, field)
+    if cert is None:
+        cert = 'unknown'
     if cert == 'solid': return 'solid'
     if cert in ('60', '80'): return 'partial'
     if cert == 'conflict': return 'conflict'
@@ -178,7 +265,7 @@ def analyze_field_comparison(data: Dict, field: str, paper_ids: List[int]) -> Di
         'raw_yes_a': raw_yes_a, 'raw_no_a': raw_no_a,
     }
 
-def analyze_stratum( Dict, paper_ids: List[int], fields: List[str], stratum_name: str) -> Dict:
+def analyze_stratum(data: Dict, paper_ids: List[int], fields: List[str], stratum_name: str) -> Dict:
     if len(paper_ids) == 0:
         return {'stratum': stratum_name, 'n_papers': 0, 'n_observations': 0, 'field_results': pd.DataFrame(),
                 'overall_exact_match': 0, 'overall_direct_conflict': 0, 'overall_user_override': 0, 'certainty_breakdown': {}}
@@ -259,7 +346,7 @@ def print_summary(results: Dict):
         
         # Certainty breakdown for conflicts
         cc = s['conflict_certainty']
-        if cc:
+        if cc and s['overall_direct_conflict'] > 0:
             print(f"   🔍 Conflict Breakdown by AI Certainty:")
             for level, cnt in cc.items():
                 pct = (cnt/s['overall_direct_conflict']*100) if s['overall_direct_conflict'] else 0
@@ -278,21 +365,24 @@ def print_summary(results: Dict):
     print("="*90 + "\n")
 
 def generate_latex_tables(results: Dict, output_path: str):
-    # Simplified for brevity. Adds certainty columns to the conflict breakdown.
-    # In production, expand this to match your exact LaTeX template needs.
     with open(output_path, 'w') as f:
         f.write(f"% User vs AI Comparison (Certainty-Aware)\n% Generated: {pd.Timestamp.now().isoformat()}\n")
         f.write("\\begin{table*}[t]\n\\centering\n\\caption{User vs AI Agreement by AI Certainty Level}\n")
         f.write("\\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}lccc@{}}\n\\hline\n")
         f.write("\\textbf{AI Certainty} & \\textbf{Exact Match} & \\textbf{Direct Conflict} & \\textbf{User Override} \\\\\n\\hline\n")
-        s = results['on_topic_only']
-        for level in ['solid', 'partial', 'conflict']:
-            total = s['total_certainty'].get(level, 0)
-            ex = s['field_results']['certainty_dist'].apply(lambda x: x.get('exact_match', {}).get(level, 0)).sum()
-            co = s['field_results']['certainty_dist'].apply(lambda x: x.get('direct_conflict', {}).get(level, 0)).sum()
-            uo = s['field_results']['certainty_dist'].apply(lambda x: x.get('user_override', {}).get(level, 0)).sum()
-            label = "Solid (3/3)" if level=='solid' else "Partial (2/3)" if level=='partial' else "Conflict (Y/N)"
-            f.write(f"{label} & {ex:,} ({ex/total*100:.1f}\\%) & {co:,} ({co/total*100:.1f}\\%) & {uo:,} ({uo/total*100:.1f}\\%) \\\\\n")
+        
+        s = results.get('on_topic_only')
+        if not s or s['n_papers'] == 0:
+            f.write("% No on-topic papers found for LaTeX table.\n")
+        else:
+            for level in ['solid', 'partial', 'conflict']:
+                total = s['total_certainty'].get(level, 0)
+                if total == 0: continue
+                ex = s['field_results']['certainty_dist'].apply(lambda x: x.get('exact_match', {}).get(level, 0)).sum()
+                co = s['field_results']['certainty_dist'].apply(lambda x: x.get('direct_conflict', {}).get(level, 0)).sum()
+                uo = s['field_results']['certainty_dist'].apply(lambda x: x.get('user_override', {}).get(level, 0)).sum()
+                label = "Solid (3/3)" if level=='solid' else "Partial (2/3)" if level=='partial' else "Conflict (Y/N)"
+                f.write(f"{label} & {ex:,} ({ex/total*100:.1f}\\%) & {co:,} ({co/total*100:.1f}\\%) & {uo:,} ({uo/total*100:.1f}\\%) \\\\\n")
         f.write("\\hline\\end{tabular*}\n\\end{table*}\n")
     print(f"  LaTeX tables saved to: {output_path}")
 
@@ -300,7 +390,7 @@ def generate_latex_tables(results: Dict, output_path: str):
 # MAIN
 # ============================================================================
 def main():
-    parser = argparse.ArgumentParser(description='Compare User DB vs AI DB main-set agreement (v1.2.1 Certainty-Aware)')
+    parser = argparse.ArgumentParser(description='Compare User DB vs AI DB main-set agreement (v1.4 Configurable & Certainty-Aware)')
     parser.add_argument('--user-db', required=True, help='Path to user-modified database')
     parser.add_argument('--ai-db', required=True, help='Path to AI-classified database')
     parser.add_argument('-o', '--output', default='user_vs_ai_certainty_results', help='Output path prefix')
@@ -312,20 +402,26 @@ def main():
         print("Error: One or both database files not found.", file=sys.stderr)
         sys.exit(1)
         
-    if not args.quiet: print("ResearchParça v1.2.1 | User vs AI Certainty-Aware Comparison")
+    if not args.quiet: print("ResearchParça v1.4 | User vs AI Configurable & Certainty-Aware Comparison")
+    
+    domain_cfg = load_domain_config()
+    if domain_cfg and not args.quiet:
+        print("  ✅ Loaded domain_config.yaml")
         
-    data, paper_ids = load_comparison_data(args.user_db, args.ai_db)
+    data, paper_ids, comparison_fields = load_comparison_data(args.user_db, args.ai_db, domain_cfg)
     if not paper_ids:
         print("Error: No common paper IDs found between databases.", file=sys.stderr)
         sys.exit(1)
         
-    results = run_analysis(data, paper_ids, COMPARISON_FIELDS, args.ai_db)
-    print_summary(results)
+    results = run_analysis(data, paper_ids, comparison_fields, args.ai_db)
+    if not args.quiet:
+        print_summary(results)
     
     if not args.no_latex:
         generate_latex_tables(results, f"{args.output}_tables.tex")
         
-    print("Analysis complete.")
+    if not args.quiet:
+        print("Analysis complete.")
     return 0
 
 if __name__ == '__main__':

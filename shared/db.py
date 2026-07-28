@@ -112,12 +112,13 @@ def _generate_schema_and_placeholder(db_path):
     conn.commit()
     conn.close()
 
+
 def init_db(db_path):
     global _db_path
     _db_path = db_path
     os.makedirs(os.path.dirname(_db_path), exist_ok=True)
-    
     needs_rebuild = False
+    
     if os.path.exists(_db_path):
         try:
             # Verify the file is a valid SQLite DB and contains the required table
@@ -127,22 +128,42 @@ def init_db(db_path):
             if not cursor.fetchone():
                 print(f"[Init] Database file exists but 'papers' table is missing (empty or incomplete DB).")
                 needs_rebuild = True
+            else:
+                # --- BOOT-TIME CLEANUP: Remove placeholder if real papers exist ---
+                placeholder_title = 'Database is missing or empty. Import BibTeX or restore from a backup to start working'
+                cursor.execute("SELECT id FROM papers WHERE title = ?", (placeholder_title,))
+                placeholder_row = cursor.fetchone()
+                
+                if placeholder_row:
+                    # Count how many REAL papers exist (excluding the placeholder)
+                    cursor.execute("SELECT COUNT(id) FROM papers WHERE title != ?", (placeholder_title,))
+                    real_paper_count = cursor.fetchone()[0]
+                    
+                    if real_paper_count > 0:
+                        cursor.execute("DELETE FROM papers WHERE id = ?", (placeholder_row[0],))
+                        test_conn.commit()
+                        print(f"[Init] Removed lingering placeholder (id={placeholder_row[0]}) since {real_paper_count} real paper(s) exist.")
             test_conn.close()
         except sqlite3.Error as e:
             print(f"[Init] Database file is corrupted or invalid: {e}")
             needs_rebuild = True
-            
-        if needs_rebuild:
-            print(f"[Init] Rebuilding database schema and placeholder...")
-            # Delete the corrupted/empty file so SQLite creates a completely fresh one
-            try:
-                os.remove(_db_path)
-            except OSError as e:
-                print(f"[Init] Warning: Could not delete invalid DB file ({e}). Will attempt to overwrite.")
-    else:
-        print(f"[Init] Database not found at {_db_path}. Creating domain-agnostic schema...")
 
-    _generate_schema_and_placeholder(_db_path)
+    if needs_rebuild:
+        print(f"[Init] Rebuilding database schema and placeholder...")
+        # Delete the corrupted/empty file so SQLite creates a completely fresh one
+        try:
+            os.remove(_db_path)
+        except OSError as e:
+            print(f"[Init] Warning: Could not delete invalid DB file ({e}). Will attempt to overwrite.")
+            # Fallback to ensure schema is generated even if deletion fails
+            _generate_schema_and_placeholder(_db_path)
+        else:
+            print(f"[Init] Database not found at {_db_path}. Creating domain-agnostic schema...")
+            _generate_schema_and_placeholder(_db_path)
+    elif not os.path.exists(_db_path):
+        print(f"[Init] Database not found at {_db_path}. Creating domain-agnostic schema...")
+        _generate_schema_and_placeholder(_db_path)
+
     print(f"[Init] Database ready: {_db_path}")
 
 @contextmanager

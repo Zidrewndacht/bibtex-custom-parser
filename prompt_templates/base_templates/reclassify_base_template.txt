@@ -6,7 +6,7 @@ Your goal is to provide the most accurate classification possible based on the p
 
 Here's the template you'll be answering to:
 
-{configurable_output_template}
+{configurable_classify_output_template}
 
 Below are some example outputs, from random papers:
 

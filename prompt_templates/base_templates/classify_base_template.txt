@@ -2,7 +2,7 @@
 
 Here's the template you'll be answering to:
 
-{configurable_output_template}
+{configurable_classify_output_template}
 
 Below are some example outputs, from random papers:
 
