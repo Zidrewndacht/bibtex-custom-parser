@@ -308,5 +308,7 @@ OK      Update prompt templates: fixed base + dynamic domain-specific parts.
         Add a viewer for meta-stats (3run stats)
                 Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?
                 Human compare wouldn't make much sense as it needs 2 separate DBs.
-                
+
         Add onboarding with LLM usage for prompted domain_config creation?
+
+        Add optional stats page layout with no domain-specific fields (RP-Lite based?).

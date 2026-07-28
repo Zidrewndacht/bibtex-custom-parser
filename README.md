@@ -1,13 +1,14 @@
 # ResearchParça
 
 Live Demo (read-only HTML export): [ResearchParça](https://zidrewndacht.github.io/bibtex-custom-parser).  
-Note: [ResearchParça-Lite](https://github.com/Zidrewndacht/ResearchParsa-lite), minimal, generic PDF organizer/annotator is now deprecated as full ResearchParça is now fit for any generic research domain.
 
 *The frontend was mostly tested with Mozilla Firefox and works well. The HTML export had known performance issues in Chromium‑based browsers in 2025 and wasn't extensively performance-tested since. If the page lags or stops responding on reasonably modern hardware, please use Firefox instead.*
 
 ResearchParça is a domain-agnostic tool for managing, classifying, and analyzing bibliographic databases of academic papers. It imports BibTeX/CSV files into an SQLite database and provides a rich, dynamically generated web interface for browsing, filtering, editing, and performing **LLM‑driven classification and verification**.
 
 By defining your domain's taxonomy, filters, and prompt templates in a YAML configuration file, the system adapts its data model, UI columns, and statistical dashboards to any specific research field. It is designed to streamline systematic literature reviews by offering advanced search, traceable AI‑enriched metadata, and automated LaTeX table generation.
+
+*Note: [ResearchParça-Lite](https://github.com/Zidrewndacht/ResearchParsa-lite), minimal, generic PDF organizer/annotator is now deprecated as full ResearchParça is now fit for any generic research domain.*
 
 ## Features
 
