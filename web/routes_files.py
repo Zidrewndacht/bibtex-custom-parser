@@ -28,13 +28,11 @@ def backup_database():
             html_path = os.path.join(temp_dir, 'export.html')
             with open(html_path, 'w', encoding='utf-8') as f: f.write(html_content)
 
-            # disabling deprecated version of XLSX exports for now
-
             # Generate XLSX export
-            # xlsx_content = generate_xlsx_export_content(papers)
-            # xlsx_path = os.path.join(temp_dir, 'export.xlsx')
-            # with open(xlsx_path, 'wb') as f:
-            #     f.write(xlsx_content)
+            xlsx_content = export_logic.generate_xlsx_export_content(papers)
+            xlsx_path = os.path.join(temp_dir, 'export.xlsx')
+            with open(xlsx_path, 'wb') as f:
+                f.write(xlsx_content)
 
             # Create in-memory buffer for the backup
             buffer = io.BytesIO()

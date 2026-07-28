@@ -1,7 +1,7 @@
-{# templates/history_row.html #}
+{#<!-- templates/history_row.html -->#}
 {% macro render_history_tab(paper, set_num, tab_name, show_certainty) %}
 <div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" data-tab-panel="{{ tab_name }}" data-paper-id="{{ paper.id }}">
-    {# Trace Content #}
+    {#<!-- Trace Content -->#}
     <div class="trace-content">
         {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}
         {% if log_entries %}
@@ -39,12 +39,12 @@
         {% endif %}
     </div>
 
-    {# Main History Table #}
+    {#<!-- Main History Table -->#}
     <div id="history-table-wrapper">
         <table class="history-table">
             <colgroup>
-                <col style="width: 27px;"> {# Off-topic #}
-                <col style="width: 27px;"> {# Relevance #}
+                <col style="width: 27px;"> {#<!-- Off-topic -->#}
+                <col style="width: 27px;"> {#<!-- Relevance -->#}
                 {% for group in domain_config.groups %}
                     {% if group.filter_type == 'tri_state' %}
                         <col style="width: 27px;">
@@ -54,11 +54,11 @@
                         {% endfor %}
                     {% endif %}
                 {% endfor %}
-                <col style="width: 56px;"> {# Timestamp #}
-                <col style="width: 40px;"> {# Changed By #}
-                <col style="width: 27px;"> {# Verified #}
-                <col style="width: 32px;"> {# Accr. Score #}
-                <col style="width: 27px;"> {# Verified By #}
+                <col style="width: 56px;"> {#<!-- Timestamp -->#}
+                <col style="width: 40px;"> {#<!-- Changed By -->#}
+                <col style="width: 27px;"> {#<!-- Verified -->#}
+                <col style="width: 32px;"> {#<!-- Accr. Score -->#}
+                <col style="width: 27px;"> {#<!-- Verified By -->#}
             </colgroup>
             <tbody>
                 {% for entry in log_entries %}
@@ -68,7 +68,7 @@
                         {% set changed = entry.changed_fields %}
                         {% set certainty = entry.certainty_map if show_certainty and entry.certainty_map else {} %}
                         
-                        {# Universal Inferred #}
+                        {#<!-- Universal Inferred -->#}
                         <td class="status-cell certainty-{{ certainty.get('is_offtopic', 'solid') }}{% if 'is_offtopic' in changed %} cell-changed{% endif %}">
                             {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
                             {% else %}<span class="emoji-content">{{ data.is_offtopic | render_status }}</span>{% endif %}
@@ -77,7 +77,7 @@
                             {% if data.relevance is defined and data.relevance is not none %}{{ (data.relevance|float|round(1)|string).rstrip('0').rstrip('.') }}{% endif %}
                         </td>
                         
-                        {# Dynamic Domain-Specific #}
+                        {#<!-- Dynamic Domain-Specific -->#}
                         {% for group in domain_config.groups %}
                             {% if group.filter_type == 'tri_state' %}
                                 {% set path = group.json_path %}
@@ -103,11 +103,11 @@
                             {% endif %}
                         {% endfor %}
                         
-                        {# Trailing Fixed #}
+                        {#<!-- Trailing Fixed -->#}
                         <td class="secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
                         <td class="status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
                         
-                        {# Verification Fields #}
+                        {#<!-- Verification Fields -->#}
                         {% if entry.type == 'averaged_llm' %}
                             <td class="status-cell certainty-{{ certainty.get('verified', 'solid') }}{% if 'verified' in changed %} cell-changed{% endif %}">
                                 {% if certainty.get('verified') == 'conflict' %}<span class="conflict-warning">⚠️</span>
@@ -175,10 +175,10 @@
         {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
     {% endif %}
 {% endfor %}
-{# 378px is the width of the fixed contents #}
+{#<!-- 378px is the width of the fixed contents -->#}
 {% set history_table_width = 378 + ns.total_dynamic * 27 %}
 <div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">
-    {# 4 Vertical Tabs Navigation #}
+    {#<!-- 4 Vertical Tabs Navigation -->#}
     <div class="history-tabs-nav">
         <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}">
             <span>Main <span class="arrow">▼</span></span>
@@ -193,7 +193,7 @@
             <span>Set 3 <span class="arrow">▼</span></span>
         </button>
     </div>
-    {# Tab Content Container #}
+    {#<!-- Tab Content Container -->#}
     <div class="history-tabs-content">
         {{ render_history_tab(paper, none, 'main', true) }}
         {{ render_history_tab(paper, 1, 'set1', false) }}

@@ -43,8 +43,9 @@ def _generate_schema_and_placeholder(db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
+    # Added IF NOT EXISTS for safety against locked/partially valid files
     cursor.execute("""
-    CREATE TABLE papers (
+    CREATE TABLE IF NOT EXISTS papers (
         id TEXT PRIMARY KEY,
         type TEXT,
         title TEXT,
@@ -60,7 +61,6 @@ def _generate_schema_and_placeholder(db_path):
         abstract TEXT,
         keywords TEXT,
         deannualized_conference TEXT,
-        
         -- Universal Purpose / Audit
         user_trace TEXT,
         changed TEXT,
@@ -69,11 +69,9 @@ def _generate_schema_and_placeholder(db_path):
         verified_by TEXT,
         estimated_score INTEGER,
         user_override_count INTEGER DEFAULT 0,
-        
         -- File management
         pdf_filename TEXT,
         pdf_state TEXT DEFAULT 'none',
-        
         -- LLM Blobs (100% of inferred data)
         main_certainty TEXT DEFAULT '{}',
         classification TEXT DEFAULT '{}',
@@ -88,27 +86,29 @@ def _generate_schema_and_placeholder(db_path):
     )
     """)
     
-    cursor.execute("""
-    INSERT INTO papers (id, type, title, year, pdf_state, user_override_count,
-                        main_certainty, classification, last_llm_classification,
-                        set_1_llm_log, set_2_llm_log, set_3_llm_log, llm_log)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        '1', 
-        'misc', 
-        'Database is missing or empty. Import BibTeX or restore from a backup to start working', 
-        2020,
-        'none',
-        0,
-        '{}',
-        '{}',
-        '{}',
-        '[]',
-        '[]',
-        '[]',
-        '[]'
-    ))
-    
+    # Check if placeholder already exists to avoid IntegrityError on re-runs
+    cursor.execute("SELECT id FROM papers WHERE id = '1'")
+    if not cursor.fetchone():
+        cursor.execute("""
+        INSERT INTO papers (id, type, title, year, pdf_state, user_override_count,
+        main_certainty, classification, last_llm_classification,
+        set_1_llm_log, set_2_llm_log, set_3_llm_log, llm_log)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            '1',
+            'misc',
+            'Database is missing or empty. Import BibTeX or restore from a backup to start working',
+            2025,
+            'none',
+            0,
+            '{}',
+            '{}',
+            '{}',
+            '[]',
+            '[]',
+            '[]',
+            '[]'
+        ))
     conn.commit()
     conn.close()
 
@@ -117,10 +117,33 @@ def init_db(db_path):
     _db_path = db_path
     os.makedirs(os.path.dirname(_db_path), exist_ok=True)
     
-    if not os.path.exists(_db_path):
+    needs_rebuild = False
+    if os.path.exists(_db_path):
+        try:
+            # Verify the file is a valid SQLite DB and contains the required table
+            test_conn = sqlite3.connect(_db_path)
+            cursor = test_conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='papers';")
+            if not cursor.fetchone():
+                print(f"[Init] Database file exists but 'papers' table is missing (empty or incomplete DB).")
+                needs_rebuild = True
+            test_conn.close()
+        except sqlite3.Error as e:
+            print(f"[Init] Database file is corrupted or invalid: {e}")
+            needs_rebuild = True
+            
+        if needs_rebuild:
+            print(f"[Init] Rebuilding database schema and placeholder...")
+            # Delete the corrupted/empty file so SQLite creates a completely fresh one
+            try:
+                os.remove(_db_path)
+            except OSError as e:
+                print(f"[Init] Warning: Could not delete invalid DB file ({e}). Will attempt to overwrite.")
+    else:
         print(f"[Init] Database not found at {_db_path}. Creating domain-agnostic schema...")
-        _generate_schema_and_placeholder(_db_path)
-        print(f"[Init] Database ready: {_db_path}")
+
+    _generate_schema_and_placeholder(_db_path)
+    print(f"[Init] Database ready: {_db_path}")
 
 @contextmanager
 def get_db():

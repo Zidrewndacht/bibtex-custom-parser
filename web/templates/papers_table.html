@@ -1,4 +1,4 @@
-{# templates/papers_table.html #}
+{#<!-- templates/papers_table.html -->#}
 {% set ns = namespace(total_dynamic=0) %}
 {% for group in domain_config.groups %}
     {% if group.filter_type == 'tri_state' %}
@@ -25,7 +25,7 @@
     {% set c = paper.classification %}
     {% set certainty = paper.main_certainty %}
     <tr data-paper-id="{{ paper.id }}">
-        {# 1. LEADING FIXED (6) #}
+        {#<!-- 1. LEADING FIXED (6) -->#}
         <td class="status-cell pdf-status emoji-column">
             {% if paper.pdf_filename %}
             <a href="{{ url_for('static', filename='pdfjs/web/viewer.html') }}?file={{ url_for('files.serve_pdf', paper_id=paper.id) | urlencode }}" target="_blank" class="pdf-link"
@@ -48,14 +48,14 @@
         <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>
         <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
 
-        {# 2. UNIVERSAL INFERRED (2) #}
+        {#<!-- 2. UNIVERSAL INFERRED (2) -->#}
         <td class="status-cell editable-status certainty-{{ certainty.get('is_offtopic', 'solid') }}" data-field="is_offtopic">
             {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
             {% else %}<span class="emoji-content">{{ c.get('is_offtopic') | render_status }}</span>{% endif %}
         </td>
         <td class="secondary-text-cell number-cell" data-field="relevance">{{ (c.get('relevance')|round(1)|string).rstrip('0').rstrip('.') if c.get('relevance') else '' }}</td>
         
-        {# 3. DYNAMIC DOMAIN-SPECIFIC #}
+        {#<!-- 3. DYNAMIC DOMAIN-SPECIFIC -->#}
         {% for group in domain_config.groups %}
             {% if group.filter_type == 'tri_state' %}
                 {% set path = group.json_path %}
@@ -83,7 +83,7 @@
             {% endif %}
         {% endfor %}
 
-        {# 4. TRAILING FIXED (9) #}
+        {#<!-- 4. TRAILING FIXED (9) -->#}
         <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td>
         <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>
         <td class="status-cell editable-status certainty-{{ certainty.get('verified', 'solid') }}" data-field="verified">
@@ -97,13 +97,13 @@
         <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
         <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
         
-        {# Hidden data cells for search indexing #}
+        {#<!-- Hidden data cells for search indexing -->#}
         <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
         <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
         <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
         <td class="hidden-data-cell" data-field="user_trace" style="display: none;">{{ paper.user_trace or '' }}</td>
             
-    {# Dynamic Domain-Specific Editable Fields (Restored for Search) #}
+    {#<!-- Dynamic Domain-Specific Editable Fields (Restored for Search) -->#}
     {% for field in domain_config.editable_fields %}
         <td class="hidden-data-cell" data-field="{{ field.json_path | replace('.', '_') }}" style="display: none;">
             {{ paper.classification | get_json_path(field.json_path) or '' }}
@@ -111,12 +111,12 @@
     {% endfor %}
     </tr>
     
-    {# Detail Row Placeholder #}
+    {#<!-- Detail Row Placeholder -->#}
     <tr class="detail-row">
         <td colspan="{{ total_cols }}" class="detail-content-placeholder"></td>
         <td style="display:none" colspan="5"></td>
     </tr>
-    {# History Row Placeholder #}
+    {#<!-- History Row Placeholder -->#}
     <tr class="history-row">
         <td colspan="{{ total_cols }}" class="detail-content-placeholder"></td>
         <td style="display:none" colspan="5"></td>

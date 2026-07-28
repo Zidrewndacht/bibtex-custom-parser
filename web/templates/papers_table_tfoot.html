@@ -1,4 +1,4 @@
-{# templates/papers_table_tfoot.html #}
+{#<!-- templates/papers_table_tfoot.html -->#}
 {% set ns = namespace(total_dynamic=0) %}
 {% for group in domain_config.groups %}
     {% if group.filter_type == 'tri_state' %}
@@ -24,11 +24,11 @@
         </span>
     </td>
     
-    {# Universal Inferred Counts #}
+    {#<!-- Universal Inferred Counts -->#}
     <td data-count-field="is_offtopic" class="count-cell" title="Offtopic"></td>
-    <td></td> {# Relevance #}
+    <td></td> {#<!-- Relevance -->#}
 
-    {# Dynamic Domain-Specific Counts #}
+    {#<!-- Dynamic Domain-Specific Counts -->#}
     {% for group in domain_config.groups %}
         {% if group.filter_type == 'tri_state' %}
             <td data-count-field="{{ group.json_path }}" class="count-cell" title="{{ group.label }}"></td>
@@ -39,18 +39,18 @@
         {% endif %}
     {% endfor %}
 
-    {# Trailing Fixed Counts #}
-    <td></td> {# Last Changed #}
+    {#<!-- Trailing Fixed Counts -->#}
+    <td></td> {#<!-- Last Changed -->#}
     <td data-count-field="changed_by" class="count-cell" title="Changed by User"></td>
     <td data-count-field="verified" class="count-cell" title="Verified"></td>
-    <td></td> {# Estimated Score #}
+    <td></td> {#<!-- Estimated Score -->#}
     <td data-count-field="verified_by" class="count-cell" title="Verified by User"></td>
     <td data-count-field="user_override_count" class="count-cell" title="User Override Count"></td>
     <td data-count-field="user_comment_state" class="count-cell" title="Commented by User"></td>
-    <td></td> {# History #}
-    <td></td> {# Actions #}
+    <td></td> {#<!-- History -->#}
+    <td></td> {#<!-- Actions -->#}
     
-    {# Hidden metadata fields #}
+    {#<!-- Hidden metadata fields -->#}
     <td style="display:none" colspan="5"></td>
 </tr>
 </tfoot>

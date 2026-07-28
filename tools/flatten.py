@@ -311,17 +311,17 @@ def main():
     # Predefined list of files to include in the flattened output
     # Updated to reflect the new folder structure (modules, web/static, web/templates, etc.)
     FILE_LIST = [
-        # Root files
+        # # Root files
         "browse_db.py",
         # "queue_manager.py",
         # "README.md",
         
-        # Prompt templates
+        # # # Prompt templates
         # "prompt_templates/classify_template.txt",
         # "prompt_templates/reclassify_template.txt",
         # "prompt_templates/verify_template.txt",
         
-        # Queue manager module
+        # # # Queue manager module
         # "queue_manager/__init__.py",
         # "queue_manager/dispatcher.py",
         # "queue_manager/logging_utils.py",
@@ -346,11 +346,11 @@ def main():
         "web/static/comms.js",
         "web/static/filtering.js",
         "web/static/js/ghpages.js",
-        # "web/static/js/stats/stats_core.js",
-        # "web/static/js/stats/stats_generic.js",
-        # "web/static/js/stats/stats_domain.js",
-        # "web/static/js/stats/stats_charts.js",
-        # "web/static/js/stats/stats_latex.js",
+        "web/static/js/stats/stats_core.js",
+        "web/static/js/stats/stats_generic.js",
+        "web/static/js/stats/stats_domain.js",
+        "web/static/js/stats/stats_charts.js",
+        "web/static/js/stats/stats_latex.js",
 
         "web/static/css/style.css",
         # "web/static/css/fonts.css",
@@ -365,12 +365,12 @@ def main():
         "web/templates/history_row.html",
         "web/templates/index.html",
         "web/templates/papers_table.html",
-        # "web/templates/about_modal_content.html",
-        # "web/templates/papers_table_tfoot.html",
-        # "web/templates/stats_modal_content.html",
-        "web/templates/static_export/loader.html",
-        "web/templates/static_export/index_static_export.html",
-        "web/templates/static_export/papers_table_static_export.html"
+        "web/templates/about_modal_content.html",
+        "web/templates/papers_table_tfoot.html",
+        "web/templates/stats_modal_content.html",
+        # "web/templates/static_export/loader.html",
+        # "web/templates/static_export/index_static_export.html",
+        # "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list

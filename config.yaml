@@ -1,25 +1,26 @@
 # config.yaml
 # General Configuration for Research Parça
 
-# Web App Defaults
+# Web App and Queue Manager:
 frontend_port: 5001
 queue_manager_port: 6001
 
-# Queue Manager & LLM
+default_year_from: 2021
+default_year_to: 2026
+default_min_page_count: 4
+
+
+# vLLM endpoint:
 llm_server_url: "http://localhost:8086"
-llm_api_key: null   
+llm_api_key: null   #optional, unused for local vLLM instance.
 
-
-# Concurrency Limits
+# Concurrency Limits - example values for 2x24GB on Qwen3.6 27B
 max_concurrent_workers_classify: 60
 max_concurrent_workers_verify: 90
 max_concurrent_workers_reclassify: 48
 min_concurrent_workers: 32
 
-# Consensus
+
+# Consensus limits:
 max_consensus_iterations: 15
 fresh_classify_fallback_iteration: 8
-
-default_year_from: 2016
-default_year_to: 2025
-default_min_page_count: 4

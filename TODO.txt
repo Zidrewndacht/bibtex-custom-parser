@@ -282,6 +282,15 @@ skipped         add a python file exclusive for the domain-specific details (DB 
 stats-only      separate JS for logic that access the domain-specific HTML parts from generic JS
 OK              Actual implementation uses configurable YAML instead, probably much better than original proposal
                 
+
+OK      Re-enable CSS minification
+OK      Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
+OK      Prevent changing verification during comments and fix correpsonding XHR updates
+OK      Fix broken history layout when amount of inferred colums change.
+OK      Automatic CSS width according to domain_config column counts
+OK      Convert HTML comments to Jinja2 server-side comments
+
+
         Add further 'agentic' functionality:
                 Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
                         check existing conference names before creating to ensure no two names for the same conference;
@@ -291,11 +300,6 @@ OK              Actual implementation uses configurable YAML instead, probably m
                 Potential tools: 
                         PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
                                 ...?
-                Automatic generation of domain_config.yaml
 
-OK      Re-enable CSS minification
-OK      Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
-OK      Prevent changing verification during comments and fix correpsonding XHR updates
-OK      Fix broken history layout when amount of inferred colums change.
-OK      Automatic CSS width according to domain_config column counts
-OK      Convert HTML comments to Jinja2 server-side comments
+        Add a viewer for queue manager logs (how/where?)
+        Add onboarding with LLM usage for prompted domain_config creation?

@@ -1,6 +1,7 @@
 # web/routes_ui.py
 import json
-from flask import Blueprint, render_template, request, jsonify
+import sqlite3
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from shared import db
 from shared import config
 from . import export_logic
@@ -44,29 +45,41 @@ def render_papers_table(hide_offtopic_param=None, year_from_param=None, year_to_
 
 @ui_bp.route('/', methods=['GET'])
 def index():
+    # Self-heal if the database file exists but the 'papers' table is missing/corrupted
+    try:
+        with db.get_db() as conn:
+            total_paper_count = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
+    except sqlite3.OperationalError as e:
+        if "no such table: papers" in str(e):
+            print("[Web] 'papers' table missing or corrupted. Rebuilding schema and reloading without filters...")
+            # Force rebuild the DB and placeholder row
+            db.init_db(config.DATABASE_FILE)
+            # Redirect to base '/' without query parameters so active filters don't hide the placeholder!
+            return redirect(url_for('ui.index'))
+        raise
+
     hide_offtopic_param = request.args.get('hide_offtopic')
     year_from_param = request.args.get('year_from')
     year_to_param = request.args.get('year_to')
     min_page_count_param = request.args.get('min_page_count')
-
-    with db.get_db() as conn:
-        total_paper_count = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
-
+        
     papers_table_content = render_papers_table(
         hide_offtopic_param=hide_offtopic_param,
         year_from_param=year_from_param,
         year_to_param=year_to_param,
         min_page_count_param=min_page_count_param,
     )
-
+    
     try:
         year_from_input_value = str(int(year_from_param)) if year_from_param is not None else str(config.DEFAULT_YEAR_FROM)
     except ValueError:
         year_from_input_value = str(config.DEFAULT_YEAR_FROM)
+        
     try:
         year_to_input_value = str(int(year_to_param)) if year_to_param is not None else str(config.DEFAULT_YEAR_TO)
     except ValueError:
         year_to_input_value = str(config.DEFAULT_YEAR_TO)
+        
     try:
         min_page_count_input_value = str(int(min_page_count_param)) if min_page_count_param is not None else str(config.DEFAULT_MIN_PAGE_COUNT)
     except ValueError:

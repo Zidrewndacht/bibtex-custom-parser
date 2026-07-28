@@ -23,6 +23,7 @@ consensus_logic.png
 *.csv
 *.tex
 *.lnk
+backup_before_restore.parça.zst
 
 flattened_code.txt
 # .vscode # not ignored to save VScode theme (quiet light teal-tinted)
