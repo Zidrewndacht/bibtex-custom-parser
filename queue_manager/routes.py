@@ -29,10 +29,10 @@ def handle_classify_route():
     log_file_request('/classify', client, mode, paper_id)
 
     try:
-        prompt_template = config.load_prompt_template(config.PROMPT_TEMPLATE)
+        prompt_template = config.PROMPT_TEMPLATE
         model_alias = config.get_model_alias(config.LLM_SERVER_URL)
     except Exception as e:
-        return jsonify({'error': f'Failed to load prompt template: {e}'}), 500
+        return jsonify({'error': f'Failed to get prompt template: {e}'}), 500
 
     if mode == 'id' and paper_id:
         # Single paper - NO DB connection held here. 
@@ -118,11 +118,11 @@ def handle_verify_route():
     log_file_request('/verify', client, mode, paper_id)
 
     try:
-        prompt_template = config.load_prompt_template(config.VERIFIER_TEMPLATE)
+        prompt_template = config.VERIFIER_TEMPLATE
         model_alias = config.get_model_alias(config.LLM_SERVER_URL)
     except Exception as e:
-        log(f"ERROR: Failed to load verifier template: {e}")
-        return jsonify({'error': f'Failed to load verifier template: {e}'}), 500
+        log(f"ERROR: Failed to get verifier template: {e}")
+        return jsonify({'error': f'Failed to get verifier template: {e}'}), 500
 
     if mode == 'id' and paper_id:
         log(f"Single paper verification: {paper_id} (3 sets)")
@@ -199,13 +199,13 @@ def handle_consensus_route():
     log_file_request('/consensus', client, mode, paper_id)
 
     try:
-        classify_template = config.load_prompt_template(config.PROMPT_TEMPLATE)
-        verify_template = config.load_prompt_template(config.VERIFIER_TEMPLATE)
-        reclassify_template = config.load_prompt_template(config.RECLASSIFY_PROMPT_TEMPLATE)
+        classify_template = config.PROMPT_TEMPLATE
+        verify_template = config.VERIFIER_TEMPLATE
+        reclassify_template = config.RECLASSIFY_PROMPT_TEMPLATE
         model_alias = config.get_model_alias(config.LLM_SERVER_URL)
     except Exception as e:
-        log(f"ERROR: Failed to load consensus templates: {e}", Colors.ERROR)
-        return jsonify({'error': f'Failed to load consensus templates: {e}'}), 500
+        log(f"ERROR: Failed to get consensus templates: {e}", Colors.ERROR)
+        return jsonify({'error': f'Failed to get consensus templates: {e}'}), 500
 
     if mode == 'id' and paper_id:
         log(f"Single paper consensus: {paper_id} (3 sets)")

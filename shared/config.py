@@ -98,6 +98,70 @@ MIN_CONCURRENT_WORKERS = _general_config.get('min_concurrent_workers', 32)
 MAX_CONSENSUS_ITERATIONS = _general_config.get('max_consensus_iterations', 15)
 FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config.get('fresh_classify_fallback_iteration', 8)
 
+
+
+
+def _load_text_file(path):
+    """Helper to load text files safely."""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Fatal Error: Template file '{path}' not found.")
+        raise
+    except Exception as e:
+        print(f"Fatal Error: Could not read template file '{path}': {e}")
+        raise
+
+def assemble_prompt_templates(prompts_cfg):
+    """
+    Assembles the final prompt templates by injecting configurable sub-templates 
+    (defined in domain_config.yaml) into the fixed base templates. 
+    Uses .replace() instead of .format() to preserve escaped braces (e.g. `{{` and `}}`).
+    """
+    base_templates_dir = os.path.join(BASE_DIR, 'prompt_templates', 'base_templates')
+    
+    # 1. Resolve configurable paths from YAML (with sensible fallback defaults)
+    classify_inst_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_instructions', 'prompt_templates/configurable_classify_instructions.txt'))
+    output_tmpl_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_output_template', 'prompt_templates/configurable_classify_output_template.txt'))
+    few_shot_path = os.path.join(BASE_DIR, prompts_cfg.get('few_shot_examples', 'prompt_templates/configurable_few_shot_examples.txt'))
+    
+    # 2. Load configurable sub-templates
+    classify_inst = _load_text_file(classify_inst_path)
+    output_tmpl = _load_text_file(output_tmpl_path)
+    few_shot = _load_text_file(few_shot_path)
+    
+    # 3. Load fixed base templates
+    classify_base = _load_text_file(os.path.join(base_templates_dir, 'classify_base_template.txt'))
+    verify_base = _load_text_file(os.path.join(base_templates_dir, 'verify_base_template.txt'))
+    reclassify_base = _load_text_file(os.path.join(base_templates_dir, 'reclassify_base_template.txt'))
+    
+    # 4. Assemble final strings verbatim
+    # Classify
+    final_classify = classify_base.replace('{configurable_classify_instructions}', classify_inst)
+    final_classify = final_classify.replace('{configurable_classify_output_template}', output_tmpl)
+    final_classify = final_classify.replace('{configurable_few_shot_examples}', few_shot)
+    
+    # Verify
+    final_verify = verify_base.replace('{configurable_classify_instructions}', classify_inst)
+    final_verify = final_verify.replace('{configurable_classify_output_template}', output_tmpl)
+    
+    # Reclassify (Reuses classify_instructions as designed)
+    final_reclassify = reclassify_base.replace('{configurable_classify_instructions}', classify_inst)
+    final_reclassify = final_reclassify.replace('{configurable_classify_output_template}', output_tmpl)
+    final_reclassify = final_reclassify.replace('{configurable_few_shot_examples}', few_shot)
+    
+    return final_classify, final_verify, final_reclassify
+
+
+
+
+
+
+
+
+
+
 # --- 2. Domain Config & Dynamic Theme/Prompt Engine ---
 def generate_theme_css(domain_config):
     """Dynamically converts the 'theme' dict into CSS :root variables."""
@@ -151,11 +215,17 @@ def load_domain_config():
     cfg['theme'] = theme
     # ----------------------------------------------------------------------
 
-    # Parse Prompt Templates
-    prompts = cfg.get('prompts', {})
-    cfg['PROMPT_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('classify', 'prompt_templates/classify_template.txt'))
-    cfg['VERIFIER_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('verify', 'prompt_templates/verify_template.txt'))
-    cfg['RECLASSIFY_PROMPT_TEMPLATE'] = os.path.join(BASE_DIR, prompts.get('reclassify', 'prompt_templates/reclassify_template.txt'))
+    # Assemble Prompt Templates
+    prompts_cfg = cfg.get('prompts', {})
+    try:
+        assembled_classify, assembled_verify, assembled_reclassify = assemble_prompt_templates(prompts_cfg)
+        cfg['PROMPT_TEMPLATE'] = assembled_classify
+        cfg['VERIFIER_TEMPLATE'] = assembled_verify
+        cfg['RECLASSIFY_PROMPT_TEMPLATE'] = assembled_reclassify
+    except Exception as e:
+        print(f"Fatal: Failed to assemble prompt templates: {e}")
+        import sys
+        sys.exit(1)
     
     # Inject generated CSS into the config dictionary for templates to use
     cfg["theme_css"] = generate_theme_css(cfg)
@@ -265,17 +335,6 @@ def get_model_alias(server_url_base):
     fallback_alias = "Unknown_LLM"
     print(f"Using fallback model alias: '{fallback_alias}'")
     return fallback_alias
-
-def load_prompt_template(template_path):
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        print(f"Error: Prompt template file '{template_path}' not found.")
-        raise
-    except Exception as e:
-        print(f"Error reading prompt template file '{template_path}': {e}")
-        raise
 
 def get_best_set_for_text_fields(paper_data):
     set_scores = []

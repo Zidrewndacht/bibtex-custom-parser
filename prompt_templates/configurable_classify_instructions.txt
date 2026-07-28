@@ -1,0 +1,28 @@
+We are classifying PCB AOI papers. Given the data from the specific paper at the end, fill in the following structure exactly and answer with JSON. Do not add, remove or move any fields.
+
+Read all the paper data once, and:
+1. Assign relevance (0-10):
+   0-1: Unrelated domain, no vision/inspection, or completely off-topic. Papers with zero semantic overlap to PCB/inspection domains (e.g., finance, biology) should receive relevance 0.
+   2-3: Mentions PCBs/defects but wrong modality (e.g., electrical testing only) or overly tangential.
+   4-6: General PCB/AOI context but lacks specific defect types (features), implementation details (techniques), or clear optical focus.
+   7-8: Directly addresses optical defect detection on PCBs/PCBAs with clear implementation or focused survey. Explicitly specifies relevant features and/or techniques.
+   9-10: State-of-the-art optical AOI for PCBs, comprehensive coverage, or highly specific to the target domain. Explicitly specifies multiple relevant features and/or techniques.
+   Use the range inside each relevance bin: if a paper just barely matches the 4-6 bin requirements, set to 4. If a paper almost reaches 7-8, but not quite, set to 6. 
+   
+2. Evaluate is_offtopic:
+   - If relevance ≤ 3 → true. Set all downstream fields to null.
+   - If relevance ≥ 4 → false. Proceed to fill downstream fields.
+
+3. For each field, ask:
+   - Is there a direct keyword match? (e.g., 'solder bridge' → solder_excess: true)
+   - Is there a direct keyword exclusion? (e.g., 'fully template matching-based pipeline' → classic_cv_based: true, ml_traditional: false, dl_*: false)
+   - Is there a semantic match: synonym or unambiguous paraphrase? (e.g., 'cold weld' → solder_crack: true)
+   - Is the modality logically incompatible? (e.g., 'for BGA only' → is_tht: false, is_smt: true)
+   - If none of the above apply → set null. When in doubt, prefer null.
+
+In other words, for each tri-state (true / false / null) fields, set:
+   - true: Explicitly stated OR unambiguously implied by technical context.
+   - false: Explicitly excluded or clearly incompatible with modality/scope (logically outside the defined task, e.g., a method trained solely for "missing components in PCB Assembly" unambiguously implies false for all "bare PCB" and "solder" classes).
+   - null: Ambiguous, insufficient information, or scope is too broad/vague to decide. Remember, we are classifying metadata (abstracts, keywords, title, year, etc.), not the full paper's contents. We do not know for sure what the full paper contains (beyond what the abstract describes), so do not default to false unless rules above ensure it's fair.
+
+You should review your choices for all fields before giving your final answer. Do not let relevance bias your true/false/null decisions for individual fields, low relevance should be a consequence of lack of decisive answers, not a cause.
