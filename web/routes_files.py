@@ -43,18 +43,17 @@ def backup_database():
             with tarfile.open(fileobj=buffer, mode='w') as tar:
                 tar.add(config.DATABASE_FILE, arcname='data/new.sqlite')
 
-                # Add PDF storage directory
+                # Add PDF storage directories
                 if os.path.exists(config.PDF_STORAGE_DIR):
                     tar.add(config.PDF_STORAGE_DIR, arcname='data/pdf')
-                
-                # Add annotated PDF storage directory
                 if os.path.exists(config.ANNOTATED_PDF_STORAGE_DIR):
                     tar.add(config.ANNOTATED_PDF_STORAGE_DIR, arcname='data/pdf_annotated')
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
                 tar.add(xlsx_path, arcname='export.xlsx') 
-                
+
+                # Add domain config
                 tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
             
             # Get the uncompressed tar data
@@ -137,7 +136,8 @@ def restore_database():
                 os.makedirs(os.path.dirname(config.PDF_STORAGE_DIR), exist_ok=True)
                 if os.path.exists(config.PDF_STORAGE_DIR): shutil.rmtree(config.PDF_STORAGE_DIR)
                 shutil.move(extracted_pdf_dir, config.PDF_STORAGE_DIR)
-            else: os.makedirs(config.PDF_STORAGE_DIR, exist_ok=True)
+            else: # Create empty annotated PDF directory if not in backup
+                os.makedirs(config.PDF_STORAGE_DIR, exist_ok=True)
                 
             if os.path.exists(extracted_annotated_pdf_dir):
                 # Create parent directory if it doesn't exist
@@ -149,20 +149,17 @@ def restore_database():
             else: # Create empty annotated PDF directory if not in backup
                 os.makedirs(config.ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)                
 
-            # 3. Restore domain config if present in backup
-            if os.path.exists(extracted_domain_config_path):
-                shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
+            # 3. Restore domain config:
+            shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
+            config.reload_domain_config() # Hot-reload the web app's memory
+            
+            # Notify the queue manager process to hot-reload its memory
+            try:
+                import requests
+                requests.post(f"{config.QUEUE_MANAGER_URL}/reload_config", timeout=2)
+            except Exception:
+                pass # Queue manager might not be running, which is fine
                 
-                # Hot-reload the web app's memory
-                config.reload_domain_config()
-                
-                # Notify the queue manager process to hot-reload its memory
-                try:
-                    import requests
-                    requests.post(f"{config.QUEUE_MANAGER_URL}/reload_config", timeout=2)
-                except Exception:
-                    pass # Queue manager might not be running, which is fine
-                    
             return jsonify({
                 'status': 'success', 
                 'message': f'Restored successfully from backup. Previous data backed up as {backup_current}. Domain configuration automatically reloaded.'

@@ -5,6 +5,7 @@ import yaml
 import requests
 import json
 import re
+import shutil
 import threading
 from datetime import datetime, timezone
 
@@ -13,8 +14,37 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
 DOMAIN_CONFIG_PATH = os.path.join(BASE_DIR, 'domain_config.yaml')
 
-LLM_API_KEY = None # Will be overwritten by config loader
+# --- Example Config Paths ---
+EXAMPLE_CONFIG_DIR = os.path.join(BASE_DIR, 'example_config')
+EXAMPLE_CONFIG_PATH = os.path.join(EXAMPLE_CONFIG_DIR, 'config.example.yaml')
+EXAMPLE_DOMAIN_CONFIG_PATH = os.path.join(EXAMPLE_CONFIG_DIR, 'domain_config.example.yaml')
 
+def ensure_config_files():
+    """Copy example configuration files if the actual ones do not exist."""
+    if not os.path.exists(CONFIG_PATH):
+        if os.path.exists(EXAMPLE_CONFIG_PATH):
+            try:
+                shutil.copy(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+                print(f"[Init] Created {CONFIG_PATH} from example.")
+            except Exception as e:
+                print(f"[Warning] Failed to copy {EXAMPLE_CONFIG_PATH}: {e}")
+        else:
+            print(f"[Warning] {CONFIG_PATH} not found and example config missing at {EXAMPLE_CONFIG_PATH}.")
+            
+    if not os.path.exists(DOMAIN_CONFIG_PATH):
+        if os.path.exists(EXAMPLE_DOMAIN_CONFIG_PATH):
+            try:
+                shutil.copy(EXAMPLE_DOMAIN_CONFIG_PATH, DOMAIN_CONFIG_PATH)
+                print(f"[Init] Created {DOMAIN_CONFIG_PATH} from example.")
+            except Exception as e:
+                print(f"[Warning] Failed to copy {EXAMPLE_DOMAIN_CONFIG_PATH}: {e}")
+        else:
+            print(f"[Warning] {DOMAIN_CONFIG_PATH} not found and example config missing at {EXAMPLE_DOMAIN_CONFIG_PATH}.")
+
+# Ensure files exist before proceeding to load them
+ensure_config_files()
+
+LLM_API_KEY = None # Will be overwritten by config loader
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 DATABASE_FILE = os.path.join(DATA_DIR, 'db.sqlite')
@@ -22,7 +52,6 @@ PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf')
 os.makedirs(PDF_STORAGE_DIR, exist_ok=True)
 ANNOTATED_PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf_annotated')
 os.makedirs(ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)
-
 PERFORMANCE_LOG_FILE = os.path.join(DATA_DIR, 'performance_log.jsonl')
 
 # --- 1. General Config Loader ---
