@@ -53,7 +53,9 @@ def backup_database():
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
-                # tar.add(xlsx_path, arcname='export.xlsx') #disabling deprecated version of XLSX exports for now
+                tar.add(xlsx_path, arcname='export.xlsx') 
+                
+                tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()
@@ -108,6 +110,7 @@ def restore_database():
             extracted_db_path = os.path.join(temp_dir, 'data', 'new.sqlite')
             extracted_pdf_dir = os.path.join(temp_dir, 'data', 'pdf')
             extracted_annotated_pdf_dir = os.path.join(temp_dir, 'data', 'pdf_annotated')
+            extracted_domain_config_path = os.path.join(temp_dir, 'domain_config.yaml')
 
             # Verify required files exist
             if not os.path.exists(extracted_db_path):
@@ -122,6 +125,7 @@ def restore_database():
                     if os.path.exists(config.DATABASE_FILE): tar.add(config.DATABASE_FILE, arcname='data/new.sqlite')
                     if os.path.exists(config.PDF_STORAGE_DIR): tar.add(config.PDF_STORAGE_DIR, arcname='data/pdf')
                     if os.path.exists(config.ANNOTATED_PDF_STORAGE_DIR): tar.add(config.ANNOTATED_PDF_STORAGE_DIR, arcname='data/pdf_annotated')
+                    if os.path.exists(config.DOMAIN_CONFIG_PATH): tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
 
             # Perform restoration
             # 1. Replace database
@@ -145,7 +149,25 @@ def restore_database():
             else: # Create empty annotated PDF directory if not in backup
                 os.makedirs(config.ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)                
 
-            return jsonify({'status': 'success', 'message': f'Restored successfully from backup. Previous data backed up as {backup_current}'})
+            # 3. Restore domain config if present in backup
+            if os.path.exists(extracted_domain_config_path):
+                shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
+                
+                # Hot-reload the web app's memory
+                config.reload_domain_config()
+                
+                # Notify the queue manager process to hot-reload its memory
+                try:
+                    import requests
+                    requests.post(f"{config.QUEUE_MANAGER_URL}/reload_config", timeout=2)
+                except Exception:
+                    pass # Queue manager might not be running, which is fine
+                    
+            return jsonify({
+                'status': 'success', 
+                'message': f'Restored successfully from backup. Previous data backed up as {backup_current}. Domain configuration automatically reloaded.'
+            })
+        
     except Exception as e:
         print(f"Restore error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500

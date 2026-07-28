@@ -10,6 +10,14 @@ from .state import (
 
 queue_bp = Blueprint('queue', __name__)
 
+@queue_bp.route('/reload_config', methods=['POST'])
+def handle_reload_config():
+    """IPC endpoint: Forces the queue manager to hot-reload domain config."""
+    config.reload_domain_config()
+    log(f"{_color_prefix('RELOAD:', Colors.DISPATCHER)} Domain configuration reloaded from disk.")
+    return jsonify({'status': 'success'}), 200
+
+
 @queue_bp.route('/classify', methods=['POST'])
 def handle_classify_route():
     """Handle classification request (single paper or batch)."""

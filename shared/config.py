@@ -397,3 +397,23 @@ def validate_llm_output(llm_data, task_type):
         return False, f"Missing required fields: {', '.join(missing)}"
         
     return True, None
+
+def reload_domain_config():
+    """Reloads the domain configuration from disk and updates all global references."""
+    global _domain_config, PROMPT_TEMPLATE, VERIFIER_TEMPLATE, RECLASSIFY_PROMPT_TEMPLATE, REQUIRED_CLASSIFICATION_FIELDS
+    
+    # 1. Reload from disk
+    _domain_config = load_domain_config()
+    
+    # 2. Update global prompt paths
+    PROMPT_TEMPLATE = _domain_config.get('PROMPT_TEMPLATE')
+    VERIFIER_TEMPLATE = _domain_config.get('VERIFIER_TEMPLATE')
+    RECLASSIFY_PROMPT_TEMPLATE = _domain_config.get('RECLASSIFY_PROMPT_TEMPLATE')
+    
+    # 3. Recalculate required fields for validation
+    REQUIRED_CLASSIFICATION_FIELDS = get_required_classification_fields()
+    
+    # 4. Patch the cached domain_config in web.routes_ui if it has been imported
+    import sys
+    if 'web.routes_ui' in sys.modules:
+        sys.modules['web.routes_ui'].domain_config = _domain_config

@@ -44,10 +44,12 @@ function registerStatsHook(hookName, fn) {
     statsHooks[hookName].push(fn);
 }
 
-// --- Core Data Collection ---
-function collectCoreStatsData() {
+/** 
+ * updateCounts() is used by filtering.js and comms.js! 
+ * Replaces the old updateCounts and the intermediate collectCoreStatsData.
+ */
+function updateCounts() {
     const counts = {};
-
     APP_CONFIG.groups.forEach(group => {
         if (group.filter_type === 'tri_state') counts[group.json_path] = 0;
         else if (['inclusion', 'none'].includes(group.filter_type)) {
@@ -55,60 +57,87 @@ function collectCoreStatsData() {
         }
     });
     
-    Object.assign(counts, { pdf_present: 0, pdf_annotated: 0, pdf_paywalled: 0, is_offtopic: 0, verified: 0, changed_by: 0, verified_by: 0, user_comment_state: 0, model: 0 });
+    Object.assign(counts, { 
+        pdf_present: 0, pdf_annotated: 0, pdf_paywalled: 0, 
+        is_offtopic: 0, verified: 0, changed_by: 0, verified_by: 0, 
+        user_comment_state: 0, model: 0 
+    });
 
     const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
-    // const visiblePaperCount = visibleRows.length;
-    // const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
-    // const loadedPaperCount = allRows.length;
+    const visiblePaperCount = visibleRows.length;
+    const allRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]');
+    const loadedPaperCount = allRows.length;
 
     const yearlySurveyImpl = {};
     const yearlyPubTypes = {};
 
     visibleRows.forEach(row => {
+        // 1. PDF Counts
         const pdfCell = row.cells[COL_IDX_PDF];
-        const pdfContent = pdfCell.textContent.trim();
-        if (pdfContent === '📕') counts.pdf_present++;
-        else if (pdfContent === '📗') { counts.pdf_annotated++; counts.pdf_present++; }
-        else if (pdfContent === '💰') counts.pdf_paywalled++;
+        if (pdfCell) {
+            const pdfContent = pdfCell.textContent.trim();
+            if (pdfContent === '📕') counts.pdf_present++;
+            else if (pdfContent === '📗') { counts.pdf_annotated++; counts.pdf_present++; }
+            else if (pdfContent === '💰') counts.pdf_paywalled++;
+        }
 
-        if (row.querySelector('[data-field="is_offtopic"]').textContent.trim() === '✔️') counts.is_offtopic++;
-        if (row.querySelector('[data-field="verified"]').textContent.trim() === '✔️') counts.verified++;
-        if (row.querySelector('[data-field="changed_by"]').innerHTML.includes('👤')) counts.changed_by++;
-        if (row.querySelector('[data-field="verified_by"]').innerHTML.includes('👤')) counts.verified_by++;
-        if (row.querySelector('[data-field="user_comment_state"]').textContent.trim() === '✔️') counts.user_comment_state++;
+        // 2. Universal & Domain Counts
+        const offTopicCell = row.querySelector('[data-field="is_offtopic"]');
+        if (offTopicCell && offTopicCell.textContent.trim() === '✔️') counts.is_offtopic++;
+        
+        const verifiedCell = row.querySelector('[data-field="verified"]');
+        if (verifiedCell && verifiedCell.textContent.trim() === '✔️') counts.verified++;
+        
+        const changedByCell = row.querySelector('[data-field="changed_by"]');
+        if (changedByCell && changedByCell.innerHTML.includes('👤')) counts.changed_by++;
+        
+        const verifiedByCell = row.querySelector('[data-field="verified_by"]');
+        if (verifiedByCell && verifiedByCell.innerHTML.includes('👤')) counts.verified_by++;
+        
+        const userCommentCell = row.querySelector('[data-field="user_comment_state"]');
+        if (userCommentCell && userCommentCell.textContent.trim() === '✔️') counts.user_comment_state++;
 
         APP_CONFIG.groups.forEach(group => {
             if (group.filter_type === 'tri_state') {
-                if (row.querySelector(`[data-field="${group.json_path}"]`).textContent.trim() === '✔️') counts[group.json_path]++;
+                const cell = row.querySelector(`[data-field="${group.json_path}"]`);
+                if (cell && cell.textContent.trim() === '✔️') counts[group.json_path]++;
             } else if (['inclusion', 'none'].includes(group.filter_type)) {
                 group.fields.forEach(f => {
-                    if (row.querySelector(`[data-field="${group.json_path}.${f.key}"]`).textContent.trim() === '✔️') counts[`${group.json_path}.${f.key}`]++;
+                    const cell = row.querySelector(`[data-field="${group.json_path}.${f.key}"]`);
+                    if (cell && cell.textContent.trim() === '✔️') counts[`${group.json_path}.${f.key}`]++;
                 });
             }
         });
 
-        const modelCell = row.querySelector('td.hidden-data-cell[data-field="technique_model"]') || row.querySelector('td[data-field="model"]') || row.querySelector('td[data-field="model_name"]');
+        // 3. Model Counts
+        const modelCell = row.querySelector('td.hidden-data-cell[data-field="technique_model"]') || 
+                          row.querySelector('td[data-field="model"]') || 
+                          row.querySelector('td[data-field="model_name"]');
         if (modelCell) {
             const modelText = modelCell.textContent.trim();
             if (modelText) counts.model += modelText.split(/[,;]/).map(m => m.trim()).filter(m => m !== '').length;
         }
 
+        // 4. Yearly Data
         const yearCell = row.cells[COL_IDX_YEAR];
-        const year = parseInt(yearCell.textContent.trim(), 10);
-
-        if (!isNaN(year)) {
-            if (!yearlySurveyImpl[year]) yearlySurveyImpl[year] = { surveys: 0, impl: 0 };
-            if (!yearlyPubTypes[year]) yearlyPubTypes[year] = {};
-
-            const isSurvey = row.querySelector('[data-field="is_survey"]').textContent.trim() === '✔️';
-            isSurvey ? yearlySurveyImpl[year].surveys++ : yearlySurveyImpl[year].impl++;
-
-            const typeCell = row.cells[COL_IDX_TYPE];
-            const rawType = (typeCell.getAttribute('title') || typeCell.textContent.trim() || '').toLowerCase();
-            if (rawType) {
-                const mappedType = mapPubType(rawType);
-                yearlyPubTypes[year][mappedType] = (yearlyPubTypes[year][mappedType] || 0) + 1;
+        if (yearCell) {
+            const year = parseInt(yearCell.textContent.trim(), 10);
+            if (!isNaN(year)) {
+                if (!yearlySurveyImpl[year]) yearlySurveyImpl[year] = { surveys: 0, impl: 0 };
+                if (!yearlyPubTypes[year]) yearlyPubTypes[year] = {};
+                
+                const isSurveyCell = row.querySelector('[data-field="is_survey"]');
+                const isSurvey = isSurveyCell && isSurveyCell.textContent.trim() === '✔️';
+                isSurvey ? yearlySurveyImpl[year].surveys++ : yearlySurveyImpl[year].impl++;
+                
+                const typeCell = row.cells[COL_IDX_TYPE];
+                if (typeCell) {
+                    const rawType = (typeCell.getAttribute('title') || typeCell.textContent.trim() || '').toLowerCase();
+                    if (rawType) {
+                        const mappedType = mapPubType(rawType);
+                        yearlyPubTypes[year][mappedType] = (yearlyPubTypes[year][mappedType] || 0) + 1;
+                    }
+                }
             }
         }
     });
@@ -116,16 +145,23 @@ function collectCoreStatsData() {
     latestCounts = counts;
     latestYearlyData = { surveyImpl: yearlySurveyImpl, pubTypes: yearlyPubTypes };
 
-    // if (document.body.id === 'html-export') {
-    //     // There is NO such a field in a static export. The only "Total" that makes sense on an export is the exported total itself:
-    //     document.getElementById('visible-count-cell').innerHTML = `<strong>${visiblePaperCount}</strong> paper${visiblePaperCount !== 1 ? 's' : ''} of <strong>${loadedPaperCount}</strong>`;
-    // } else {
-    //     document.getElementById('loaded-papers-count').textContent = loadedPaperCount;
-    //     document.getElementById('visible-papers-count').textContent = visiblePaperCount;
-    // }
+    // --- Update Filtered/Loaded Counts in Footer ---
+    if (document.body.id === 'html-export') {
+        const visibleCountCell = document.getElementById('visible-count-cell');
+        if (visibleCountCell) {
+            visibleCountCell.innerHTML = `<strong>${visiblePaperCount}</strong> paper${visiblePaperCount !== 1 ? 's' : ''}`;
+        }
+    } else {
+        const loadedPapersCountCell = document.getElementById('loaded-papers-count');
+        const visiblePapersCountCell = document.getElementById('visible-papers-count');
+        if (loadedPapersCountCell) loadedPapersCountCell.textContent = loadedPaperCount;
+        if (visiblePapersCountCell) visiblePapersCountCell.textContent = visiblePaperCount;
+    }
 
+    // --- Update Individual Field Counts (PDF, Offtopic, Verified, etc.) ---
     const updateCountCell = (field, count) => {
         const cell = document.querySelector(`[data-count-field="${field}"]`) || document.getElementById(`count-${field.replace(/\./g, '_')}`);
+        if (!cell) return;
         if (field === 'pdf_present') {
             cell.textContent = counts.pdf_present;
             cell.title = `Stored PDFs: ${counts.pdf_present}, Annotated: ${counts.pdf_annotated}, Paywalled: ${counts.pdf_paywalled}.`;
@@ -140,7 +176,7 @@ function collectCoreStatsData() {
     updateCountCell('changed_by', counts.changed_by);
     updateCountCell('verified_by', counts.verified_by);
     updateCountCell('user_comment_state', counts.user_comment_state);
-
+    
     APP_CONFIG.groups.forEach(group => {
         if (group.filter_type === 'tri_state') updateCountCell(group.json_path, counts[group.json_path]);
         else if (['inclusion', 'none'].includes(group.filter_type)) {
@@ -153,7 +189,7 @@ function collectCoreStatsData() {
 function displayStats() {
     document.documentElement.classList.add('busyCursor');
     setTimeout(() => {
-        collectCoreStatsData();
+        updateCounts();
         
         const visibleRows = document.querySelectorAll('#papersTable tbody tr[data-paper-id]:not(.filter-hidden)');
         statsHooks.collectData.forEach(fn => fn(visibleRows));
@@ -167,7 +203,7 @@ function displayStats() {
         document.getElementById('statsModal').offsetHeight;
         document.getElementById('statsModal').classList.add('modal-active');
         document.documentElement.classList.remove('busyCursor');
-    }, 50);
+    }, 250); //to sync with chart animations, do NOT change or remove this
 }
 
 function displayAbout() { 

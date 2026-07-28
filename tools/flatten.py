@@ -357,18 +357,18 @@ def main():
         
         # Web static pdfjs files (kept as previously specified)
         "web/static/pdfjs/web/autosave.js",
-        "web/static/pdfjs/web/viewer.html",
-        "web/static/pdfjs/web/viewer_mods.css",
+        # "web/static/pdfjs/web/viewer.html",
+        # "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
         "web/templates/detail_row.html",
         "web/templates/history_row.html",
         "web/templates/index.html",
         "web/templates/papers_table.html",
-        "web/templates/about_modal_content.html",
+        # "web/templates/about_modal_content.html",
         "web/templates/papers_table_tfoot.html",
         "web/templates/stats_modal_content.html",
-        "web/templates/static_export/loader.html",
+        # "web/templates/static_export/loader.html",
         "web/templates/static_export/index_static_export.html",
         "web/templates/static_export/papers_table_static_export.html"
     ]

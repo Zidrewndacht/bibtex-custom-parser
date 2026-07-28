@@ -51,7 +51,7 @@ def index():
         with db.get_db() as conn:
             total_paper_count = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
     except sqlite3.OperationalError as e:
-        if "no such table: papers" in str(e):
+        if "no such table: papers" or "unable to open database file" in str(e):
             print("[Web] 'papers' table missing or corrupted. Rebuilding schema and reloading without filters...")
             # Force rebuild the DB and placeholder row
             db.init_db(config.DATABASE_FILE)
