@@ -124,10 +124,11 @@
                             <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="0" max="9">
                         </div>
                         <div class="filter-item">
+{#<!-- This should be updated to become dynamically limited according to existing data in the current DB: -->#}
                             <label for="year-from">Year:</label>
-                            <input type="number" id="year-from" value="{{ year_from_value }}" min="1948" max="2026">
+                            <input type="number" id="year-from" value="{{ year_from_value }}" min="1800" max="2038">
                             <label for="year-to">to</label>
-                            <input type="number" id="year-to" value="{{ year_to_value }}" min="1948" max="2026">
+                            <input type="number" id="year-to" value="{{ year_to_value }}" min="1800" max="2038">
                         </div>
                         <button class="action-btn" id="apply-serverside-filters" style="opacity:0; pointer-events: none;"><span>Apply ↵</span></button>
                     </div>

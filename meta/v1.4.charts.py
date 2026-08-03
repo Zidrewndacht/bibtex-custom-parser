@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
 Power Usage vs. Paper Consensus Progress Visualization
-- MINIMAL VERSION: Uses 'changed' field only, CSV first row as start time
-- UPDATED: DB path selectable, power CSV optional
+- UPDATED FOR NEW DB: Parses 'llm_log' JSON to find exact LLM completion times
+  (ignores user edits that would otherwise skew the 'changed' timestamp)
+- MINIMAL VERSION: CSV first row as start time
+- DB path selectable, power CSV optional
 """
 
 import csv
 import sqlite3
 import argparse
+import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
@@ -27,6 +30,7 @@ DEFAULT_DB_PATH = SCRIPT_DIR / "db.sqlite"
 DEFAULT_OUTPUT_PATH = SCRIPT_DIR / "consensus_progress.png"
 
 POWER_SMOOTHING_WINDOW = 6
+
 PAPER_TICK_INTERVAL = 60
 TIME_MAJOR_INTERVAL = 60
 TIME_MINOR_INTERVAL = 15
@@ -71,22 +75,37 @@ def smooth_series(values, window):
     ]
 
 # ============================================================================
-# GET PAPER COMPLETION TIMESTAMPS FROM 'changed' FIELD ONLY
+# GET PAPER COMPLETION TIMESTAMPS FROM 'llm_log' (NEW DB SCHEMA)
 # ============================================================================
 def get_paper_timestamps(db_path):
-    """Get list of 'changed' timestamps for papers that have one."""
+    """
+    Get list of completion timestamps for papers based on their llm_log.
+    In the new DB, 'changed' is updated on user edits too, which would skew
+    the consensus progress timeline. Parsing 'llm_log' ensures we only track
+    actual LLM/Consensus completions.
+    """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT changed FROM papers WHERE changed IS NOT NULL AND changed != ''")
+    cursor.execute("SELECT llm_log FROM papers WHERE llm_log IS NOT NULL AND llm_log != '[]' AND llm_log != ''")
     
     timestamps = []
-    for (changed_str,) in cursor.fetchall():
+    for (log_str,) in cursor.fetchall():
         try:
-            ts = datetime.fromisoformat(changed_str.strip().replace('Z', '+00:00'))
-            timestamps.append(ts)
-        except (ValueError, AttributeError):
+            logs = json.loads(log_str)
+            latest_ts = None
+            for entry in logs:
+                # ignore user edits
+                if entry.get('type') in ['averaged_llm']:
+                    ts_str = entry.get('timestamp')
+                    if ts_str:
+                        ts = datetime.fromisoformat(ts_str.strip().replace('Z', '+00:00'))
+                        if latest_ts is None or ts > latest_ts:
+                            latest_ts = ts
+            if latest_ts:
+                timestamps.append(latest_ts)
+        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
             continue
-    
+            
     conn.close()
     timestamps.sort()
     return timestamps
@@ -95,7 +114,7 @@ def get_paper_timestamps(db_path):
 # BUILD REMAINING PAPERS LINE
 # ============================================================================
 def build_remaining_line(power_data, paper_timestamps):
-    """Start at total papers, decrement by 1 at each paper's 'changed' time."""
+    """Start at total papers, decrement by 1 at each paper's completion time."""
     if not power_data:
         if not paper_timestamps:
             return []
@@ -158,7 +177,7 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     fig, ax1 = plt.subplots(figsize=(7, 5))
     
     ax1.set_xlabel('Elapsed Time (minutes)', fontsize=14, fontweight='bold')
-    ax1.set_ylabel('Remaining Papers', fontsize=14, fontweight='bold', color=C_REM)
+    # ax1.set_ylabel('Remaining Papers', fontsize=14, fontweight='bold', color=C_REM)
     ax1.plot(rem_times, rem_count, color=C_REM, linewidth=2.5, label='Remaining Papers', drawstyle='steps-post')
     
     max_rem = max(rem_count) if rem_count else 1
@@ -168,8 +187,8 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     
     if has_power and power_smooth:
         ax2 = ax1.twinx()
-        ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color=C_PWR)
-        ax2.plot(times, power_smooth, color=C_PWR, linewidth=2.5, label='Wall Power', alpha=0.95)
+        # ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color=C_PWR)
+        ax2.plot(times, power_smooth, color=C_PWR, linewidth=1.25, label='Wall Power (W)', alpha=0.95)
         paper_max = ax1.get_ylim()[1]
         ax2.set_ylim(0, paper_max )
         ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL))
@@ -246,12 +265,12 @@ Examples:
         print("💡 Use --no-power to plot without power data, or check the path.")
         return
     
-    print("📄 Loading paper timestamps from 'changed' field...")
+    print("📄 Loading paper timestamps from 'llm_log' (New DB Schema)...")
     paper_ts = get_paper_timestamps(args.db)
-    print(f"   → {len(paper_ts)} papers with 'changed' timestamp")
+    print(f"   → {len(paper_ts)} papers with LLM completion timestamps")
     
     if not paper_ts:
-        print("⚠️  No papers found with 'changed' timestamps. Check DB schema/values.")
+        print("⚠️  No papers found with LLM completion timestamps. Check DB schema/values.")
         return
     
     power_data = []

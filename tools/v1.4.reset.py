@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """
-ResearchParça Database Reset Script
-Resets a v1.2 database to freshly-imported state while preserving:
+ResearchParça Database Reset Script (v1.4 Domain-Agnostic)
+
+Resets a v1.4 database to freshly-imported state while preserving:
 - Core bibliographic data
 - User comments (user_trace)
-- User-set research areas
 - PDF files and their states
 
 Clears:
-- All LLM classifications (is_offtopic, is_survey, features, technique, etc.)
+- All LLM classifications (classification, last_llm_classification, set_*_llm JSON blobs)
 - All verifications (verified, estimated_score, verified_by)
 - All timestamps and audit fields (changed, changed_by, user_override_count)
 - All LLM logs (llm_log, set_*_llm_log)
-- All cached LLM fields (set_*_last_llm_*, last_llm_*)
 - All certainty maps (main_certainty)
+
+Note: In v1.4, domain-specific fields (like research_area, model, features, etc.) 
+are stored dynamically inside the 'classification' JSON blob. Clearing this blob 
+will also remove user edits to these inferred fields.
 """
 
 import sqlite3
@@ -38,59 +41,32 @@ def create_backup(db_path):
 def reset_database(db_path):
     """Reset all LLM-related fields to NULL/empty while preserving core data."""
     
-    # Fields to CLEAR (LLM classifications, verifications, logs, audit)
-    clear_fields = [
-        # Classification booleans
-        'is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray',
-        # Verification fields
-        'relevance', 'verified', 'estimated_score', 'verified_by',
-        # JSON fields
-        'features', 'technique',
-        # Audit fields
-        'changed', 'changed_by', 'user_override_count',
-        # Certainty
-        'main_certainty',
-        # Main log
-        'llm_log',
-        # Set-specific logs (3 sets)
-        'set_1_llm_log', 'set_2_llm_log', 'set_3_llm_log',
-        # Set-specific cached classification fields (3 sets × 9 fields)
-        'set_1_last_llm_is_offtopic', 'set_1_last_llm_is_survey', 
-        'set_1_last_llm_is_through_hole', 'set_1_last_llm_is_smt', 
-        'set_1_last_llm_is_x_ray', 'set_1_last_llm_relevance',
-        'set_1_last_llm_verified', 'set_1_last_llm_estimated_score',
-        'set_1_last_llm_features', 'set_1_last_llm_technique',
+    # Fields to CLEAR and their target reset values for v1.4 domain-agnostic schema
+    clear_fields_map = {
+        # Audit & Verification columns
+        'changed': 'NULL',
+        'changed_by': 'NULL',
+        'verified': 'NULL',
+        'verified_by': "''",
+        'estimated_score': 'NULL',
+        'user_override_count': '0',
         
-        'set_2_last_llm_is_offtopic', 'set_2_last_llm_is_survey', 
-        'set_2_last_llm_is_through_hole', 'set_2_last_llm_is_smt', 
-        'set_2_last_llm_is_x_ray', 'set_2_last_llm_relevance',
-        'set_2_last_llm_verified', 'set_2_last_llm_estimated_score',
-        'set_2_last_llm_features', 'set_2_last_llm_technique',
+        # Main JSON blobs
+        'main_certainty': "'{}'",
+        'classification': "'{}'",
+        'last_llm_classification': "'{}'",
         
-        'set_3_last_llm_is_offtopic', 'set_3_last_llm_is_survey', 
-        'set_3_last_llm_is_through_hole', 'set_3_last_llm_is_smt', 
-        'set_3_last_llm_is_x_ray', 'set_3_last_llm_relevance',
-        'set_3_last_llm_verified', 'set_3_last_llm_estimated_score',
-        'set_3_last_llm_features', 'set_3_last_llm_technique',
+        # Set-specific raw LLM blobs
+        'set_1_llm': 'NULL',
+        'set_2_llm': 'NULL',
+        'set_3_llm': 'NULL',
         
-        # Last LLM cache fields (mirrors main fields)
-        'last_llm_is_offtopic', 'last_llm_is_survey', 
-        'last_llm_is_through_hole', 'last_llm_is_smt', 
-        'last_llm_is_x_ray', 'last_llm_relevance',
-        'last_llm_verified', 'last_llm_estimated_score',
-        'last_llm_features', 'last_llm_technique',
-    ]
-    
-    # Fields to PRESERVE (core bibliographic + user data)
-    preserve_fields = [
-        'id', 'type', 'title', 'authors', 'year', 'month', 
-        'journal', 'volume', 'pages', 'page_count', 'doi', 'issn', 
-        'abstract', 'keywords', 'deannualized_conference',
-        # User metadata
-        'research_area', 'user_trace',
-        # PDF management
-        'pdf_filename', 'pdf_state'
-    ]
+        # Log arrays
+        'llm_log': "'[]'",
+        'set_1_llm_log': "'[]'",
+        'set_2_llm_log': "'[]'",
+        'set_3_llm_log': "'[]'",
+    }
     
     conn = None
     try:
@@ -117,20 +93,11 @@ def reset_database(db_path):
         
         # Build UPDATE statement
         clear_assignments = []
-        for field in clear_fields:
-            # Check if field exists in this database version
+        for field, reset_val in clear_fields_map.items():
             if field in all_columns:
-                if field in ['features', 'technique']:
-                    # JSON fields should be NULL
-                    clear_assignments.append(f"{field} = NULL")
-                elif field in ['llm_log', 'set_1_llm_log', 'set_2_llm_log', 'set_3_llm_log']:
-                    # Log fields should be empty JSON array
-                    clear_assignments.append(f"{field} = '[]'")
-                else:
-                    # All other fields to NULL
-                    clear_assignments.append(f"{field} = NULL")
+                clear_assignments.append(f"{field} = {reset_val}")
             else:
-                print(f"⚠ Field '{field}' not found in database (may be older schema)")
+                print(f"⚠ Field '{field}' not found in database (schema mismatch?)")
         
         if not clear_assignments:
             print("✗ Error: No fields to clear")
@@ -150,7 +117,7 @@ def reset_database(db_path):
             SELECT COUNT(*) FROM papers 
             WHERE changed_by IS NOT NULL 
             OR verified IS NOT NULL 
-            OR is_offtopic IS NOT NULL
+            OR classification != '{}'
         """)
         remaining_classified = cursor.fetchone()[0]
         
@@ -163,7 +130,7 @@ def reset_database(db_path):
         cursor.execute("SELECT COUNT(*) FROM papers WHERE user_trace IS NOT NULL AND user_trace != ''")
         papers_with_comments = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(*) FROM papers WHERE pdf_filename IS NOT NULL")
+        cursor.execute("SELECT COUNT(*) FROM papers WHERE pdf_filename IS NOT NULL AND pdf_filename != ''")
         papers_with_pdf = cursor.fetchone()[0]
         
         print(f"✓ Preserved {papers_with_comments} papers with user comments")
@@ -175,14 +142,14 @@ def reset_database(db_path):
         conn.commit()
         
         print("\n" + "="*60)
-        print("DATABASE RESET COMPLETE")
+        print("DATABASE RESET COMPLETE (v1.4 Domain-Agnostic)")
         print("="*60)
         print(f"Total papers: {total_papers}")
         print(f"Papers with user comments: {papers_with_comments}")
         print(f"Papers with PDFs: {papers_with_pdf}")
-        print(f"All LLM classifications: CLEARED")
+        print(f"All LLM classifications (JSON blobs): CLEARED")
         print(f"All verification data: CLEARED")
-        print(f"All logs: CLEARED")
+        print(f"All logs & certainty maps: CLEARED")
         print("="*60)
         
         return True
@@ -199,7 +166,7 @@ def reset_database(db_path):
 
 def main():
     print("="*60)
-    print("ResearchParça Database Reset Tool (v1.2)")
+    print("ResearchParça Database Reset Tool (v1.4 Domain-Agnostic)")
     print("="*60)
     print()
     
@@ -225,8 +192,11 @@ def main():
     print("   The following will be PRESERVED:")
     print("   • Core bibliographic data (title, authors, journal, etc.)")
     print("   • User comments (user_trace)")
-    print("   • User-set research areas")
     print("   • PDF files and their states")
+    print()
+    print("   Note: In v1.4, domain-specific fields (like research_area, model,")
+    print("   features, etc.) are stored inside the 'classification' JSON blob.")
+    print("   Clearing this blob will also remove user edits to these fields.")
     print()
     
     response = input("Continue? (yes/no): ").strip().lower()

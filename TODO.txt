@@ -309,6 +309,15 @@ OK      Update prompt templates: fixed base + dynamic domain-specific parts.
                 Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?
                 Human compare wouldn't make much sense as it needs 2 separate DBs.
 
-        Add onboarding with LLM usage for prompted domain_config creation?
+        Add sequential onboarding with LLM usage for prompted domain_config creation?
+                Use a complete separate Flask app -- avoids unnecessary changes to perfectly working webapp for something used rarely.
+                Start with PCB AOI defaults for manual edit/setup if no LLM available.
+                Show the default domain_config.yaml to be edited (except color scheme, set separately) and direct config for LLM server url and API key
+                Apply LLM config. If not configured or unavailable, let settings be set manually
+                If LLM is available and working:
+                        propose 5 color schemes (default + 4 generated ones) and 3 domain_config.yaml column sets, user edits/approves one, then:
+                        propose 3 classify_instructions, 3 classify_outputs, 3 sets of few-shot examples, all at once based on the built domain_config;      
+                Apply (autostarts main process, which itself finds DB is missing, creates it and shows the table with the placeholder article and import buttons)
+                Maybe use a curated list of color schemes instead of generated ones?
 
         Add optional stats page layout with no domain-specific fields (RP-Lite based?).

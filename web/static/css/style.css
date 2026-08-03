@@ -976,12 +976,16 @@ tr.filter-hidden {
 .modal.modal-active {
     opacity: 1;
     pointer-events: auto;
-    transition-delay: .3s
+    transition-delay: .1s
 }
 
-.modal.modal-active #batch-actions,.modal.modal-active #export-actions,.modal.modal-active #import-actions,.modal.modal-active .modal-content,.modal.modal-active .modal-small-content {
+.modal.modal-active #batch-actions,
+.modal.modal-active #export-actions,
+.modal.modal-active #import-actions,
+.modal.modal-active .modal-content,
+.modal.modal-active .modal-small-content {
     transform: none;
-    transition-delay: .2s
+    transition-delay: .02s
 }
 
 .stats-section {

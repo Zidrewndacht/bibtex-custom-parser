@@ -14,11 +14,11 @@ default_min_page_count: 4
 llm_server_url: "http://localhost:8086"
 llm_api_key: null   #optional, unused for local vLLM instance.
 
-# Concurrency Limits - example values for 2x24GB on Qwen3.6 27B
-max_concurrent_workers_classify: 60
-max_concurrent_workers_verify: 90
-max_concurrent_workers_reclassify: 48
-min_concurrent_workers: 32
+# Concurrency Limits - example values for 2x24GB on Qwen3.6 27B vLLM 0.26
+max_concurrent_workers_classify: 75
+max_concurrent_workers_verify: 80
+max_concurrent_workers_reclassify: 70
+min_concurrent_workers: 70
 
 
 # Consensus limits:

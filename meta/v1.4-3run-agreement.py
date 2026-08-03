@@ -11,7 +11,6 @@ import argparse
 import sqlite3
 import json
 import sys
-import os
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from collections import Counter
@@ -59,12 +58,14 @@ def load_domain_config(config_path: str) -> dict:
     cfg.setdefault('editable_fields', [])
     return cfg
 
-
 def discover_boolean_fields(domain_config: dict) -> List[str]:
     """
     Build the list of boolean (tri-state) fields from domain_config groups.
     'is_offtopic' is always included as a universal field required for
     stratification, even when the YAML does not list it explicitly.
+    
+    Excludes fields with render_type 'text_presence' — those are derived
+    from text data on the front-end, not purely inferred tri-state values.
     """
     fields: List[str] = ['is_offtopic']
     for group in domain_config.get('groups', []):
@@ -76,6 +77,9 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
         elif ft in ('inclusion', 'none'):
             parent = group.get('json_path', '')
             for fdef in group.get('fields', []):
+                # Skip text_presence fields — not true tri-state inferences
+                if fdef.get('render_type') == 'text_presence':
+                    continue
                 key = fdef.get('key', '')
                 if not key:
                     continue
@@ -88,42 +92,33 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
 def get_field_categories(domain_config: dict,
                          boolean_fields: List[str]) -> List[Tuple[str, List[str]]]:
     """
-    Derive display categories from domain_config groups for the summary
-    printer and LaTeX Table 5.  Returns [(category_name, [field, …]), …].
+    Groups boolean fields into three categories based on JSON structure:
+      - Root-level fields (no dot in path) → "Main classification"
+      - features.* → "Features"
+      - technique.* → "Techniques"
     """
-    categories: List[Tuple[str, List[str]]] = []
-    already: set = set()
+    main_fields = []
+    features_fields = []
+    techniques_fields = []
 
-    for group in domain_config.get('groups', []):
-        ft = group.get('filter_type')
-        cat_name = (group.get('friendly_name')
-                    or group.get('label')
-                    or group.get('json_path', 'Unknown'))
-        cat_fields: List[str] = []
+    for field in boolean_fields:
+        if field.startswith('features.'):
+            features_fields.append(field)
+        elif field.startswith('technique.'):
+            techniques_fields.append(field)
+        else:
+            # Root-level: is_offtopic, is_survey, is_through_hole, is_smt, is_x_ray, etc.
+            main_fields.append(field)
 
-        if ft == 'tri_state':
-            path = group.get('json_path', '')
-            if path in boolean_fields:
-                cat_fields.append(path)
-        elif ft in ('inclusion', 'none'):
-            parent = group.get('json_path', '')
-            for fdef in group.get('fields', []):
-                key = fdef.get('key', '')
-                full_path = f"{parent}.{key}" if parent else key
-                if full_path in boolean_fields:
-                    cat_fields.append(full_path)
-
-        if cat_fields:
-            categories.append((cat_name, cat_fields))
-            already.update(cat_fields)
-
-    # Prepend universal fields that no group claimed (e.g. is_offtopic)
-    uncategorized = [f for f in boolean_fields if f not in already]
-    if uncategorized:
-        categories.insert(0, ('Universal / Main Classification', uncategorized))
+    categories = []
+    if main_fields:
+        categories.append(("Main classification", main_fields))
+    if features_fields:
+        categories.append(("Features", features_fields))
+    if techniques_fields:
+        categories.append(("Techniques", techniques_fields))
 
     return categories
-
 
 def get_val_by_path(d: dict, path: str):
     """Safely traverse a nested dict with a dot-separated key path."""
@@ -572,12 +567,12 @@ def run_analysis(papers: Dict[str, Dict[int, Dict]], fields: List[str],
 
     all_paper_ids = list(papers.keys())
 
-    # Stratify by off-topic status (from set 1)
+    # Stratify by off-topic status (majority vote across 3 sets)
     on_topic_ids: List[str] = []
     off_topic_ids: List[str] = []
     for paper_id in all_paper_ids:
-        offtopic_val = papers[paper_id][1].get('is_offtopic', 0)
-        if offtopic_val == 2:
+        offtopic_votes = sum(1 for sn in [1, 2, 3] if papers[paper_id][sn].get('is_offtopic', 0) == 2)
+        if offtopic_votes >= 2:
             off_topic_ids.append(paper_id)
         else:
             on_topic_ids.append(paper_id)
@@ -634,9 +629,9 @@ def generate_latex_tables(results: Dict, output_path: str,
     # Guard against division by zero in empty strata
     def _pct(num, den):
         return (num / den * 100) if den > 0 else 0.0
-
+    
     # =========================================================================
-    # TABLE 1: OVERVIEW
+    # TABLE 1: OVERVIEW & UNCERTAINTY (MERGED)
     # =========================================================================
     ot_p = results['on_topic_only']['overall_perfect']
     ot_u = results['on_topic_only']['overall_uncertain']
@@ -648,30 +643,6 @@ def generate_latex_tables(results: Dict, output_path: str,
     all_u = results['all_papers']['overall_uncertain']
     all_c = results['all_papers']['overall_contradiction']
 
-    table1 = f"""
-\\begin{{table*}}[t]
-\\centering
-\\caption{{3-Run Agreement Analysis Overview. Percentage is shown first; count of classification decisions for each set is in the (parentheses).}}
-\\label{{tab:agreement_overview}}
-\\begin{{tabular*}}{{\\textwidth}}{{@{{\\extracolsep{{\\fill}}}}lccc@{{}}}}
-\\hline
-\\textbf{{Overview}} & \\textbf{{On-topic ({on_topic_n:,} samples)}} & \\textbf{{Off-topic ({off_topic_n:,} samples)}} & \\textbf{{All papers ({all_papers_n:,} samples)}} \\\\
-\\hline
-\\textbf{{Perfect (YYY/NNN/UUU)}} & {_pct(ot_p, on_topic_n):.2f}\\% ({ot_p:,}) & {_pct(off_p, off_topic_n):.2f}\\% ({off_p:,}) & {_pct(all_p, all_papers_n):.2f}\\% ({all_p:,}) \\\\
-\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_perfect_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_perfect_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_perfect_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_perfect_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_perfect_ci_lower']:.2f}\\%, {results['all_papers']['overall_perfect_ci_upper']:.2f}\\%]}} \\\\[6pt]
-\\textbf{{Uncertain (no Y+N)}} & {_pct(ot_u, on_topic_n):.2f}\\% ({ot_u:,}) & {_pct(off_u, off_topic_n):.2f}\\% ({off_u:,}) & {_pct(all_u, all_papers_n):.2f}\\% ({all_u:,}) \\\\
-\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_ci_upper']:.2f}\\%]}} \\\\[6pt]
-\\textbf{{Contradictions (Y+N present)}} & {_pct(ot_c, on_topic_n):.2f}\\% ({ot_c:,}) & {_pct(off_c, off_topic_n):.2f}\\% ({off_c:,}) & {_pct(all_c, all_papers_n):.2f}\\% ({all_c:,}) \\\\
-\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_contradiction_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_contradiction_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_contradiction_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_contradiction_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_contradiction_ci_lower']:.2f}\\%, {results['all_papers']['overall_contradiction_ci_upper']:.2f}\\%]}} \\\\
-\\hline
-\\end{{tabular*}}
-\\end{{table*}}
-"""
-    tables.append(("Overview", table1))
-
-    # =========================================================================
-    # TABLE 2: UNCERTAINTY BREAKDOWN
-    # =========================================================================
     ot_ubc = results['on_topic_only']['overall_uncertain_biased_certain']
     ot_ubu = results['on_topic_only']['overall_uncertain_biased_uncertain']
     off_ubc = results['off_topic_only']['overall_uncertain_biased_certain']
@@ -679,27 +650,33 @@ def generate_latex_tables(results: Dict, output_path: str,
     all_ubc = results['all_papers']['overall_uncertain_biased_certain']
     all_ubu = results['all_papers']['overall_uncertain_biased_uncertain']
 
-    table2 = f"""
+    table1 = f"""
 \\begin{{table*}}[t]
 \\centering
-\\caption{{Uncertainty Types Breakdown. Percentage is shown first; count of classification decisions for each set is in the (parentheses).}}
-\\label{{tab:uncertainty}}
+\\caption{{3-Run Agreement Analysis Overview and Uncertainty Breakdown. Percentage shown first; count of classification decisions for each set in parentheses. Wilson 95\\% Confidence Intervals in italics.}}
+\\label{{tab:agreement_overview}}
 \\begin{{tabular*}}{{\\textwidth}}{{@{{\\extracolsep{{\\fill}}}}lccc@{{}}}}
 \\hline
-\\textbf{{Uncertainty Type}} & \\textbf{{On-topic ({on_topic_n:,} samples)}} & \\textbf{{Off-topic ({off_topic_n:,} samples)}} & \\textbf{{All papers ({all_papers_n:,} samples)}} \\\\
+\\textbf{{Outcome}} & \\textbf{{On-topic ({on_topic_n:,} samples)}} & \\textbf{{Off-topic ({off_topic_n:,} samples)}} & \\textbf{{All papers ({all_papers_n:,} samples)}} \\\\
 \\hline
+\\textbf{{Perfect (YYY/NNN/UUU)}} & {_pct(ot_p, on_topic_n):.2f}\\% ({ot_p:,}) & {_pct(off_p, off_topic_n):.2f}\\% ({off_p:,}) & {_pct(all_p, all_papers_n):.2f}\\% ({all_p:,}) \\\\
+\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_perfect_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_perfect_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_perfect_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_perfect_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_perfect_ci_lower']:.2f}\\%, {results['all_papers']['overall_perfect_ci_upper']:.2f}\\%]}} \\\\[6pt]
+%\\textbf{{Uncertain (no Y+N)}} & {_pct(ot_u, on_topic_n):.2f}\\% ({ot_u:,}) & {_pct(off_u, off_topic_n):.2f}\\% ({off_u:,}) & {_pct(all_u, all_papers_n):.2f}\\% ({all_u:,}) \\\\
+%\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_ci_upper']:.2f}\\%]}} \\\\[6pt]
 \\textbf{{Biased Certain (YYU/NNU)}} & {_pct(ot_ubc, on_topic_n):.2f}\\% ({ot_ubc:,}) & {_pct(off_ubc, off_topic_n):.2f}\\% ({off_ubc:,}) & {_pct(all_ubc, all_papers_n):.2f}\\% ({all_ubc:,}) \\\\
-\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} \\\\[6pt]
+\\quad  \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_biased_certain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_biased_certain_ci_upper']:.2f}\\%]}} \\\\[6pt]
 \\textbf{{Biased Uncertain (YUU/NUU)}} & {_pct(ot_ubu, on_topic_n):.2f}\\% ({ot_ubu:,}) & {_pct(off_ubu, off_topic_n):.2f}\\% ({off_ubu:,}) & {_pct(all_ubu, all_papers_n):.2f}\\% ({all_ubu:,}) \\\\
-\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} \\\\
+\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_uncertain_biased_uncertain_ci_lower']:.2f}\\%, {results['all_papers']['overall_uncertain_biased_uncertain_ci_upper']:.2f}\\%]}} \\\\[6pt]
+\\textbf{{Contradictions (Y+N present)}} & {_pct(ot_c, on_topic_n):.2f}\\% ({ot_c:,}) & {_pct(off_c, off_topic_n):.2f}\\% ({off_c:,}) & {_pct(all_c, all_papers_n):.2f}\\% ({all_c:,}) \\\\
+\\quad \\textit{{\\footnotesize 95\\% CI}} & \\textit{{\\footnotesize [{results['on_topic_only']['overall_contradiction_ci_lower']:.2f}\\%, {results['on_topic_only']['overall_contradiction_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['off_topic_only']['overall_contradiction_ci_lower']:.2f}\\%, {results['off_topic_only']['overall_contradiction_ci_upper']:.2f}\\%]}} & \\textit{{\\footnotesize [{results['all_papers']['overall_contradiction_ci_lower']:.2f}\\%, {results['all_papers']['overall_contradiction_ci_upper']:.2f}\\%]}} \\\\
 \\hline
 \\end{{tabular*}}
 \\end{{table*}}
 """
-    tables.append(("Uncertainty", table2))
+    tables.append(("Overview and Uncertainty", table1))
 
     # =========================================================================
-    # TABLE 3: CONTRADICTIONS BREAKDOWN
+    # TABLE 2: CONTRADICTIONS BREAKDOWN
     # =========================================================================
     ot_cby = results['on_topic_only']['overall_contradiction_biased_yes']
     ot_cbn = results['on_topic_only']['overall_contradiction_biased_no']
@@ -721,10 +698,10 @@ def generate_latex_tables(results: Dict, output_path: str,
     all_cbn_ci = wilson_score_interval(all_cbn, all_papers_n)
     all_cch_ci = wilson_score_interval(all_cch, all_papers_n)
 
-    table3 = f"""
+    table2 = f"""
 \\begin{{table*}}[t]
 \\centering
-\\caption{{Contradiction Types Breakdown. Percentage is shown first; count of classification decisions for each set is in the (parentheses).}}
+\\caption{{Contradiction Types Breakdown. Percentage shown first; count of classification decisions for each set in parentheses. Wilson 95\\% Confidence Intervals in italics.}}
 \\label{{tab:contradictions}}
 \\begin{{tabular*}}{{\\textwidth}}{{@{{\\extracolsep{{\\fill}}}}lccc@{{}}}}
 \\hline
@@ -740,10 +717,10 @@ def generate_latex_tables(results: Dict, output_path: str,
 \\end{{tabular*}}
 \\end{{table*}}
 """
-    tables.append(("Contradictions", table3))
+    tables.append(("Contradictions", table2))
 
     # =========================================================================
-    # TABLE 4: BY RELEVANCE SCORE (ON-TOPIC ONLY)
+    # TABLE 3: BY RELEVANCE SCORE (ON-TOPIC ONLY)
     # =========================================================================
     relevance_keys = [
         ("2--3", "on_topic_relevance_Low_2_3"),
@@ -775,54 +752,54 @@ def generate_latex_tables(results: Dict, output_path: str,
                 'c': '--', 'c_ci': (0.0, 0.0)
             })
 
-    table4 = """
+    table3 = """
 \\begin{table*}[t]
 \\centering
-\\caption{Agreement by Relevance Score (On-Topic Papers Only). Percentage is shown first; count of classification decisions is in the (parentheses).}
+\\caption{Agreement by Relevance Score (On-Topic Papers Only, according to majority vote: at least 2 sets evaluates the paper as on-topic). Percentage shown first; count of classification decisions in parentheses. Wilson 95\\% Confidence Intervals in italics.}
 \\label{tab:by_relevance}
 \\begin{tabular*}{\\textwidth}{@{\\extracolsep{\\fill}}lcccc@{}}
 \\hline
 \\textbf{Relevance Score} & \\textbf{Low (2--3)} & \\textbf{Medium (4--5)} & \\textbf{High (6--7)} & \\textbf{Very High (8--10)} \\\\
 \\hline
 """
-    table4 += "\\textbf{Perfect} "
+    table3 += "\\textbf{Perfect} "
     for d in bin_data:
-        table4 += f"& {d['p']} "
-    table4 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
+        table3 += f"& {d['p']} "
+    table3 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
     for d in bin_data:
-        table4 += f"& \\textit{{\\footnotesize [{d['p_ci'][0]:.2f}\\%, {d['p_ci'][1]:.2f}\\%]}} "
-    table4 += "\\\\[6pt]\n"
+        table3 += f"& \\textit{{\\footnotesize [{d['p_ci'][0]:.2f}\\%, {d['p_ci'][1]:.2f}\\%]}} "
+    table3 += "\\\\[6pt]\n"
 
-    table4 += "\\textbf{Uncertain} "
+    table3 += "\\textbf{Uncertain} "
     for d in bin_data:
-        table4 += f"& {d['u']} "
-    table4 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
+        table3 += f"& {d['u']} "
+    table3 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
     for d in bin_data:
-        table4 += f"& \\textit{{\\footnotesize [{d['u_ci'][0]:.2f}\\%, {d['u_ci'][1]:.2f}\\%]}} "
-    table4 += "\\\\[6pt]\n"
+        table3 += f"& \\textit{{\\footnotesize [{d['u_ci'][0]:.2f}\\%, {d['u_ci'][1]:.2f}\\%]}} "
+    table3 += "\\\\[6pt]\n"
 
-    table4 += "\\textbf{Contradiction} "
+    table3 += "\\textbf{Contradiction} "
     for d in bin_data:
-        table4 += f"& {d['c']} "
-    table4 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
+        table3 += f"& {d['c']} "
+    table3 += "\\\\\n\\quad \\textit{{\\footnotesize 95\\% CI}} "
     for d in bin_data:
-        table4 += f"& \\textit{{\\footnotesize [{d['c_ci'][0]:.2f}\\%, {d['c_ci'][1]:.2f}\\%]}} "
-    table4 += "\\\\\n"
+        table3 += f"& \\textit{{\\footnotesize [{d['c_ci'][0]:.2f}\\%, {d['c_ci'][1]:.2f}\\%]}} "
+    table3 += "\\\\\n"
 
-    table4 += """\\hline
+    table3 += """\\hline
 \\end{tabular*}
 \\end{table*}
 """
-    tables.append(("By Relevance", table4))
+    # tables.append(("By Relevance", table3))
 
     # =========================================================================
-    # TABLE 5: BY CATEGORY (ON-TOPIC ONLY) — now driven by domain config
+    # TABLE 4: BY CATEGORY (ON-TOPIC ONLY) — now driven by domain config
     # =========================================================================
     on_topic = results['on_topic_only']
     field_results = on_topic['field_results']
 
     if not field_results.empty:
-        table5_rows = []
+        table4_rows = []
         for idx, (cat_name, cat_fields) in enumerate(categories):
             cat_df = field_results[field_results['field'].isin(cat_fields)]
             if cat_df.empty:
@@ -838,17 +815,21 @@ def generate_latex_tables(results: Dict, output_path: str,
             cat_contra = (cat_contra_count / cat_n_papers * 100) if cat_n_papers else 0
 
             most_contra = cat_df.loc[cat_df['contradiction_pct'].idxmax()]
-            contra_field = escape_latex_underscores(most_contra['field'])
-
+            
+            # Format the field name to be more readable (e.g. features.bare_pcb_other -> Features > Bare Pcb Other)
+            raw_contra_field = most_contra['field']
+            formatted_contra_field = raw_contra_field.replace('_', ' ').title().replace('.', ' > ')
+            escaped_formatted_contra_field = escape_latex_underscores(formatted_contra_field)
+            
             escaped_cat = escape_latex_underscores(cat_name)
-            table5_rows.append(f"\\textbf{{{escaped_cat}}} & & & \\\\")
+            table4_rows.append(f"\\textbf{{{escaped_cat}}} & & & \\\\")
 
-            table5_rows.append(
+            table4_rows.append(
                 f"\\textbf{{\\quad Overall ({cat_n_papers:,} samples)}} "
                 f"& {cat_perfect_count:,} ({cat_perfect:.2f}\\%) "
                 f"& {cat_uncertain_count:,} ({cat_uncertain:.2f}\\%) "
                 f"& {cat_contra_count:,} ({cat_contra:.2f}\\%) \\\\")
-            table5_rows.append(
+            table4_rows.append(
                 f"\\quad \\textit{{\\footnotesize 95\\% CI}} "
                 f"& \\textit{{\\footnotesize [{wilson_score_interval(cat_perfect_count, cat_n_papers)[0]:.2f}\\%, "
                 f"{wilson_score_interval(cat_perfect_count, cat_n_papers)[1]:.2f}\\%]}} "
@@ -857,14 +838,13 @@ def generate_latex_tables(results: Dict, output_path: str,
                 f"& \\textit{{\\footnotesize [{wilson_score_interval(cat_contra_count, cat_n_papers)[0]:.2f}\\%, "
                 f"{wilson_score_interval(cat_contra_count, cat_n_papers)[1]:.2f}\\%]}} \\\\[6pt]")
 
-            table5_rows.append(
+            table4_rows.append(
                 f"\\textbf{{\\quad Most contradictory: "
-                f"\\texttt{{{contra_field}}} "
-                f"({most_contra['n_papers']:,} samples)}} "
+                f"\\texttt{{{escaped_formatted_contra_field}}}}} "
                 f"& {most_contra['perfect']:,} ({most_contra['perfect_pct']:.2f}\\%) "
                 f"& {most_contra['uncertain']:,} ({most_contra['uncertain_pct']:.2f}\\%) "
                 f"& {most_contra['contradiction']:,} ({most_contra['contradiction_pct']:.2f}\\%) \\\\")
-            table5_rows.append(
+            table4_rows.append(
                 f"\\quad \\textit{{\\footnotesize 95\\% CI}} "
                 f"& \\textit{{\\footnotesize [{most_contra['perfect_ci_lower']:.2f}\\%, "
                 f"{most_contra['perfect_ci_upper']:.2f}\\%]}} "
@@ -874,16 +854,18 @@ def generate_latex_tables(results: Dict, output_path: str,
                 f"{most_contra['contradiction_ci_upper']:.2f}\\%]}} \\\\")
 
             if idx < len(categories) - 1:
-                table5_rows.append("\\midrule")
+                table4_rows.append("\\midrule")
 
         rendered_field_count = sum(len(cf) for _, cf in categories)
         caption_text = (
             f"Agreement by Category (On-Topic Papers Only) -- "
             f"Total classification decisions: {on_topic['n_observations']:,} "
             f"({on_topic['n_papers']:,} papers $\\times$ "
-            f"{rendered_field_count:,} fields).")
+            f"{rendered_field_count:,} fields). "
+            f"Count shown first; percentage in parentheses. Wilson 95\\% Confidence Intervals in italics."
+        )
 
-        table5 = f"""
+        table4 = f"""
 \\begin{{table*}}[t]
 \\centering
 \\caption{{{caption_text}}}
@@ -892,12 +874,12 @@ def generate_latex_tables(results: Dict, output_path: str,
 \\hline
 & \\textbf{{Perfect}} & \\textbf{{Uncertain}} & \\textbf{{Contradiction}} \\\\
 \\hline
-{chr(10).join(table5_rows)}
+{chr(10).join(table4_rows)}
 \\hline
 \\end{{tabular*}}
 \\end{{table*}}
 """
-        tables.append(("By Category", table5))
+        tables.append(("By Category", table4))
 
     # =========================================================================
     # WRITE ALL TABLES
