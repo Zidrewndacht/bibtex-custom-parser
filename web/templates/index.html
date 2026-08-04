@@ -31,9 +31,17 @@
     <script src="{{ url_for('static', filename='js/stats/stats_domain.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/stats/stats_latex.js') }}" defer></script> 
 
-    <script src="{{ url_for('static', filename='js/comms.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/filtering.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/focus_paper.js') }}" defer></script>
+    <!-- Replace the single comms.js line with: -->
+    <script src="{{ url_for('static', filename='js/comms/comms_rendering.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_views.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_save.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_batch.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_files.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='js/filtering/filtering_state.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_engine.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_actions.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_init.js') }}" defer></script>
     
 </head>
 <body>
@@ -105,7 +113,7 @@
                         </div>
                         <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parça</span> - <span style="font-size: 0.667em;">{{ domain_config.domain_name }}</span></div>
                         <div class="header-controls">
-                            <button class="action-btn" id="parça-tools-btn" ><strong>Batch</strong> Tasks</button>
+                            <button class="action-btn" id="parça-tools-btn" ><strong>Batch</strong> Tools</button>
                         </div>
                         <div class="header-controls">
                             <button class="action-btn" id="stats-btn">View <strong>Statistics</strong> <span style="color:#fff8">(F4)</span></button>
@@ -271,7 +279,11 @@
         <div style="width: 100%; text-align: center;">
             <a id="agreement-report-btn" href="/agreement_report" target="_blank"
             title="Open the whole-dataset 3-run agreement report in a new tab">
-                📊 3-Run <strong>Agreement</strong> Report
+                📊 3-Run <strong>Agreement Report</strong> 
+            </a>
+            <a id="queue-logs-btn" href="/queue_logs" target="_blank"
+            title="Open the queue manager log viewer in a new tab">
+                📜 Queue Manager <strong>Log Viewer</strong> 
             </a>
         </div>
     </div>

@@ -68,19 +68,41 @@ def index():
     # Report links carry narrowly-scoped filters: the paper's year as the year
     # range (fast render) and the paper ID as search_query (hides everything
     # else). focus_paper.js then reveals the row, highlights it, and expands
-    # its history. Missing params fall back to permissive defaults.
+    # its history.
+    #
+    # For simple links such as /?focus_paper=<id>, resolve the paper year here
+    # so we do not load the whole table with year range 0-9999.
     focus_paper = request.args.get('focus_paper', '').strip() or None
+    focus_year = None
+
     if focus_paper:
+        try:
+            focus_paper_row = db.get_paper_by_id(focus_paper)
+            if focus_paper_row and focus_paper_row.get('year') is not None:
+                focus_year = int(focus_paper_row['year'])
+        except (TypeError, ValueError):
+            focus_year = None
+
         if hide_offtopic_param is None:
             hide_offtopic_param = '0'
-        if year_from_param is None:
-            year_from_param = '0'
-        if year_to_param is None:
-            year_to_param = '9999'
+
+        if focus_year is not None:
+            if year_from_param is None:
+                year_from_param = str(focus_year)
+
+            if year_to_param is None:
+                year_to_param = str(focus_year)
+        else:
+            # Fallback only if the paper cannot be resolved or has no year.
+            if year_from_param is None:
+                year_from_param = '1800'
+
+            if year_to_param is None:
+                year_to_param = '2038'
+
         if min_page_count_param is None:
             min_page_count_param = '0'
     # ----------------------------------------------------------------------
-
     papers_table_content = render_papers_table(
         hide_offtopic_param=hide_offtopic_param,
         year_from_param=year_from_param,

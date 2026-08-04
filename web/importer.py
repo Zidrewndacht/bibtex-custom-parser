@@ -2,8 +2,9 @@
 # v1.2
 # Importer for the v1.2 PCB inspection papers database.
 # Assumes the v1.2 database schema already exists.
+# wait, is this still for v1.2?! Apparently it's already v1.4 and this comment is stale.
+
 import sqlite3
-import json
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.customization import homogenize_latex_encoding

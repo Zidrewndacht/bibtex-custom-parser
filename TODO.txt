@@ -233,8 +233,7 @@ OK              Getting rid of server-side stats and search already reduced it a
                         'sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 34640 and this is thread id 16976.'
                 Moving helpers away is fine, but there aren't many.
 
-        Refactor comms.js
-                Works fine, just need some better mantainability. Low priority.
+OK      Refactor comms.js. Works fine, just need some better mantainability. Low priority.
 
 OK      Add agentic classification: Re-classify misclassifications (score <=6 starting from empty/worst) automatically until consensus. Agent prompt template should include full classification, classifier trace, verifier trace, user trace and should explains an imperfect verifier verified the imperfect classification (so it's not guaranteed that the verifier is correct in saying it was misclassified to start with).
 OK              ThreadPool all misclassifications through this same prompt, them after everything completes, run a new, "normal" verify remaining step (which will take all just re-classified papers), and a new re-classify misclassifications with whatever is still left as misclassified, until there's full consensus or user abort.
@@ -304,7 +303,7 @@ OK      Convert HTML comments to Jinja2 server-side comments
 
 OK      Update prompt templates: fixed base + dynamic domain-specific parts.
 
-        Add a viewer for queue manager logs (how/where?)
+OK      Add a viewer for queue manager logs
 
 OK      Add a viewer for meta-stats (3run stats)
 OK              Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?

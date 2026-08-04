@@ -214,7 +214,13 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
     stats_domain_js = read_static('js/stats/stats_domain.js')
     stats_latex_js = read_static('js/stats/stats_latex.js')
     
-    filtering_js = read_static('js/filtering.js')
+    # AFTER
+    filtering_js = (
+        read_static('js/filtering/filtering_state.js') + '\n' +
+        read_static('js/filtering/filtering_engine.js') + '\n' +
+        read_static('js/filtering/filtering_actions.js') + '\n' +
+        read_static('js/filtering/filtering_init.js')
+    )
     ghpages_js = read_static('js/ghpages.js') or read_static('ghpages.js')
 
     # Minify JS

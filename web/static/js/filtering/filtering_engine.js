@@ -1,135 +1,6 @@
-// static/filtering.js
-/** This file contains client-side filtering code, shared between server-based full page and client-only HTML export. */
-
-const APP_CONFIG = window.APP_CONFIG || { groups: [], editable_fields: [] };
-
-// Hardcoded baseline cell indices (Leading 6 columns are fixed)
-const pdfCellIndex = 0;
-const titleCellIndex = 1;
-const yearCellIndex = 2;
-const pageCountCellIndex = 3;
-const journalCellIndex = 4;
-const typeCellIndex = 5;
-const relevanceCellIndex = 7; // Leading 6 + Off-topic (6) = Relevance (7)
-
-const searchInput = document.getElementById('search-input');
-const hideOfftopicCheckbox = document.getElementById('hide-offtopic-checkbox');
-const hideApprovedCheckbox = document.getElementById('hide-approved-checkbox');
-
-let filterTimeoutId = null;
-const FILTER_DEBOUNCE_DELAY = 250;
-const MAX_STORED_OPEN_DETAILS = 10;
-const headers = document.querySelectorAll('th[data-sort]');
-let currentClientSort = { column: null, direction: 'ASC' };
-
-let searchRegex = null;
-let searchTerms = [];
-
-const SYMBOL_SORT_WEIGHTS = {
-    '✔️': 2,
-    '❌': 1,
-    '❔': 0
-};
-
-const SYMBOL_PDF_WEIGHTS = {
-    '📗': 3, // Annotated
-    '📕': 2, // PDF
-    '❔': 1,  // None
-    '💰': 0 // Paywalled
-};
-
-// Define weights for 'verified_by' symbols specifically
-// Using the values from comms.js VERIFIED_BY_CYCLE logic or a direct mapping
-// Assuming 👤 (User) > ❔ (Unverified) > 🖥️ (Model) based on typical verification status priority
-// Adjust the numbers if a different priority is desired.
-const VERIFIED_BY_SORT_WEIGHTS = {
-    '👤': 2, // User
-    '❔': 1, // Unverified (or Unknown)
-    '🖥️': 0  // Model (Computer)
-};
-
-// Cache frequently accessed elements
-const tbody = document.querySelector('#papersTable tbody');
-const duplicateCountElement = document.getElementById('duplicate-papers-count');
-const rowCache = new WeakMap();
-
-// Helper to safely traverse nested JSON paths
-function getJsonPath(obj, path) {
-    if (!obj || !path) return null;
-    return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : null), obj);
-}
-
-// ============================================================================
-// DYNAMIC FILTER CONFIGURATION (Built from YAML via APP_CONFIG)
-// ============================================================================
-const TRI_STATE_FILTERS = {};
-const INCLUSION_FILTERS = {};
-const ALL_INCLUSION_FIELDS = [];
-
-APP_CONFIG.groups.forEach(group => {
-    if (group.filter_type === 'tri_state') {
-        TRI_STATE_FILTERS[group.name] = {
-            field: group.json_path,
-            cacheKey: `${group.name}Status`,
-            label: group.label || group.friendly_name || group.name
-        };
-    } else if (group.filter_type === 'inclusion') {
-        const fields = group.fields.map(f => `${group.json_path}.${f.key}`);
-        INCLUSION_FILTERS[group.name] = fields;
-        ALL_INCLUSION_FIELDS.push(...fields);
-    }
-});
-
-const triStateFilterStates = {};
-Object.keys(TRI_STATE_FILTERS).forEach(k => triStateFilterStates[k] = 'all');
-
-const inclusionFilterStates = {};
-Object.keys(INCLUSION_FILTERS).forEach(k => inclusionFilterStates[k] = false);
-
-function updateTriStateUI(filterKey) {
-    const checkbox = document.querySelector(`.tri-state-checkbox[data-filter-group="${filterKey}"]`);
-    if (!checkbox) return;
-    const state = triStateFilterStates[filterKey];
-    const label = TRI_STATE_FILTERS[filterKey].label;
-    checkbox.classList.remove('tri-state-indeterminate');
-    switch(state) {
-        case 'all':
-            checkbox.checked = false;
-            checkbox.indeterminate = false;
-            checkbox.title = `Currently showing all papers. Click to show only ${label}.`;
-            break;
-        case 'only_true':
-            checkbox.checked = true;
-            checkbox.indeterminate = false;
-            checkbox.title = `Currently showing only ${label} papers. Click to show only non-${label}.`;
-            break;
-        case 'only_false':
-            checkbox.checked = false;
-            checkbox.indeterminate = true;
-            checkbox.title = `Currently showing only non-${label} papers. Click to show all papers.`;
-            break;
-    }
-}
-
-function cycleTriStateFilter(filterKey) {
-    const states = ['all', 'only_true', 'only_false'];
-    const current = triStateFilterStates[filterKey];
-    triStateFilterStates[filterKey] = states[(states.indexOf(current) + 1) % 3];
-    updateTriStateUI(filterKey);
-    applyLocalFilters();
-}
-
-function updateInclusionUI(filterKey) {
-    const checkbox = document.querySelector(`.inclusion-checkbox[data-filter-group="${filterKey}"]`);
-    if (!checkbox) return;
-    checkbox.checked = inclusionFilterStates[filterKey];
-}
-
-function toggleInclusionFilter(filterKey) {
-    inclusionFilterStates[filterKey] = !inclusionFilterStates[filterKey];
-    updateInclusionUI(filterKey);
-    applyLocalFilters();
-}
+// static/js/filtering_engine.js
+/** Core filtering, sorting, shading, and row-expansion pipeline.
+ *  Shared between server-based full page and client-only HTML export. */
 
 /**
  * Applies alternating row shading to visible main rows.
@@ -157,10 +28,7 @@ function applyAlternatingShading() {
         idx++;
     }
 }
-/**
- * Optimized duplicate shading using cached data and batch operations
- */
-// Corrected version assuming 'rows' passed are the visible ones:
+
 /**
  * Optimized duplicate shading using cached data and batch operations
  * @param {NodeList} visibleRows - The list of rows currently visible after filtering.
@@ -180,6 +48,7 @@ function applyDuplicateShading(visibleRows) {
             if (cachedData.titleText) titleCounts.set(cachedData.titleText, (titleCounts.get(cachedData.titleText) || 0) + 1);
         }
     }
+
     // Count duplicate titles (only titles with 2 or more occurrences)
     let duplicateTitleCount = 0;
     for (const [title, count] of titleCounts) { if (title && count >= 2) duplicateTitleCount++; }
@@ -190,6 +59,7 @@ function applyDuplicateShading(visibleRows) {
 
     const baseJournalHue = 210, baseSaturation = 66, minLightness = 96, maxLightness = 84;
     const baseTitleHue = 0, titleSaturation = 66, titleLightness = 94;
+
     const journalHslStrings = new Map();
     for (const [journalName, count] of journalCounts) {
         if (count >= 2) {
@@ -198,6 +68,7 @@ function applyDuplicateShading(visibleRows) {
             journalHslStrings.set(journalName, `hsl(${baseJournalHue}, ${baseSaturation}%, ${lightness}%)`);
         }
     }
+
     // Pre-calculate HSL string for titles
     const duplicateTitleHslString = `hsl(${baseTitleHue}, ${titleSaturation}%, ${titleLightness}%)`;
 
@@ -223,52 +94,28 @@ function compileSearchRegex(searchTerm) {
     return new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 }
 
-function getClientFilterState() {
-    const state = {
-        hide_approved: hideApprovedCheckbox.checked ? 1 : 0,
-        hide_offtopic: hideOfftopicCheckbox.checked ? 1 : 0,
-        search: searchInput.value.trim(),
-        sort_by: currentClientSort.column || '',
-        sort_dir: currentClientSort.direction || 'ASC'
-    };
-    Object.keys(triStateFilterStates).forEach(k => state[`${k}_filter`] = triStateFilterStates[k]);
-    Object.keys(inclusionFilterStates).forEach(k => state[`show_${k}`] = inclusionFilterStates[k] ? 1 : 0);
-    return state;
-}
-
-let urlUpdateTimeout;
-function updateUrlWithClientFilters() {
-    clearTimeout(urlUpdateTimeout);
-    urlUpdateTimeout = setTimeout(() => {
-        const url = new URL(window.location);
-        const clientFilters = getClientFilterState();
-        // Always include everything: '1', '0', 'all', search string, etc.
-        // This is important because some checkboxes are default on, other default off, etc.
-        for (const [key, value] of Object.entries(clientFilters)) url.searchParams.set(key, String(value));
-        window.history.replaceState({}, '', url);
-    }, 100);
-}
-
 let rafId = 0;
 let currentFilterAbortController = null;
 
 function applyLocalFilters() {
     // Cancel any ongoing filter operation
     if (currentFilterAbortController) currentFilterAbortController.abort();
+
     // Create a new abort controller for this operation
     currentFilterAbortController = new AbortController();
     const signal = currentFilterAbortController.signal;
+
     clearTimeout(filterTimeoutId);
     document.documentElement.classList.add('busyCursor');
     cancelAnimationFrame(rafId);
-    
+
     filterTimeoutId = setTimeout(() => {
         // Check if operation was cancelled
         if (signal.aborted) return;
 
         // --- Pre-cache data for all rows to avoid repeated DOM queries ---
         const rows = tbody.querySelectorAll('tr[data-paper-id]');
-        
+
         // Pre-calculate filter values outside the loop
         const hideApprovedChecked = hideApprovedCheckbox.checked;
         const hideOfftopicChecked = document.body.id === 'html-export' ? hideOfftopicCheckbox.checked : false;
@@ -277,7 +124,6 @@ function applyLocalFilters() {
         const yearToValue = document.body.id === 'html-export' ? (document.getElementById('year-to').value.trim() || 0) : 0;
         const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
         const compiledSearchRegex = compileSearchRegex(searchTerm);
-
         const activeInclusionGroups = Object.keys(inclusionFilterStates).filter(k => inclusionFilterStates[k]);
 
         // --- Cache data for all rows in a single pass ---
@@ -315,6 +161,7 @@ function applyLocalFilters() {
 
             const offtopicCell = row.querySelector('[data-field="is_offtopic"]');
             cachedData.offtopicStatus = offtopicCell ? offtopicCell.textContent.trim() : 'N/A';
+
             const verifiedCell = row.querySelector('[data-field="verified"]');
             cachedData.verifiedStatus = verifiedCell ? verifiedCell.textContent.trim() : 'N/A';
 
@@ -327,6 +174,7 @@ function applyLocalFilters() {
                 if (!row.cells[j].classList.contains('hidden-data-cell')) visibleRowText += ' ' + row.cells[j].textContent.toLowerCase();
             }
             cachedData.visibleRowText = visibleRowText;
+
             rowCache.set(row, cachedData);
         }
 
@@ -378,7 +226,7 @@ function applyLocalFilters() {
 
             const detailRow = row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row') ? row.nextElementSibling : null;
             const historyRow = detailRow && detailRow.nextElementSibling && detailRow.nextElementSibling.classList.contains('history-row') ? detailRow.nextElementSibling : null;
-            
+
             const hide = !showRow;
             if (row.classList.contains('filter-hidden') !== hide) (hide ? toHide : toShow).push(row);
             if (detailRow && detailRow.classList.contains('filter-hidden') !== hide) (hide ? toHide : toShow).push(detailRow);
@@ -390,18 +238,21 @@ function applyLocalFilters() {
 
         rafId = requestAnimationFrame(() => {
             if (signal.aborted) return;
+
             if (document.body.id !== 'html-export') {
                 const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
                 applyDuplicateShading(visibleRows);
                 const applyButton = document.getElementById('apply-serverside-filters');
                 if(applyButton) { applyButton.style.opacity = '0'; applyButton.style.pointerEvents = 'none'; }
             }
+
             if (currentClientSort.column) performSort(currentClientSort.column, currentClientSort.direction);
             updateUrlWithClientFilters();
             applyAlternatingShading();
             updateCounts();
             restoreDetailState();
             document.documentElement.classList.remove('busyCursor');
+
             if (currentFilterAbortController?.signal === signal) currentFilterAbortController = null;
         });
     }, FILTER_DEBOUNCE_DELAY);
@@ -448,9 +299,11 @@ function performSort(sortBy, direction, visibleMainRows = null) {
 
         const detailRow = mainRow.nextElementSibling && mainRow.nextElementSibling.classList.contains('detail-row') ? mainRow.nextElementSibling : null;
         const historyRow = detailRow && detailRow.nextElementSibling && detailRow.nextElementSibling.classList.contains('history-row') ? detailRow.nextElementSibling : null;
+
         const rowGroup = [mainRow];
         if (detailRow) rowGroup.push(detailRow);
         if (historyRow) rowGroup.push(historyRow);
+
         return { value: cellValue, rowGroup, paperId: mainRow.getAttribute('data-paper-id') };
     });
 
@@ -503,41 +356,6 @@ function sortTable() {
     }, 50);
 }
 
-function initializeClientFilters() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('hide_approved') === '1') hideApprovedCheckbox.checked = true;
-    if (urlParams.get('hide_offtopic') === '1') hideOfftopicCheckbox.checked = true;
-    const searchValueFromUrl = urlParams.get('search');
-    if (searchValueFromUrl !== null) searchInput.value = searchValueFromUrl;
-    const openDetailsParam = urlParams.get('open_details');
-    openDetailIds = new Set(openDetailsParam ? openDetailsParam.split(',').map(id => id.trim()).filter(id => id !== '').slice(0, MAX_STORED_OPEN_DETAILS) : []);
-    const openHistoryParam = urlParams.get('open_history');
-    openHistoryIds = new Set(openHistoryParam ? openHistoryParam.split(',').map(id => id.trim()).filter(id => id !== '').slice(0, MAX_STORED_OPEN_DETAILS) : []);
-    for (const key of Object.keys(TRI_STATE_FILTERS)) {
-        const paramVal = urlParams.get(`${key}_filter`);
-        if (['all', 'only_true', 'only_false'].includes(paramVal)) triStateFilterStates[key] = paramVal;
-        updateTriStateUI(key);
-    }
-    for (const key of Object.keys(INCLUSION_FILTERS)) {
-        const paramVal = urlParams.get(`show_${key}`);
-        if (paramVal === '1') inclusionFilterStates[key] = true;
-        updateInclusionUI(key);
-    }
-    const sortColumnFromUrl = urlParams.get('sort_by');
-    const sortDirectionFromUrl = urlParams.get('sort_dir');
-    if (sortColumnFromUrl) {
-        currentClientSort = { column: sortColumnFromUrl, direction: sortDirectionFromUrl === 'DESC' ? 'DESC' : 'ASC' };
-        const sortHeader = document.querySelector(`th[data-sort="${currentClientSort.column}"]`);
-        if (sortHeader) {
-            const indicator = sortHeader.querySelector('.sort-indicator');
-            if (indicator) indicator.textContent = currentClientSort.direction === 'ASC' ? '▲' : '▼';
-        }
-    } else {
-        currentClientSort = { column: null, direction: 'ASC' };
-    }
-    updateUrlWithClientFilters();
-}
-
 let openDetailIds = new Set();
 let openHistoryIds = new Set();
 let detailStateUpdateTimeout = null;
@@ -549,11 +367,9 @@ function updateUrlWithDetailState() {
         const sortedDetailIds = [...openDetailIds].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).slice(0, MAX_STORED_OPEN_DETAILS);
         if (sortedDetailIds.length > 0) url.searchParams.set('open_details', sortedDetailIds.join(','));
         else url.searchParams.delete('open_details');
-        
         const sortedHistoryIds = [...openHistoryIds].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)).slice(0, MAX_STORED_OPEN_DETAILS);
         if (sortedHistoryIds.length > 0) url.searchParams.set('open_history', sortedHistoryIds.join(','));
         else url.searchParams.delete('open_history');
-        
         window.history.replaceState({}, '', url);
     }, 100);
 }
@@ -576,7 +392,6 @@ function restoreDetailState() {
     });
 }
 
-
 /**
  * Switches between history tabs (Main, Set 1, Set 2, Set 3)
  * Pure client-side - no server communication needed
@@ -586,6 +401,7 @@ function switchHistoryTab(tabButton) {
     const paperId = tabButton.getAttribute('data-paper-id');
     const selectedTab = tabButton.getAttribute('data-tab');
     const historyRow = tabButton.closest('.history-flex-container');
+
     if (!historyRow) {
         console.error(`History container not found for paper ${paperId}`);
         return;
@@ -610,186 +426,3 @@ function switchHistoryTab(tabButton) {
         selectedPanel.classList.add('active');
     }
 }
-
-/**
- * Copies the provided paper ID to the clipboard in the specified format.
- */
-function copyPaperId(paperId, buttonElement, format = 'raw') {
-    if (!paperId) {
-        console.warn('Paper ID is empty or undefined.');
-        alert('Paper ID is empty and cannot be copied.');
-        return;
-    }
-    const originalText = buttonElement.innerHTML;
-    buttonElement.innerHTML = 'Copied!';
-    let textToCopy = paperId;
-    if (format === 'cite') {
-        textToCopy = `\\cite{${paperId}}`;
-    } else if (format === 'citen') {
-        textToCopy = `\\citen{${paperId}}`;
-    }
-    navigator.clipboard.writeText(textToCopy)
-        .then(() => {
-            setTimeout(() => { buttonElement.innerHTML = originalText; }, 2000);
-        })
-        .catch(err => {
-            console.error(`Failed to copy: `, err);
-            alert(`Failed to copy to clipboard.`);
-            buttonElement.innerHTML = originalText;
-        });
-}
-
-/**
- * Copies the provided BibTeX string to the clipboard.
- */
-function copyBibtex(bibtexString, buttonElement) {
-    if (bibtexString) {
-        const originalText = buttonElement.textContent;
-        buttonElement.textContent = 'Copied!';
-        navigator.clipboard.writeText(bibtexString)
-            .then(() => {
-                setTimeout(() => { buttonElement.textContent = originalText; }, 2000);
-            })
-            .catch(err => {
-                console.error('Failed to copy BibTeX: ', err);
-                alert('Failed to copy BibTeX to clipboard.');
-                buttonElement.textContent = originalText;
-            });
-    } else {
-        console.warn('BibTeX content is empty.');
-        alert('BibTeX content is empty and cannot be copied.');
-    }
-}
-
-/**
- * Generates a LaTeX longtable based on the currently visible (filtered) rows.
- */
-function copyLatexLongtable() {
-    const buttonElement = document.getElementById('longtable-btn');
-    if (!buttonElement) {
-        console.error("Button #longtable-btn not found.");
-        alert('Error: Could not find the LaTeX copy button.');
-        return;
-    }
-    const originalText = buttonElement.innerHTML; 
-    const rows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
-    if (rows.length === 0) {
-        alert('No visible rows found to generate LaTeX table.');
-        buttonElement.innerHTML = originalText;
-        return;
-    }
-    let latexContent = `
-% Ensure packages are loaded in your preamble:
-% \\usepackage{longtable}
-% \\usepackage{xcolor}
-% \\usepackage{pdflscape} % For landscape pages
-% \\usepackage[margin=1.5cm]{geometry} % Set smaller margins for the table area
-\\begin{landscape} % Start landscape environment
-% ----------------------------------------------------------
-\\chapter{Lista completa de artigos julgados como relevantes através do ResearchParça}
-% ----------------------------------------------------------
-\\definecolor{tableshade}{HTML}{EEEEEE}
-\\scriptsize % Use smaller font to fit more data
-\\begin{longtable}{p{2cm}p{8cm}p{5cm}c c p{6cm}}
-\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
-\\hline % Line only under the header row
-\\endfirsthead
-\\multicolumn{6}{c}{{\\bfseries \\tablename\\ \\thetable{} -- continuação dá página anterior}} \\\\
-\\rowcolor{tableshade}
-\\textbf{Tipo} & \\textbf{Título} & \\textbf{Autores} & \\textbf{Ano} & \\textbf{Páginas} & \\textbf{Periódico/Conferência} \\\\
-\\hline % Line only under the header row on subsequent pages
-\\endhead
-\\hline % Line before the footer
-\\multicolumn{6}{|r|}{{Continua na próxima página}} \\\\
-\\hline % Line after the footer text
-\\endfoot
-\\hline % Line before the last footer
-\\endlastfoot
-`; 
-    rows.forEach((row, index) => { 
-        const typeCell = row.cells[typeCellIndex]; 
-        const typeTitle = typeCell ? typeCell.getAttribute('title') || typeCell.textContent.trim() : '';
-        const titleCell = row.cells[titleCellIndex];
-        const titleText = titleCell ? titleCell.textContent.trim() : ''; 
-        const authorsCell = row.querySelector('td.hidden-data-cell[data-field="authors"]');
-        const authorsText = authorsCell ? authorsCell.textContent.trim() : '';
-        const yearCell = row.cells[yearCellIndex];
-        const yearText = yearCell ? yearCell.textContent.trim() : '';
-        const pageCountCell = row.cells[pageCountCellIndex];
-        const pageCountText = pageCountCell ? pageCountCell.textContent.trim() : '';
-        const venueCell = row.cells[journalCellIndex];
-        const venueText = venueCell ? venueCell.textContent.trim() : '';
-        
-        const sanitizeForLatex = (str) => typeof str !== 'string' ? String(str) : str;
-        
-        const type = sanitizeForLatex(typeTitle);
-        const title = sanitizeForLatex(titleText);
-        const authors = sanitizeForLatex(authorsText);
-        const year = sanitizeForLatex(yearText);
-        const pages = sanitizeForLatex(pageCountText);
-        const venue = sanitizeForLatex(venueText);
-        
-        const rowColor = (index % 2 === 0) ? '' : '\\rowcolor{tableshade} '; 
-        latexContent += `${rowColor}${type} & ${title} & ${authors} & ${year} & ${pages} & ${venue} \\\\ \n`; 
-    });
-    latexContent += `\\hline \n`;
-    latexContent += `\\end{longtable}\n\\end{landscape} \n`;
-    
-    navigator.clipboard.writeText(latexContent)
-        .then(() => {
-            buttonElement.innerHTML = 'Copied!';
-            setTimeout(() => { buttonElement.innerHTML = originalText; }, 2000);
-        })
-        .catch(err => {
-            console.error('Failed to copy LaTeX table: ', err);
-            alert('Failed to copy LaTeX table to clipboard.');
-            buttonElement.innerHTML = originalText;
-        });
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    initializeClientFilters();
-    
-    hideApprovedCheckbox.addEventListener('change', applyLocalFilters);
-    
-    document.querySelectorAll('.tri-state-checkbox').forEach(cb => {
-        const group = cb.getAttribute('data-filter-group');
-        cb.addEventListener('click', () => cycleTriStateFilter(group));
-    });
-    
-    document.querySelectorAll('.inclusion-checkbox').forEach(cb => {
-        const group = cb.getAttribute('data-filter-group');
-        cb.addEventListener('change', () => toggleInclusionFilter(group));
-    });
-
-    searchInput.addEventListener('input', () => {
-        clearTimeout(filterTimeoutId);
-        document.documentElement.classList.add('busyCursor');
-        if (currentFilterAbortController) currentFilterAbortController.abort();
-        currentFilterAbortController = new AbortController();
-        filterTimeoutId = setTimeout(() => {
-            if (currentFilterAbortController.signal.aborted) return;
-            applyLocalFilters();
-        }, 150);
-    });
-    
-    document.getElementById('clear-search-btn').addEventListener('click', function() {
-        searchInput.value = '';
-        searchInput.dispatchEvent(new Event('input'));
-    });
-    
-    headers.forEach(header => header.addEventListener('click', sortTable));
-    
-    // RESTORED: Event delegation for history tab switching
-    document.addEventListener('click', function(event) {
-        const tabButton = event.target.closest('.history-tab-btn');
-        if (tabButton) {
-            switchHistoryTab(tabButton);
-        }
-    });
-
-    // RESTORED: Event listener for LaTeX longtable button
-    document.getElementById('longtable-btn')?.addEventListener('click', copyLatexLongtable);
-
-    applyLocalFilters();
-});

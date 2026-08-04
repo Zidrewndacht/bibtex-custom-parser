@@ -1,0 +1,93 @@
+{#<!-- templates/queue_logs.html -->#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Queue Logs - ResearchParça</title>
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📜</text></svg>">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/queue_logs.css') }}">
+
+    {#<!-- Inject Dynamic Theme Overrides -->#}
+    {% if domain_config.theme_css %}
+    <style>
+        {{ domain_config.theme_css | safe }}
+    </style>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/queue_logs.js') }}" defer></script>
+</head>
+<body class="queue-logs-body">
+    <div id="queue-logs-page" data-queue-manager-url="{{ queue_manager_url }}">
+
+        <div class="queue-toolbar">
+            <div class="toolbar-group">
+                <button style="display:none" id="refresh-btn" class="action-btn toolbar-btn" type="button" title="Reload current view">
+                    Refresh
+                </button>
+
+                <label class="toolbar-checkbox" title="Reload the current view every 5 seconds">
+                    <input type="checkbox" id="auto-refresh">
+                    Auto Refresh
+                </label>
+
+                <select id="tail-select" class="toolbar-select" title="Number of trailing lines fetched from the server">
+                    <option value="1000">Last 1,000 lines</option>
+                    <option value="5000" selected>Last 5,000 lines</option>
+                    <option value="20000">Last 20,000 lines</option>
+                    <option value="0">Whole file</option>
+                </select>
+
+                <select id="limit-select" class="toolbar-select" title="Number of rows rendered in the table">
+                    <option value="250">Render 250 rows</option>
+                    <option value="1000" selected>Render 1,000 rows</option>
+                    <option value="5000">Render 5,000 rows</option>
+                    <option value="0">Render all rows</option>
+                </select>
+
+                <input type="search" id="log-search" placeholder="Filter displayed lines...">
+            </div>
+
+            <div class="header-branding queue-branding">
+                <span>Research</span><span class="branding-strong">Parça</span>
+                <span class="branding-suffix">Queue Logs</span>
+            </div>
+
+            <div class="toolbar-group toolbar-right">
+                <span id="log-source" class="toolbar-note" title="Current source file"></span><br>
+                <span id="log-count" class="toolbar-note" title="Filtered / total lines"></span>
+
+                <a style="display:none" id="download-link" class="action-btn toolbar-btn" href="#" download title="Download current source file">
+                    Download
+                </a>
+
+                <a style="display:none" class="action-btn toolbar-btn" href="/" target="_blank" rel="noopener">
+                    Main UI
+                </a>
+            </div>
+        </div>
+
+        <div class="queue-workspace">
+            <nav id="log-view-tabs" class="queue-tabs-nav" aria-label="Log views"></nav>
+
+            <div class="queue-content">
+                <div id="log-status" class="queue-status"></div>
+
+                <div id="log-table-wrapper">
+                    <table id="log-table" class="plain">
+                        <thead>
+                            <tr id="log-table-head"></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

@@ -1726,8 +1726,8 @@ li {
 /* ==========================================================================
    Agreement Report: batch-modal entry point + deep-link row highlight
    ========================================================================== */
-
-#agreement-report-btn {
+#agreement-report-btn,
+#queue-logs-btn {
     display: inline-block;
     /*! background-color: var(--light-colored-btn-color); */
     /*! color: var(--light-colored-btn-text); */
@@ -1742,8 +1742,14 @@ li {
     width: 100%;
     box-sizing: border-box;
 }
-#agreement-report-btn:hover { filter: saturate(200%) contrast(110%); }
-#agreement-report-btn:active {
+
+#agreement-report-btn:hover,
+#queue-logs-btn:hover {
+    filter: saturate(200%) contrast(110%);
+}
+
+#agreement-report-btn:active,
+#queue-logs-btn:active {
     transform: translateY(1px);
     filter: contrast(1.2) brightness(.8);
     transition: all .1s ease;
@@ -1758,3 +1764,4 @@ li {
 tr.focus-highlight > td {
     animation: focus-pulse 1.2s ease-in-out 2;
 }
+
