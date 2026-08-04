@@ -1721,3 +1721,40 @@ li {
     }  */
 
 }
+
+
+/* ==========================================================================
+   Agreement Report: batch-modal entry point + deep-link row highlight
+   ========================================================================== */
+
+#agreement-report-btn {
+    display: inline-block;
+    /*! background-color: var(--light-colored-btn-color); */
+    /*! color: var(--light-colored-btn-text); */
+    /*! border-radius: 4px; */
+    /*! cursor: pointer; */
+    /*! transition: all .33s ease; */
+    /*! box-shadow: 0 1px 2px rgba(64, 64, 64, .1); */
+    /*! text-shadow: var(--light-shadow); */
+    /*! border: 1px solid #0002; */
+    padding: 9px 16px;
+    font-size: 10pt;
+    width: 100%;
+    box-sizing: border-box;
+}
+#agreement-report-btn:hover { filter: saturate(200%) contrast(110%); }
+#agreement-report-btn:active {
+    transform: translateY(1px);
+    filter: contrast(1.2) brightness(.8);
+    transition: all .1s ease;
+}
+
+/* Pulsing highlight applied by focus_paper.js when an outlier link in the
+   agreement report focuses a paper row in this window. */
+@keyframes focus-pulse {
+    0%, 100% { background-color: rgba(255, 213, 79, 0); }
+    50%      { background-color: rgba(255, 213, 79, 0.65); }
+}
+tr.focus-highlight > td {
+    animation: focus-pulse 1.2s ease-in-out 2;
+}

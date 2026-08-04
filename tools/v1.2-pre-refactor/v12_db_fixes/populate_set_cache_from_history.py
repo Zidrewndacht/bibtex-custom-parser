@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 populate_set_cache_from_history.py
 

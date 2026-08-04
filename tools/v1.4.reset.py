@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 ResearchParça Database Reset Script (v1.4 Domain-Agnostic)
 

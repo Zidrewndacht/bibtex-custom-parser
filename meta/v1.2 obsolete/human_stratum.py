@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # prune_for_sanity_check.py
 # Standalone script for ResearchParça v1.2
 import sqlite3

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Standalone migration script to convert a ResearchParça v1.2 (PCB AOI) SQLite database
 to the v1.4 domain-agnostic schema.

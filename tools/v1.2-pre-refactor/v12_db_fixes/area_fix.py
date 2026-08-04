@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 migrate_research_area_fields.py
 

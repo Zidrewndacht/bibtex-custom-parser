@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 invalidate_bogus_log_entries.py
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # fix_paper_types_simple.py
 # Simple script to fix paper types - direct approach
 

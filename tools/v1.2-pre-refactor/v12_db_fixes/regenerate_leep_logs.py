@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 regenerate_main_averages.py
 

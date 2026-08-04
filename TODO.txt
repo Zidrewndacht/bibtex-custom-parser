@@ -299,15 +299,16 @@ OK      Convert HTML comments to Jinja2 server-side comments
                 Automatic group together synonym keywords
                 Potential tools: 
                         PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
+                                might as well just go for PDF full text at this point nowadays instead.
                                 ...?
 
 OK      Update prompt templates: fixed base + dynamic domain-specific parts.
 
         Add a viewer for queue manager logs (how/where?)
 
-        Add a viewer for meta-stats (3run stats)
-                Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?
-                Human compare wouldn't make much sense as it needs 2 separate DBs.
+OK      Add a viewer for meta-stats (3run stats)
+OK              Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?
+                      Human compare wouldn't make much sense as it needs 2 separate DBs.
 
         Add sequential onboarding with LLM usage for prompted domain_config creation?
                 Use a complete separate Flask app -- avoids unnecessary changes to perfectly working webapp for something used rarely.
@@ -320,4 +321,7 @@ OK      Update prompt templates: fixed base + dynamic domain-specific parts.
                 Apply (autostarts main process, which itself finds DB is missing, creates it and shows the table with the placeholder article and import buttons)
                 Maybe use a curated list of color schemes instead of generated ones?
 
-        Add optional stats page layout with no domain-specific fields (RP-Lite based?).
+        Add optional stats page layout with no domain-specific fields (RP-Lite based?) + enable/disable option in domain_config.yaml
+
+        Add a button in history for agent trace review report: reads the complete log stream (from oldest to newest per set) from all sets and reports issues/explains conflicts across sets, etc.
+                Adds a colored entry in the main log with the report but does NOT recalculates main set.

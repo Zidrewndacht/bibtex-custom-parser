@@ -5,6 +5,7 @@ from . import filters
 from .routes_ui import ui_bp
 from .routes_data import data_bp
 from .routes_files import files_bp
+from .routes_agreement import agreement_bp 
 
 def create_web_app(db_path):
     app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -25,5 +26,6 @@ def create_web_app(db_path):
     app.register_blueprint(ui_bp)
     app.register_blueprint(data_bp)
     app.register_blueprint(files_bp)
+    app.register_blueprint(agreement_bp) 
 
     return app

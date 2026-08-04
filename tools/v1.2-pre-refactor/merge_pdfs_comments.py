@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 merge_pdfs_comments.py
 Safely merges pdf_filename, pdf_state, and user_trace from a source database 

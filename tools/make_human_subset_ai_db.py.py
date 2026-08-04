@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 oneoff_make_human_subset_ai_db.py
 

@@ -22,5 +22,5 @@ min_concurrent_workers: 70
 
 
 # Consensus limits:
-max_consensus_iterations: 15
-fresh_classify_fallback_iteration: 8
+max_consensus_iterations: 8
+fresh_classify_fallback_iteration: 4

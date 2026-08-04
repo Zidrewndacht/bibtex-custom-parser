@@ -22,7 +22,9 @@
     <script>
         window.APP_CONFIG = {{ domain_config | tojson | safe }};
     </script>
-
+    <script>
+        window.FOCUS_PAPER_ID = {{ focus_paper | tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/stats/stats_core.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/stats/stats_generic.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/stats/stats_charts.js') }}" defer></script>
@@ -31,6 +33,7 @@
 
     <script src="{{ url_for('static', filename='js/comms.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/filtering.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/focus_paper.js') }}" defer></script>
     
 </head>
 <body>
@@ -263,7 +266,14 @@
         </div>
         <span class="menu-message" id="batch-status-message">These tools stay running in background after being called. Reload the webpage after a while to see updated results.
             <br><br> For actions on single papers, user the buttons in the corresponding paper's detail pane instead.
+            <br><br> You may check the agreement report below after the complete dataset is classified to consensus to assess the classification consistency and surface possible problems.
         </span> 
+        <div style="width: 100%; text-align: center;">
+            <a id="agreement-report-btn" href="/agreement_report" target="_blank"
+            title="Open the whole-dataset 3-run agreement report in a new tab">
+                📊 3-Run <strong>Agreement</strong> Report
+            </a>
+        </div>
     </div>
 </div>
 

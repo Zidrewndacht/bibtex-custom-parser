@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Flatten a source code folder into a single markdown/txt file with syntax highlighting.
 Useful for NotebookLM import
@@ -312,21 +311,27 @@ def main():
     # Updated to reflect the new folder structure (modules, web/static, web/templates, etc.)
     FILE_LIST = [
         # # Root files
-        "browse_db.py",
-        "queue_manager.py",
+        # "browse_db.py",
+        # "queue_manager.py",
         "README.md",
         
         # # # Prompt templates
-        "prompt_templates/classify_template.txt",
-        "prompt_templates/reclassify_template.txt",
-        "prompt_templates/verify_template.txt",
+        # "prompt_templates/classify_template.txt",
+        # "prompt_templates/reclassify_template.txt",
+        # "prompt_templates/verify_template.txt",
         
         # # # Queue manager module
-        "queue_manager/__init__.py",
-        "queue_manager/dispatcher.py",
-        "queue_manager/logging_utils.py",
-        "queue_manager/routes.py",
-        "queue_manager/state.py",
+        # "queue_manager/__init__.py",
+        # "queue_manager/dispatcher.py",
+        # "queue_manager/logging_utils.py",
+        # "queue_manager/routes.py",
+        # "queue_manager/state.py",
+
+        # Meta module
+        # "meta/agreement_core.py",
+        # "meta/agreement_human_cli_v1.4.py",
+        # "meta/agreement_3sets_cli_v1.4.py",
+        # "meta/time_power_charts_v1.4.py",
         
         # Shared module
         "shared/__init__.py",
@@ -343,29 +348,33 @@ def main():
         "web/routes_ui.py",
         
         # Web static files
-        "web/static/comms.js",
-        "web/static/filtering.js",
+        # "web/static/js/agreement_report.js",
+        "web/static/js/comms.js",
+        "web/static/js/filtering.js",
+        "web/static/js/focus_paper.js",
         "web/static/js/ghpages.js",
-        "web/static/js/stats/stats_core.js",
-        "web/static/js/stats/stats_generic.js",
-        "web/static/js/stats/stats_domain.js",
-        "web/static/js/stats/stats_charts.js",
-        "web/static/js/stats/stats_latex.js",
+        # "web/static/js/stats/stats_core.js",
+        # "web/static/js/stats/stats_generic.js",
+        # "web/static/js/stats/stats_domain.js",
+        # "web/static/js/stats/stats_charts.js",
+        # "web/static/js/stats/stats_latex.js",
 
         "web/static/css/style.css",
+        # "web/static/css/agreement_report.css",
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
         "web/static/pdfjs/web/autosave.js",
         # "web/static/pdfjs/web/viewer.html",
-        # "web/static/pdfjs/web/viewer_mods.css",
+        "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
+        # "web/templates/agreement_report.html",
+        # "web/templates/about_modal_content.html",
         "web/templates/detail_row.html",
         "web/templates/history_row.html",
         "web/templates/index.html",
         "web/templates/papers_table.html",
-        # "web/templates/about_modal_content.html",
         "web/templates/papers_table_tfoot.html",
         "web/templates/stats_modal_content.html",
         # "web/templates/static_export/loader.html",

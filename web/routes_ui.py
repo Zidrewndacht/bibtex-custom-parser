@@ -63,7 +63,24 @@ def index():
     year_from_param = request.args.get('year_from')
     year_to_param = request.args.get('year_to')
     min_page_count_param = request.args.get('min_page_count')
-        
+
+    # ---- Deep-link support (agreement report outlier links / bookmarks) ----
+    # Report links carry narrowly-scoped filters: the paper's year as the year
+    # range (fast render) and the paper ID as search_query (hides everything
+    # else). focus_paper.js then reveals the row, highlights it, and expands
+    # its history. Missing params fall back to permissive defaults.
+    focus_paper = request.args.get('focus_paper', '').strip() or None
+    if focus_paper:
+        if hide_offtopic_param is None:
+            hide_offtopic_param = '0'
+        if year_from_param is None:
+            year_from_param = '0'
+        if year_to_param is None:
+            year_to_param = '9999'
+        if min_page_count_param is None:
+            min_page_count_param = '0'
+    # ----------------------------------------------------------------------
+
     papers_table_content = render_papers_table(
         hide_offtopic_param=hide_offtopic_param,
         year_from_param=year_from_param,
@@ -80,7 +97,7 @@ def index():
         year_to_input_value = str(int(year_to_param)) if year_to_param is not None else str(config.DEFAULT_YEAR_TO)
     except ValueError:
         year_to_input_value = str(config.DEFAULT_YEAR_TO)
-        
+
     try:
         min_page_count_input_value = str(int(min_page_count_param)) if min_page_count_param is not None else str(config.DEFAULT_MIN_PAGE_COUNT)
     except ValueError:
@@ -96,7 +113,8 @@ def index():
         year_from_value=year_from_input_value,
         year_to_value=year_to_input_value,
         min_page_count_value=min_page_count_input_value,
-        total_paper_count=total_paper_count
+        total_paper_count=total_paper_count,
+        focus_paper=focus_paper
     )
 
 @ui_bp.route('/load_table', methods=['GET'])

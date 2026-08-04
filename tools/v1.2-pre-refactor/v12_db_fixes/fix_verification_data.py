@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 fix_verification_data.py
 

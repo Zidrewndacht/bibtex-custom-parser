@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Power Usage vs. Paper Consensus Progress Visualization
 - UPDATED FOR NEW DB: Parses 'llm_log' JSON to find exact LLM completion times

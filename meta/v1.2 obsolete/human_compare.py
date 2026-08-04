@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # compare_user_vs_ai.py
 # v1.3 - Human vs AI Main Set Comparison Script (Stratified)
 # Compares a user-annotated DB against an AI-averaged DB.
