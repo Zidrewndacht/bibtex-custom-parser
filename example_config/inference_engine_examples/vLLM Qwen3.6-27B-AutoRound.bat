@@ -24,7 +24,6 @@ if errorlevel 1 (
 docker run --rm -it --gpus all ^
   -e VLLM_SLEEP_WHEN_IDLE=1 ^
   -e ENABLE_PREFIX_CACHING=1 ^
-  -e HF_HUB_OFFLINE=1 ^
   -v /mnt/host/d/AI/weights/vLLM/HuggingFaceCache:/root/.cache/huggingface ^
   -p 127.0.0.1:8086:8086 --ipc=host ^
   vllm/vllm-openai:v0.26.0-x86_64-cu129-ubuntu2404 ^

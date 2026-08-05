@@ -555,16 +555,16 @@ def analyze_field_agreement(papers: Dict[str, Dict[int, Dict]], field: str,
 
 
 def analyze_stratum(papers: Dict[str, Dict[int, Dict]], paper_ids: List[str],
-                    fields: List[str], stratum_name: str, db_path: str,
-                    verbose: bool = True, analyze_logs: bool = True) -> Dict:
+                   fields: List[str], stratum_name: str, db_path: str,
+                   verbose: bool = True, analyze_logs: bool = True) -> Dict:
     if verbose:
         print(f"  Analyzing {stratum_name} ({len(paper_ids)} papers)...")
 
     empty_consensus = {
         'avg_runs': 0.0, 'max_runs': 0, 'max_runs_paper': None,
         'max_runs_set': None, 'total_classify_runs': 0, 'num_sets_analyzed': 0,
-        'top_runs_per_set': {1: [], 2: [], 3: []},   # <-- ADD
-        'top_runs_total': []                          # <-- ADD
+        'top_runs_per_set': {1: [], 2: [], 3: []},
+        'top_runs_total': []
     }
     empty_logs = {'total_entries': 0, 'invalid_entries': 0, 'invalid_pct': 0, 'per_set': {}, 'papers_with_invalid': []}
 
@@ -575,10 +575,29 @@ def analyze_stratum(papers: Dict[str, Dict[int, Dict]], paper_ids: List[str],
             'n_fields': len(fields),
             'n_observations': 0,
             'field_results': pd.DataFrame(),
+            'overall_perfect': 0,
             'overall_perfect_pct': 0,
+            'overall_perfect_ci_lower': 0,
+            'overall_perfect_ci_upper': 100,
+            'overall_uncertain_biased_certain': 0,
+            'overall_uncertain_biased_certain_pct': 0,
+            'overall_uncertain_biased_certain_ci_lower': 0,
+            'overall_uncertain_biased_certain_ci_upper': 100,
+            'overall_uncertain_biased_uncertain': 0,
+            'overall_uncertain_biased_uncertain_pct': 0,
+            'overall_uncertain_biased_uncertain_ci_lower': 0,
+            'overall_uncertain_biased_uncertain_ci_upper': 100,
+            'overall_uncertain': 0,
+            'overall_uncertain_pct': 0,
+            'overall_uncertain_ci_lower': 0,
+            'overall_uncertain_ci_upper': 100,
+            'overall_contradiction': 0,
             'overall_contradiction_pct': 0,
-            'overall_perfect_ci': (0, 100),
-            'overall_contradiction_ci': (0, 100),
+            'overall_contradiction_ci_lower': 0,
+            'overall_contradiction_ci_upper': 100,
+            'overall_contradiction_biased_yes': 0,
+            'overall_contradiction_biased_no': 0,
+            'overall_contradiction_chaotic': 0,
             'overall_raw_yes': 0, 'overall_raw_yes_pct': 0,
             'overall_raw_no': 0, 'overall_raw_no_pct': 0,
             'overall_raw_unknown': 0, 'overall_raw_unknown_pct': 0,

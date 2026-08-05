@@ -28,14 +28,14 @@ def main():
     web_port = config.FRONTEND_PORT 
     print(f"[Web] Starting Web UI on http://localhost:{web_port}")
     
-    # Standard Werkzeug reloader check to prevent double browser opens - this doesn't really work.
-    # if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-    #     threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
-    # elif not os.environ.get('WERKZEUG_RUN_MAIN'):
-    #     threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
+    # # Standard Werkzeug reloader check to prevent double browser opens - this doesn't seem to be working, still opens twice.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
+    elif not os.environ.get('WERKZEUG_RUN_MAIN'):
+        threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
         
     app = create_web_app(db_path)
-    app.run(host='0.0.0.0', port=web_port, debug=True, threaded=True)
+    app.run(host='0.0.0.0', port=web_port, debug=False, threaded=True)
 
 if __name__ == '__main__':
     main()

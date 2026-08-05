@@ -265,12 +265,17 @@ function performSort(sortBy, direction, visibleMainRows = null) {
 
     const sortHeader = document.querySelector(`th[data-sort="${sortBy}"]`);
     if (!sortHeader) return;
-
+    
     const isDateSort = sortBy === 'changed';
     const isNumericSort = ['year', 'estimated_score', 'page_count', 'relevance', 'user_override_count'].includes(sortBy);
     const isPDFSort = sortBy === 'pdf-link';
     const isVerifiedBySort = sortBy === 'verified_by';
-    const isEditableStatusSort = !isNumericSort && !isPDFSort && !isVerifiedBySort && !['title', 'journal', 'changed_by', 'changed', 'type', 'user_comment_state'].includes(sortBy);
+    const isChangedBySort = sortBy === 'changed_by';          // ← ADD
+    const isTypeSort = sortBy === 'type';
+    const isUserCommentSort = sortBy === 'user_comment_state';
+    const isEditableStatusSort = !isNumericSort && !isPDFSort && !isVerifiedBySort
+        && !isChangedBySort && !isTypeSort && !isUserCommentSort   // ← ADD isChangedBySort
+        && !['title', 'journal', 'changed'].includes(sortBy);
 
     const sortData = mainRowsToSort.map(mainRow => {
         let cellValue;
@@ -280,7 +285,7 @@ function performSort(sortBy, direction, visibleMainRows = null) {
             const dateMatch = cellText.match(/(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
             cellValue = dateMatch ? new Date(2000 + parseInt(dateMatch[3]), parseInt(dateMatch[2]) - 1, parseInt(dateMatch[1]), parseInt(dateMatch[4]), parseInt(dateMatch[5]), parseInt(dateMatch[6])) : new Date(NaN);
         } else if (isNumericSort) {
-            const cell = mainRow.querySelector(`[data-field="${sortBy}"]`) || mainRow.cells[yearCellIndex]; // fallback
+            const cell = mainRow.querySelector(`[data-field="${sortBy}"]`) || mainRow.cells[yearCellIndex];
             cellValue = cell ? parseFloat(cell.textContent.trim()) || 0 : 0;
         } else if (isPDFSort) {
             const cell = mainRow.cells[pdfCellIndex];
@@ -289,13 +294,42 @@ function performSort(sortBy, direction, visibleMainRows = null) {
             const cell = mainRow.querySelector(`.editable-verify[data-field="${sortBy}"]`);
             const symbolText = cell?.querySelector('span')?.textContent?.trim() || '';
             cellValue = VERIFIED_BY_SORT_WEIGHTS[symbolText] ?? 0;
-        } else if (isEditableStatusSort) {
-            const cell = mainRow.querySelector(`[data-field="${sortBy}"]`);
+        } else if (isChangedBySort) {                          // ← ADD THIS BLOCK
+            const cell = mainRow.querySelector('[data-field="changed_by"]');
+            const symbolText = cell?.querySelector('span')?.textContent?.trim() || '';
+            cellValue = VERIFIED_BY_SORT_WEIGHTS[symbolText] ?? 0;
+        } else if (isTypeSort) {
+            // FIX: read from the actual type column, using the title attr (raw type name)
+            const cell = mainRow.cells[typeCellIndex];
+            cellValue = cell ? (cell.getAttribute('title') || cell.textContent.trim()) : '';
+        } else if (isUserCommentSort) {
+            // FIX: read from the actual commented cell, not the title column
+            const cell = mainRow.querySelector('[data-field="user_comment_state"]');
             cellValue = SYMBOL_SORT_WEIGHTS[cell?.textContent.trim()] ?? 0;
+        } else if (isEditableStatusSort) {
+            // FIX: certainty-aware sort — conflicts grouped, partial agreement differentiated
+            const cell = mainRow.querySelector(`[data-field="${sortBy}"]`);
+            if (cell) {
+                const hasConflict = cell.querySelector('.conflict-warning') !== null;
+                if (hasConflict) {
+                    cellValue = 3.25; // all conflicts grouped together between weak-yes and strong-no
+                } else {
+                    const emojiSpan = cell.querySelector('.emoji-content');
+                    const emoji = emojiSpan ? emojiSpan.textContent.trim() : '';
+                    const baseWeight = SYMBOL_SORT_WEIGHTS[emoji] ?? 0; // ✔️=2, ❌=1, ❔=0
+                    const certBonus = cell.classList.contains('certainty-solid') ? 0 :
+                                    cell.classList.contains('certainty-80')   ? -0.25 :
+                                    cell.classList.contains('certainty-60')   ? -0.5 : -0.75;
+                    cellValue = baseWeight * 2 + certBonus;
+                }
+            } else {
+                cellValue = 0;
+            }
         } else {
-            const cell = mainRow.cells[titleCellIndex]; // fallback for text
+            const cell = mainRow.cells[titleCellIndex];
             cellValue = cell ? cell.textContent.trim() : '';
         }
+        // ... rest of sortData (detailRow, historyRow, rowGroup) unchanged ...
 
         const detailRow = mainRow.nextElementSibling && mainRow.nextElementSibling.classList.contains('detail-row') ? mainRow.nextElementSibling : null;
         const historyRow = detailRow && detailRow.nextElementSibling && detailRow.nextElementSibling.classList.contains('history-row') ? detailRow.nextElementSibling : null;
@@ -337,23 +371,29 @@ function performSort(sortBy, direction, visibleMainRows = null) {
 
 function sortTable() {
     document.documentElement.classList.add('busyCursor');
-    setTimeout(() => {
-        const sortBy = this.getAttribute('data-sort');
-        if (!sortBy) return;
-        let newDirection = 'DESC';
-        if (currentClientSort.column === sortBy) newDirection = currentClientSort.direction === 'DESC' ? 'ASC' : 'DESC';
-        currentClientSort = { column: sortBy, direction: newDirection };
-        performSort(sortBy, currentClientSort.direction);
+    // Double requestAnimationFrame ensures the browser paints the loading overlay
+    // before we start the blocking sort operation
+    requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            if (document.body.id !== 'html-export') {
-                const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
-                applyDuplicateShading(visibleRows);
-            }
-            updateUrlWithClientFilters();
-            applyAlternatingShading();
-            document.documentElement.classList.remove('busyCursor');
+            setTimeout(() => {
+                const sortBy = this.getAttribute('data-sort');
+                if (!sortBy) return;
+                let newDirection = 'DESC';
+                if (currentClientSort.column === sortBy) newDirection = currentClientSort.direction === 'DESC' ? 'ASC' : 'DESC';
+                currentClientSort = { column: sortBy, direction: newDirection };
+                performSort(sortBy, currentClientSort.direction);
+                requestAnimationFrame(() => {
+                    if (document.body.id !== 'html-export') {
+                        const visibleRows = tbody.querySelectorAll('tr[data-paper-id]:not(.filter-hidden)');
+                        applyDuplicateShading(visibleRows);
+                    }
+                    updateUrlWithClientFilters();
+                    applyAlternatingShading();
+                    document.documentElement.classList.remove('busyCursor');
+                });
+            }, 50);
         });
-    }, 50);
+    });
 }
 
 let openDetailIds = new Set();

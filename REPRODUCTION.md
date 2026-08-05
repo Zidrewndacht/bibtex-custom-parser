@@ -8,7 +8,7 @@ This release includes the full ResearchParsa application alongside the specific 
 
 *   **`/example_config/inference_engine_examples/vLLM Qwen3.6-27B-AutoRound.bat`**: The exact Docker/vLLM launch script used to serve the reasoning model.
 *   **`/reproduction/unclassified_100_papers_backup.parça.zst`**: A backup of the stratified, unclassified 100-paper subset, ready to be imported and classified.
-*   **`/reproduction/human_classified_100_papers.db`**: The same 100 papers with human expert annotations (used for the Human-AI Alignment study).
+*   **`/reproduction/db.human_classified_100_papers.sqlite`**: The same 100 papers with human expert annotations (used for the Human-AI Alignment study).
 *   **`/reproduction/ai_classified_papers_backup.parça.zst`**: A backup of the already classified 100-paper subset for convenience (if you can't run inference yourself).
 *   **`/meta/agreement_human_cli_v1.4.py`**: Script to generate the Human-AI Alignment Summary table (Table 5 in the paper). Tables 1-4 are generated from the Web interface itself as instructed below.
 
@@ -53,11 +53,12 @@ Once the classification is complete, you can generate the LaTeX tables presented
 
 #### Tables 1–4 and consensus chart (except Power): 3-Run Agreement Analysis
 
-To analyze the internal consistency of the AI runs (Perfect, Uncertain, Contradiction), open the "3-run Agreement Report" in the Batch Tools. The LaTeX tables themselves can be exported via the "Copy LaTeX" button.
+To analyze the internal consistency of the AI runs (Perfect, Uncertain, Contradiction), open the "3-run Agreement Report" in the Batch Tools **after** finishing inference. 
+The LaTeX tables themselves can be exported via the "Copy LaTeX" button.
 
 #### Table 5: Human-AI Alignment Summary
 
-This requires the separate human-annotated database database and a standalone script, which script compares the newly generated AI classifications against the human-annotated database.
+This requires the separate human-annotated database database and a standalone script, which script compares the generated AI classifications against the human-annotated database.
 
 ```batch
 python meta/agreement_human_cli_v1.4.py ^
@@ -73,8 +74,7 @@ python meta/agreement_human_cli_v1.4.py ^
 ## Expected Results & Stochasticity
 
 Because the system relies on non-deterministic LLM sampling (which is required for high-quality reasoning traces), **your exact percentages will differ slightly from the paper**. 
-
-*   **Margin of Error**: You should expect the core metrics (e.g., Perfect Agreement, Contradiction rate) to fall within the **95% Wilson Score Confidence Intervals** reported in the paper. For example, if the paper reports a contradiction rate of `1.05% [0.93%, 1.19%]`, your reproduction run on the 100-paper subset should yield a contradiction rate in the general vicinity of ~1%, scaled to the smaller $N$.
+You should expect the core metrics (e.g., Perfect Agreement, Contradiction rate) to fall within the **95% Wilson Score Confidence Intervals** reported in the paper. 
 
 ---
 

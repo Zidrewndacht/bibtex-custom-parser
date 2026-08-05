@@ -18,8 +18,17 @@
 {% set history_table_width = 378 + ns.total_dynamic * 27 %}
 
 <tbody style="position: relative;">
-  {#<!-- ... loading overlay row unchanged ... -->#}
-  {% for paper in papers %}
+    <tr>
+        <td style="padding:0;" colspan="{{ total_cols }}">
+            <div class="loading-overlay">
+                <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: hsl(188, 31%, 29%);">Parça</span></div>
+                <div class="loading-spinner"></div>
+                <div>Reprocessing table. Wait patiently.</div>
+            </div>
+        </td>
+        <td style="display:none" colspan="5"></td>
+    </tr>
+    {% for paper in papers %}
     {% set c = paper.classification %}
     {% set certainty = paper.main_certainty %}
     <tr data-paper-id="{{ paper.id }}">
