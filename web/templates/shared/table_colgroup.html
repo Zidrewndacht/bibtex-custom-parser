@@ -1,0 +1,47 @@
+{# partials/table_colgroup.html #}
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+  {% if group.filter_type == 'tri_state' %}
+    {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+  {% elif group.filter_type in ['inclusion', 'none'] %}
+    {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+  {% endif %}
+{% endfor %}
+{% set inferred_colspan = 2 + ns.total_dynamic %}
+{% set total_cols = 6 + inferred_colspan + 9 %}
+
+<colgroup>
+  {# 1. LEADING FIXED (6) #}
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 66%">
+  <col style="width: 40px; min-width: 40px; max-width:40px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 34%">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  {# 2. UNIVERSAL INFERRED (2) #}
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  {# 3. DYNAMIC DOMAIN-SPECIFIC #}
+  {% for group in domain_config.groups %}
+    {% if group.filter_type == 'tri_state' %}
+      <col style="width: 27px; min-width: 27px; max-width: 27px;">
+    {% elif group.filter_type in ['inclusion', 'none'] %}
+      {% for field_def in group.fields %}
+        <col style="width: 27px; min-width: 27px; max-width: 27px;">
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  {# 4. TRAILING FIXED (9) #}
+  <col style="width: 56px; min-width: 56px; max-width: 56px;">
+  <col style="width: 40px; min-width: 40px; max-width: 40px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 32px; min-width: 32px; max-width: 32px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 27px; min-width: 27px; max-width: 27px;">
+  <col style="width: 44px; min-width: 44px; max-width: 44px;">
+  <col style="width: 44px; min-width: 44px; max-width: 44px;">
+  {# 5. HIDDEN METADATA (5) #}
+  <col style="display:none"><col style="display:none"><col style="display:none">
+  <col style="display:none"><col style="display:none">
+</colgroup>

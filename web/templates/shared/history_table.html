@@ -1,0 +1,160 @@
+{# shared/history_table.html #}
+
+{# Renders the trace/log-entry panel (left column of a history tab) #}
+{% macro render_trace_panel(log_entries, set_num, is_lite_export=false) %}
+<div class="trace-content">
+  {% if log_entries %}
+    {% for entry in log_entries %}
+      <div class="log-entry log-type-{{ entry.type }}">
+        <div class="log-header">
+          <span class="log-timestamp">{{ entry.timestamp|format_changed_timestamp }}</span>
+          <span class="log-type">{{ entry.type | capitalize }}{% if set_num %} (Set {{ set_num }}){% endif %}</span>
+          {% if entry.type != 'user' %}<span class="log-model">Model: {{ entry.model }}</span>{% endif %}
+          <span class="log-validity">
+            {% if entry.valid %}
+              <span class="valid-indicator valid">✓ Valid</span>
+            {% else %}
+              <span class="valid-indicator invalid" title="{{ entry.invalid_reason|default('') }}">✗ Invalid</span>
+              {% if entry.invalid_reason %}<span class="invalid-reason">{{ entry.invalid_reason }}</span>{% endif %}
+            {% endif %}
+          </span>
+        </div>
+        {% if entry.trace %}
+          <div class="log-trace"><pre>{% if is_lite_export %}Thinking trace unavailable in lite export{% else %}{{ entry.trace }}{% endif %}</pre></div>
+        {% endif %}
+        {% if entry.verification_data %}
+          <div class="log-verification-summary">
+            <strong>Verification:</strong>
+            {% if entry.verification_data.verified == 1 %}✓ Approved
+            {% elif entry.verification_data.verified == 0 %}✗ Rejected
+            {% else %}❔ Unknown{% endif %}
+            {% if entry.verification_data.estimated_score is not none %} | Score: {{ entry.verification_data.estimated_score }}{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="log-entry log-type-user"><p>No classification data{% if set_num %} for Set {{ set_num }}{% endif %}.</p></div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# Renders the history table (right column of a history tab) #}
+{% macro render_history_table(log_entries, domain_config, show_certainty=false, show_actions=false, paper_id='') %}
+<div id="history-table-wrapper">
+  <table class="history-table">
+    <colgroup>
+      <col style="width: 27px;"><col style="width: 27px;">
+      {% for group in domain_config.groups %}
+        {% if group.filter_type == 'tri_state' %}<col style="width: 27px;">
+        {% elif group.filter_type in ['inclusion', 'none'] %}
+          {% for f in group.fields %}<col style="width: 27px;">{% endfor %}
+        {% endif %}
+      {% endfor %}
+      <col style="width: 56px;"><col style="width: 40px;"><col style="width: 27px;">
+      <col style="width: 32px;"><col style="width: 27px;">
+    </colgroup>
+    <tbody>
+      {% for entry in log_entries %}
+        {% if entry.type in ['classifier', 'consensus', 'averaged_llm', 'user'] and entry.valid %}
+          {% set data = entry.output %}
+          {% set changed = entry.changed_fields %}
+          {% set cert = entry.certainty_map if show_certainty and entry.certainty_map else {} %}
+          <tr>
+            <td class="status-cell certainty-{{ cert.get('is_offtopic', 'solid') }}{% if 'is_offtopic' in changed %} cell-changed{% endif %}">
+              {% if cert.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+              {% else %}<span class="emoji-content">{{ data.is_offtopic | render_status }}</span>{% endif %}
+            </td>
+            <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">
+              {% if data.relevance is defined and data.relevance is not none %}{{ (data.relevance|float|round(1)|string).rstrip('0').rstrip('.') }}{% endif %}
+            </td>
+            {% for group in domain_config.groups %}
+              {% if group.filter_type == 'tri_state' %}
+                {% set path = group.json_path %}
+                <td class="status-cell certainty-{{ cert.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
+                  {% if cert.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
+                  {% else %}<span class="emoji-content">{{ data | get_json_path(path) | render_status }}</span>{% endif %}
+                </td>
+              {% elif group.filter_type in ['inclusion', 'none'] %}
+                {% for field_def in group.fields %}
+                  {% set path = group.json_path + '.' + field_def.key %}
+                  {% if field_def.get('render_type') == 'text_presence' %}
+                    <td class="status-cell certainty-{{ cert.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
+                      {% set text_val = data | get_json_path(path) %}
+                      <span class="emoji-content">{{ '✔️' if text_val and (text_val|string).strip() else '❌' }}</span>
+                    </td>
+                  {% else %}
+                    <td class="status-cell certainty-{{ cert.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
+                      {% if cert.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
+                      {% else %}<span class="emoji-content">{{ data | get_json_path(path) | render_status }}</span>{% endif %}
+                    </td>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+            <td class="secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
+            <td class="status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
+            {% if entry.type == 'averaged_llm' %}
+              <td class="status-cell certainty-{{ cert.get('verified', 'solid') }}{% if 'verified' in changed %} cell-changed{% endif %}">
+                {% if cert.get('verified') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+                {% else %}<span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>{% endif %}
+              </td>
+              <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
+              </td>
+              <td class="status-cell">{% if data.verified is not none %}🖥️{% else %}❔{% endif %}</td>
+            {% elif entry.type == 'user' %}
+              <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
+                <span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>
+              </td>
+              <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
+              </td>
+              <td class="status-cell">{{ data.verified_by|default('')|render_verified_by }}</td>
+            {% elif entry.verification_data %}
+              <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
+                {{ entry.verification_data.verified|render_status }}
+              </td>
+              <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
+                {% if entry.verification_data.estimated_score is not none %}{{ entry.verification_data.estimated_score }}{% endif %}
+              </td>
+              <td class="status-cell">{{ entry.verification_data.verifier_model|render_verified_by }}</td>
+            {% else %}
+              <td class="status-cell">❔</td>
+              <td class="secondary-text-cell number-cell"></td>
+              <td class="status-cell">❔</td>
+            {% endif %}
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if show_actions %}
+  <div class="history-info">
+    <div style="text-align:center">
+      <span>History sorted from <b>newest</b> to <b>oldest</b>.</span><br><br>
+      <span>Highlights identify cells changed between runs.</span><br>
+      <span>⚠️ indicates conflicting classifications across the 3 sets.</span><br>
+      <span>Translucent emojis indicate partial agreement (33% = 1 set, 66% = 2 sets agree).</span>
+    </div>
+  </div>
+  <div class="row-actions">
+    <div>
+      <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper_id }}">Classify <strong>this paper</strong></button>
+      <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper_id }}">Verify <strong>this paper</strong></button>
+    </div>
+  </div>
+{% endif %}
+{% endmacro %}
+
+
+{# Full tab panel: trace + table, used 4× per paper #}
+{% macro render_history_tab(paper, set_num, tab_name, domain_config, show_certainty=false, show_actions=false, is_lite_export=false) %}
+<div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" data-tab-panel="{{ tab_name }}" data-paper-id="{{ paper.id }}">
+  {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}
+  {{ render_trace_panel(log_entries, set_num, is_lite_export) }}
+  {{ render_history_table(log_entries, domain_config, show_certainty, show_actions, paper.id) }}
+</div>
+{% endmacro %}

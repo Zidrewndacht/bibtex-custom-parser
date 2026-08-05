@@ -249,7 +249,7 @@
             {#<!-- tbody and tfoot come from the papers_table template-->#}
             {{ papers_table_content | safe }}        
             
-            {% include 'papers_table_tfoot.html' %}
+            {% include 'shared/papers_table_tfoot.html' %}
             {#<!-- Use the rendered table content passed from the server -->#} 
     </table>
 </div>
@@ -319,14 +319,14 @@
 <div id="statsModal" class="modal">
     <div class="modal-content">
         <span class="close">&times;</span>
-        {% include 'stats_modal_content.html' %}
+        {% include 'shared/stats_modal_content.html' %}
     </div>
 </div>
 
 <div id="aboutModal" class="modal">
     <div class="modal-small-content">
         <span class="close">&times;</span>      
-        {% include 'about_modal_content.html' %}
+        {% include 'shared/about_modal_content.html' %}
     </div>
 </div>
 </body>

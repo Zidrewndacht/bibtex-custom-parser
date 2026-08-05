@@ -5,8 +5,6 @@
 :: Keep machine mostly unnattended during vLLM inference via WSL, or have a separate GPU/iGPU for display on the host, otherwise performance will go straight down to zero during interaction due to context shift between VM and host.
 :: This is set up for headless (or iGPU display). Reduce --gpu-memory-utilization if the same GPU runs vLLM and a display.
 
-:: tested with vLLM 0.11.0
-
 :: 1.  Start Docker Desktop if it isn’t running yet
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" 2>NUL | find /I "Docker Desktop.exe" >NUL
 if errorlevel 1 (
@@ -29,7 +27,7 @@ docker run --rm -it --gpus all ^
   -e HF_HUB_OFFLINE=1 ^
   -v /mnt/host/d/AI/weights/vLLM/HuggingFaceCache:/root/.cache/huggingface ^
   -p 127.0.0.1:8086:8086 --ipc=host ^
-  vllm/vllm-openai:v0.20.2-x86_64 ^
+  vllm/vllm-openai:v0.26.0-x86_64-cu129-ubuntu2404 ^
   Lorbus/Qwen3.6-27B-int4-AutoRound ^
   --host 0.0.0.0 --port 8086 ^
   --max-num-seqs 256 ^
@@ -37,7 +35,7 @@ docker run --rm -it --gpus all ^
   --enable-prefix-caching ^
   --language-model-only ^
   --tensor-parallel-size 2 ^
-  --gpu-memory-utilization 0.91 ^
+  --kv-cache-memory=12325992448 ^
   --reasoning-parser qwen3 ^
   --max_model_len 81920 ^
   --disable_custom_all_reduce ^

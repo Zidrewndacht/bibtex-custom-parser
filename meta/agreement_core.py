@@ -1,4 +1,4 @@
-# shared/agreement.py
+# meta/agreement_core.py
 """
 3-Run Agreement Analysis core for ResearchParça.
 

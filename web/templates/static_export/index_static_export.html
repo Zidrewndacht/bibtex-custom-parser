@@ -32,16 +32,7 @@
 
 <div class="table-container" id="papers-table-container">
     <table id="papersTable" style="table-layout: fixed;">
-        <colgroup>
-            <col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 66%"><col style="width: 40px; min-width: 40px; max-width:40px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 34%"><col style="width: 27px; min-width: 27px; max-width: 27px;">
-            <col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;">
-            {% for group in domain_config.groups %}
-                {% if group.filter_type == 'tri_state' %}<col style="width: 27px; min-width: 27px; max-width: 27px;">
-                {% elif group.filter_type in ['inclusion', 'none'] %}{% for field_def in group.fields %}<col style="width: 27px; min-width: 27px; max-width: 27px;">{% endfor %}{% endif %}
-            {% endfor %}
-            <col style="width: 56px; min-width: 56px; max-width: 56px;"><col style="width: 40px; min-width: 40px; max-width: 40px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 32px; min-width: 32px; max-width: 32px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 27px; min-width: 27px; max-width: 27px;"><col style="width: 44px; min-width: 44px; max-width: 44px;"><col style="width: 44px; min-width: 44px; max-width: 44px;">
-            <col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none">
-        </colgroup>
+        {% include 'shared/table_colgroup.html' %}
         <thead>
             <tr>
                 <th id="main-header-wrapper" colspan="{{ total_cols }}" style="display: none;"></th>
@@ -75,7 +66,6 @@
                         </div>                            
                         <div style="margin:0; padding:0">
                             <!-- Potential Misclassifications: -->
-                            <input type="checkbox" title="Enable to show only papers with NO features filled in (including 'Other')" id="no-features-checkbox" style="margin-left:8px; margin-right:16px">
                             <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox">
                         </div>
                     </div>
@@ -158,12 +148,12 @@
             </tr>
         </thead>
         {{ papers_table_static_export | safe }}
-        {% include 'papers_table_tfoot.html' %}
+        {% include 'shared/papers_table_tfoot.html' %}
     </table>
 </div>
 
-<div id="statsModal" class="modal"><div class="modal-content"><span class="close">&times;</span>{% include 'stats_modal_content.html' %}</div></div>
-<div id="aboutModal" class="modal"><div class="modal-small-content"><span class="close">&times;</span>{% include 'about_modal_content.html' %}</div></div>
+<div id="statsModal" class="modal"><div class="modal-content"><span class="close">&times;</span>{% include 'shared/stats_modal_content.html' %}</div></div>
+<div id="aboutModal" class="modal"><div class="modal-small-content"><span class="close">&times;</span>{% include 'shared/about_modal_content.html' %}</div></div>
 
 <script>
     {{ stats_core_js | safe }}

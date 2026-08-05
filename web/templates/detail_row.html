@@ -1,104 +1,54 @@
-{#<!-- templates/detail_row.html -->#}
+{# templates/detail_row.html #}
+{% from 'shared/detail_form.html' import render_detail_form %}
+
 {% block detail_row_content %}
 <div class="detail-flex-container">
-    <div class="detail-content detail-abstract">
-        <div class="id-section">
-            <strong>ID:</strong> {{ paper.id }} 
-            <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')" title="Click to copy this ID to the clipboard as a LaTeX citation in the \cite{} format"><em>\cite</em></button>
-            <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')" title="Click to copy this ID to the clipboard as a LaTeX citation in the \citen{} format"><em>\citeN</em></button>
-            <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')" title="Click to copy this ID to the clipboard as plain text">Copy</button>
-        </div>
-        {#<!-- <strong>Type:</strong> {{ paper.type }}</p> -->#}
-        <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+  <div class="detail-content detail-abstract">
+    <div class="id-section">
+      <strong>ID:</strong> {{ paper.id }}
+      <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')" title="Copy as \cite{}"><em>\cite</em></button>
+      <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')" title="Copy as \citeN{}"><em>\citeN</em></button>
+      <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')" title="Copy as plain text">Copy</button>
     </div>
+    <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+  </div>
 
-    <div class="detail-content detail-metadata">
-        
-        <div class="bibtex-section">
-            <strong>BibTeX Citation:</strong> 
-            <button type="button" class="bibtex-copy-btn" onclick="copyBibtex(`{{ paper | bibtex }}`, this)">Copy</button>
-            <pre class="bibtex-pre">{{ paper | bibtex }}</pre>
-        </div>
-
-        <div class="searchable-section">
-            <span style="font-size:0.8em; color: var(--light-colored-btn-text);">Click on any keyword or author below to <strong>search</strong> for it:</span>
-            <p><strong>Keywords:</strong>
-                <span class="clickable-keywords">
-                    {% if paper.keywords %}
-                        {% set keywords_list = paper.keywords.split(';') %}
-                        {% for keyword in keywords_list %}
-                            {% set trimmed_keyword = keyword.strip() %}
-                            {% if trimmed_keyword %}
-                                <span class="clickable-item" data-search-field="keywords" data-search-term="{{ trimmed_keyword }}">{{ trimmed_keyword }};{#<!--🔍-->#}</span>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        {{ paper.keywords }} {#<!-- In case it's empty or None -->#}
-                    {% endif %}
-                </span>
-            </p>
-            <p><strong>Authors:</strong>
-                <span class="clickable-authors">
-                    {% if paper.authors %}
-                        {% set authors_list = paper.authors.split(';') %}
-                        {% for author in authors_list %}
-                            {% set trimmed_author = author.strip() %}
-                            {% if trimmed_author %}
-                                <span class="clickable-item" data-search-field="authors" data-search-term="{{ trimmed_author }}">{{ trimmed_author }};{#<!--🔍-->#}</span>
-                            {% endif %}
-                        {% endfor %}
-                    {% else %}
-                        {{ paper.authors }} {#<!-- In case it's empty or None -->#}
-                    {% endif %}
-                </span>
-            </p>
-        </div>
-        <p>
-            <strong>DOI:</strong>
-                {% if paper.doi %}
-                    <a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>
-                {% else %}
-                    {{ paper.doi }}
-                {% endif %}
-            <br>
-            <strong> ISSN:</strong>             
-                {% if paper.issn %}
-                    {{ paper.issn }}
-                {% else %}
-                    None
-                {% endif %}
-            <strong> — Page Range/Start:</strong> {{ paper.pages }}
-        </p>
+  <div class="detail-content detail-metadata">
+    <div class="bibtex-section">
+      <strong>BibTeX Citation:</strong>
+      <button type="button" class="bibtex-copy-btn" onclick="copyBibtex(`{{ paper | bibtex }}`, this)">Copy</button>
+      <pre class="bibtex-pre">{{ paper | bibtex }}</pre>
     </div>
-    <div class="edit-section detail-edit">
-        <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
-            {#<!-- 1. DOMAIN-SPECIFIC FIELDS (From YAML) -->#}
-            {% for field in domain_config.editable_fields %}
-            <label>{{ field.label }}:
-                <input type="text" class="editable" name="{{ field.json_path }}"
-                    value="{{ paper.classification | get_json_path(field.json_path) or '' }}">
-            </label>
+    <div class="searchable-section">
+      <span style="font-size:0.8em; color: var(--light-colored-btn-text);">Click on any keyword or author below to <strong>search</strong> for it:</span>
+      <p><strong>Keywords:</strong>
+        <span class="clickable-keywords">
+          {% if paper.keywords %}
+            {% for keyword in paper.keywords.split(';') %}
+              {% if keyword.strip() %}<span class="clickable-item" data-search-field="keywords" data-search-term="{{ keyword.strip() }}">{{ keyword.strip() }};</span>{% endif %}
             {% endfor %}
-
-            {#<!-- 2. UNIVERSAL PURPOSE FIELDS (Hardcoded) -->#}
-            <label>Page count:
-                <input type="text" class="editable" name="page_count" value="{{ paper.page_count or '' }}">
-            </label>
-            <label>Relevance:
-                <input type="text" class="editable" name="relevance" value="{{ paper.classification | get_json_path('relevance') or '' }}" placeholder="0 - 10">
-            </label>
-            <label>User comments:
-                <textarea class="editable" name="user_trace">{{ paper.user_trace or '' }}</textarea>
-            </label>
-            
-            <div class="row-actions">
-                <div>
-                    <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
-                    <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
-                </div>
-                <button type="button" class="action-btn save-btn" title="Ctrl+S or click here to save changes" onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
-            </div>
-        </form>
+          {% endif %}
+        </span>
+      </p>
+      <p><strong>Authors:</strong>
+        <span class="clickable-authors">
+          {% if paper.authors %}
+            {% for author in paper.authors.split(';') %}
+              {% if author.strip() %}<span class="clickable-item" data-search-field="authors" data-search-term="{{ author.strip() }}">{{ author.strip() }};</span>{% endif %}
+            {% endfor %}
+          {% endif %}
+        </span>
+      </p>
     </div>
+    <p>
+      <strong>DOI:</strong> {% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>{% endif %}<br>
+      <strong>ISSN:</strong> {{ paper.issn or 'None' }}
+      <strong> — Page Range/Start:</strong> {{ paper.pages }}
+    </p>
+  </div>
+
+  <div class="edit-section detail-edit">
+    {{ render_detail_form(paper, domain_config, editable=true) }}
+  </div>
 </div>
 {% endblock %}

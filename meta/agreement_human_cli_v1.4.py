@@ -1,6 +1,5 @@
+# meta/agreement_human_cli_v1.4.py
 """
-human_ai_alignment_summary.py
-
 Generates the intended Human--AI Alignment Summary table from the exact
 intersection of papers present in both the user-modified DB and the AI DB.
 """

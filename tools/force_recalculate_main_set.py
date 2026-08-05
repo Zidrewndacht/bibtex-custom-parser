@@ -1,3 +1,4 @@
+# standalone debug tool, used during development.
 import sys
 import os
 

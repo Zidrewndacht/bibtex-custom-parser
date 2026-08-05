@@ -1,0 +1,34 @@
+{# shared/detail_form.html #}
+{% macro render_detail_form(paper, domain_config, editable=true) %}
+<form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
+  {% for field in domain_config.editable_fields %}
+    <label>{{ field.label }}:
+      <input type="text" class="editable" name="{{ field.json_path }}"
+             value="{{ paper.classification | get_json_path(field.json_path) or '' }}"
+             {{ '' if editable else 'disabled' }}>
+    </label>
+  {% endfor %}
+  <label>Page count:
+    <input type="text" class="editable" name="page_count"
+           value="{{ paper.page_count or '' }}" {{ '' if editable else 'disabled' }}>
+  </label>
+  <label>Relevance:
+    <input type="text" class="editable" name="relevance"
+           value="{{ paper.classification | get_json_path('relevance') or '' }}"
+           placeholder="0 - 10" {{ '' if editable else 'disabled' }}>
+  </label>
+  <label>User comments:
+    <textarea class="editable" name="user_trace" {{ '' if editable else 'disabled' }}>{{ paper.user_trace or '' }}</textarea>
+  </label>
+  {% if editable %}
+    <div class="row-actions">
+      <div>
+        <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
+        <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
+      </div>
+      <button type="button" class="action-btn save-btn" title="Ctrl+S or click here to save changes"
+              onclick="saveChanges('{{ paper.id }}')">Save Changes</button>
+    </div>
+  {% endif %}
+</form>
+{% endmacro %}

@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
 1.  **Running the Application**:
     - Ensure Python 3.12+ is installed.
     - Download this repository and run `!browse_db.bat` on Windows (or the corresponding `.sh` scripts on Linux/macOS). A Virtual Environment with the required dependencies will be automatically created.
-    - The application will be available at `http://127.0.0.1:5001` (or your configured port), and a browser window should open automatically.
+    - The application will be available at `http://127.0.0.1:5001` (or your configured port).
     - To enable AI classification, start `!queue_manager.bat` and your OpenAI-compatible LLM endpoint (tested with local vLLM, may run as well with cloud-based APIs to reasoning models, still untested). Browsing and editing an existing database does not require the queue manager.
 
 2.  **Domain & Database Setup**:

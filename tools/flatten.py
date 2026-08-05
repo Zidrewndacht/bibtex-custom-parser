@@ -321,11 +321,11 @@ def main():
         # "prompt_templates/verify_template.txt",
         
         # # # Queue manager module
-        "queue_manager/__init__.py",
-        "queue_manager/dispatcher.py",
-        "queue_manager/logging_utils.py",
-        "queue_manager/routes.py",
-        "queue_manager/state.py",
+        # "queue_manager/__init__.py",
+        # "queue_manager/dispatcher.py",
+        # "queue_manager/logging_utils.py",
+        # "queue_manager/routes.py",
+        # "queue_manager/state.py",
 
         # Meta module
         "meta/agreement_core.py",
@@ -348,7 +348,7 @@ def main():
         "web/routes_ui.py",
         
         # Web static files
-        "web/static/js/agreement_report.js",
+        # "web/static/js/agreement_report.js",
         # "web/static/js/comms/comms_batch.js",
         # "web/static/js/comms/comms_files.js",
         # "web/static/js/comms/comms_rendering.js",
@@ -375,17 +375,17 @@ def main():
         # "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
-        # "web/templates/agreement_report.html",
-        # "web/templates/about_modal_content.html",
-        # "web/templates/detail_row.html",
-        # "web/templates/history_row.html",
+        "web/templates/agreement_report.html",
+        "web/templates/about_modal_content.html",
+        "web/templates/detail_row.html",
+        "web/templates/history_row.html",
         "web/templates/index.html",
-        # "web/templates/papers_table.html",
-        # "web/templates/papers_table_tfoot.html",
-        # "web/templates/stats_modal_content.html",
-        # "web/templates/static_export/loader.html",
-        # "web/templates/static_export/index_static_export.html",
-        # "web/templates/static_export/papers_table_static_export.html"
+        "web/templates/papers_table.html",
+        "web/templates/papers_table_tfoot.html",
+        "web/templates/stats_modal_content.html",
+        "web/templates/static_export/loader.html",
+        "web/templates/static_export/index_static_export.html",
+        "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list

@@ -1,204 +1,29 @@
-{#<!-- templates/history_row.html -->#}
-{% macro render_history_tab(paper, set_num, tab_name, show_certainty) %}
-<div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" data-tab-panel="{{ tab_name }}" data-paper-id="{{ paper.id }}">
-    {#<!-- Trace Content -->#}
-    <div class="trace-content">
-        {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}
-        {% if log_entries %}
-            {% for entry in log_entries %}
-            <div class="log-entry log-type-{{ entry.type }}">
-                <div class="log-header">
-                    <span class="log-timestamp">{{ entry.timestamp|format_changed_timestamp }}</span>
-                    <span class="log-type">{{ entry.type | capitalize }}{% if set_num %} (Set {{ set_num }}){% endif %}</span>
-                    {% if entry.type != 'user' %}
-                    <span class="log-model">Model: {{ entry.model }}</span>
-                    {% endif %}
-                    <span class="log-validity">
-                    {% if entry.valid %}
-                    <span class="valid-indicator valid">✓ Valid</span>
-                    {% else %}
-                    <span class="valid-indicator invalid" title="{{ entry.invalid_reason|default('') }}">✗ Invalid</span>
-                    {% if entry.invalid_reason %}
-                        <span class="invalid-reason">{{ entry.invalid_reason }}</span>
-                    {% endif %}
-                    {% endif %}
-                    </span>
-                </div>
-                {% if entry.trace %}<div class="log-trace"><pre>{{ entry.trace }}</pre></div>{% endif %}
-                {% if entry.verification_data %}
-                <div class="log-verification-summary">
-                    <strong>Verification:</strong>
-                    {% if entry.verification_data.verified == 1 %}✓ Approved{% elif entry.verification_data.verified == 0 %}✗ Rejected{% else %}❔ Unknown{% endif %}
-                    {% if entry.verification_data.estimated_score is not none %} | Score: {{ entry.verification_data.estimated_score }}{% endif %}
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="log-entry log-type-user"><p>No classification data{% if set_num %} for Set {{ set_num }}{% endif %}.</p></div>
-        {% endif %}
-    </div>
-
-    {#<!-- Main History Table -->#}
-    <div id="history-table-wrapper">
-        <table class="history-table">
-            <colgroup>
-                <col style="width: 27px;"> {#<!-- Off-topic -->#}
-                <col style="width: 27px;"> {#<!-- Relevance -->#}
-                {% for group in domain_config.groups %}
-                    {% if group.filter_type == 'tri_state' %}
-                        <col style="width: 27px;">
-                    {% elif group.filter_type in ['inclusion', 'none'] %}
-                        {% for field_def in group.fields %}
-                            <col style="width: 27px;">
-                        {% endfor %}
-                    {% endif %}
-                {% endfor %}
-                <col style="width: 56px;"> {#<!-- Timestamp -->#}
-                <col style="width: 40px;"> {#<!-- Changed By -->#}
-                <col style="width: 27px;"> {#<!-- Verified -->#}
-                <col style="width: 32px;"> {#<!-- Accr. Score -->#}
-                <col style="width: 27px;"> {#<!-- Verified By -->#}
-            </colgroup>
-            <tbody>
-                {% for entry in log_entries %}
-                    {% if entry.type in ['classifier', 'consensus', 'averaged_llm', 'user'] and entry.valid %}
-                    <tr>
-                        {% set data = entry.output %}
-                        {% set changed = entry.changed_fields %}
-                        {% set certainty = entry.certainty_map if show_certainty and entry.certainty_map else {} %}
-                        
-                        {#<!-- Universal Inferred -->#}
-                        <td class="status-cell certainty-{{ certainty.get('is_offtopic', 'solid') }}{% if 'is_offtopic' in changed %} cell-changed{% endif %}">
-                            {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
-                            {% else %}<span class="emoji-content">{{ data.is_offtopic | render_status }}</span>{% endif %}
-                        </td>
-                        <td class="secondary-text-cell number-cell{% if 'relevance' in changed %} cell-changed{% endif %}">
-                            {% if data.relevance is defined and data.relevance is not none %}{{ (data.relevance|float|round(1)|string).rstrip('0').rstrip('.') }}{% endif %}
-                        </td>
-                        
-                        {#<!-- Dynamic Domain-Specific -->#}
-                        {% for group in domain_config.groups %}
-                            {% if group.filter_type == 'tri_state' %}
-                                {% set path = group.json_path %}
-                                <td class="status-cell certainty-{{ certainty.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
-                                    {% if certainty.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
-                                    {% else %}<span class="emoji-content">{{ data | get_json_path(path) | render_status }}</span>{% endif %}
-                                </td>
-                            {% elif group.filter_type in ['inclusion', 'none'] %}
-                                {% for field_def in group.fields %}
-                                    {% set path = group.json_path + '.' + field_def.key %}
-                                    {% if field_def.get('render_type') == 'text_presence' %}
-                                        <td class="status-cell certainty-{{ certainty.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
-                                            {% set text_val = data | get_json_path(path) %}
-                                            <span class="emoji-content">{{ '✔️' if text_val and (text_val|string).strip() else '❌' }}</span>
-                                        </td>
-                                    {% else %}
-                                        <td class="status-cell certainty-{{ certainty.get(path, 'solid') }}{% if path in changed %} cell-changed{% endif %}">
-                                            {% if certainty.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
-                                            {% else %}<span class="emoji-content">{{ data | get_json_path(path) | render_status }}</span>{% endif %}
-                                        </td>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endfor %}
-                        
-                        {#<!-- Trailing Fixed -->#}
-                        <td class="secondary-text-cell changed-cell">{{ entry.timestamp|format_changed_timestamp }}</td>
-                        <td class="status-cell changed-by-cell">{{ entry.model|render_changed_by }}</td>
-                        
-                        {#<!-- Verification Fields -->#}
-                        {% if entry.type == 'averaged_llm' %}
-                            <td class="status-cell certainty-{{ certainty.get('verified', 'solid') }}{% if 'verified' in changed %} cell-changed{% endif %}">
-                                {% if certainty.get('verified') == 'conflict' %}<span class="conflict-warning">⚠️</span>
-                                {% else %}<span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>{% endif %}
-                            </td>
-                            <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
-                                {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
-                            </td>
-                            <td class="status-cell">
-                                {% if data.verified is not none %}🖥️{% else %}❔{% endif %}
-                            </td>
-                        {% elif entry.type == 'user' %}
-                            <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
-                                <span class="emoji-content">{{ data.verified|default(None)|render_status }}</span>
-                            </td>
-                            <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
-                                {% if data.estimated_score is not none %}{{ data.estimated_score }}{% endif %}
-                            </td>
-                            <td class="status-cell">{{ data.verified_by|default('')|render_verified_by }}</td>
-                        {% elif entry.verification_data %}
-                            <td class="status-cell{% if 'verified' in changed %} cell-changed{% endif %}">
-                                {{ entry.verification_data.verified|render_status }}
-                            </td>
-                            <td class="secondary-text-cell number-cell{% if 'estimated_score' in changed %} cell-changed{% endif %}">
-                                {% if entry.verification_data.estimated_score is not none %}{{ entry.verification_data.estimated_score }}{% endif %}
-                            </td>
-                            <td class="status-cell">{{ entry.verification_data.verifier_model|render_verified_by }}</td>
-                        {% else %}
-                            <td class="status-cell">❔</td>
-                            <td class="secondary-text-cell number-cell"></td>
-                            <td class="status-cell">❔</td>
-                        {% endif %}
-                    </tr>
-                    {% endif %}
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    {% if tab_name == 'main' %}
-    <div class="history-info">
-        <div style="text-align:center">
-            <span>History sorted from <b>newest</b> to <b>oldest</b>.</span><br><br>
-            <span>Highlights identify cells changed between runs.</span><br>
-            <span>⚠️ indicates conflicting classifications across the 3 sets.</span><br>
-            <span>Translucent emojis indicate partial agreement (33% = 1 set, 66% = 2 sets agree).</span>
-        </div>
-    </div>
-    <div class="row-actions">
-        <div>
-            <button type="button" class="action-btn classify-btn" data-paper-id="{{ paper.id }}">Classify <strong>this paper</strong></button>
-            <button type="button" class="action-btn verify-btn" data-paper-id="{{ paper.id }}">Verify <strong>this paper</strong></button>
-        </div>
-    </div>
-    {% endif %}
-</div>
-{% endmacro %}
+{# templates/history_row.html #}
+{% from 'shared/history_table.html' import render_history_tab %}
 
 {% block history_row_content %}
 {% set ns = namespace(total_dynamic=0) %}
 {% for group in domain_config.groups %}
-    {% if group.filter_type == 'tri_state' %}
-        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
-    {% elif group.filter_type in ['inclusion', 'none'] %}
-        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
-    {% endif %}
+  {% if group.filter_type == 'tri_state' %}
+    {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+  {% elif group.filter_type in ['inclusion', 'none'] %}
+    {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+  {% endif %}
 {% endfor %}
-{#<!-- 378px is the width of the fixed contents -->#}
 {% set history_table_width = 378 + ns.total_dynamic * 27 %}
+
 <div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">
-    {#<!-- 4 Vertical Tabs Navigation -->#}
-    <div class="history-tabs-nav">
-        <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}">
-            <span>Main <span class="arrow">▼</span></span>
-        </button>
-        <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}">
-            <span>Set 1 <span class="arrow">▼</span></span>
-        </button>
-        <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}">
-            <span>Set 2 <span class="arrow">▼</span></span>
-        </button>
-        <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}">
-            <span>Set 3 <span class="arrow">▼</span></span>
-        </button>
-    </div>
-    {#<!-- Tab Content Container -->#}
-    <div class="history-tabs-content">
-        {{ render_history_tab(paper, none, 'main', true) }}
-        {{ render_history_tab(paper, 1, 'set1', false) }}
-        {{ render_history_tab(paper, 2, 'set2', false) }}
-        {{ render_history_tab(paper, 3, 'set3', false) }}
-    </div>
+  <div class="history-tabs-nav">
+    <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}"><span>Main <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}"><span>Set 1 <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}"><span>Set 2 <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}"><span>Set 3 <span class="arrow">▼</span></span></button>
+  </div>
+  <div class="history-tabs-content">
+    {{ render_history_tab(paper, none, 'main', domain_config, show_certainty=true, show_actions=true, is_lite_export=false) }}
+    {{ render_history_tab(paper, 1, 'set1', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+    {{ render_history_tab(paper, 2, 'set2', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+    {{ render_history_tab(paper, 3, 'set3', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+  </div>
 </div>
 {% endblock %}
