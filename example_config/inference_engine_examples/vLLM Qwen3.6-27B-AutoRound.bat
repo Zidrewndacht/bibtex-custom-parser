@@ -1,7 +1,7 @@
 @echo off
 :: Sample vLLM (WSL Docker w/ enabled HW CUDA passthrough) launch command for Qwen3-30B-A3B 4bit-AWQ. Runs up to 256 parallel requests on a pair of RTX 3090 (48GB total VRAM)
 :: This automatically downloads the model on the first load.
-:: vLLM strongly recommended for ResearchParça initial classification/verification as it's optimized for heavy continuous batching. Tested >15x faster against llama.cpp (real world, in this very application)
+:: vLLM strongly recommended for ResearchParsa initial classification/verification as it's optimized for heavy continuous batching. Tested >15x faster against llama.cpp (real world, in this very application)
 :: Keep machine mostly unnattended during vLLM inference via WSL, or have a separate GPU/iGPU for display on the host, otherwise performance will go straight down to zero during interaction due to context shift between VM and host.
 :: This is set up for headless (or iGPU display). Reduce --gpu-memory-utilization if the same GPU runs vLLM and a display.
 

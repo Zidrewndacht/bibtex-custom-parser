@@ -1,6 +1,6 @@
 # meta/agreement_core.py
 """
-3-Run Agreement Analysis core for ResearchParça.
+3-Run Agreement Analysis core for ResearchParsa.
 
 Shared between:
   * the standalone CLI tool (agreement_3run.py)

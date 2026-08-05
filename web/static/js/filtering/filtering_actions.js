@@ -78,7 +78,7 @@ function copyLatexLongtable() {
 % \\usepackage[margin=1.5cm]{geometry} % Set smaller margins for the table area
 \\begin{landscape} % Start landscape environment
 % ----------------------------------------------------------
-\\chapter{Lista completa de artigos julgados como relevantes através do ResearchParça}
+\\chapter{Lista completa de artigos julgados como relevantes através do ResearchParsa}
 % ----------------------------------------------------------
 \\definecolor{tableshade}{HTML}{EEEEEE}
 \\scriptsize % Use smaller font to fit more data

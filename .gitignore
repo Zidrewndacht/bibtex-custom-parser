@@ -13,6 +13,7 @@ logs/
 # 5. Generated Outputs (Charts and CSV exports)
 meta/charts/
 meta/csv/
+meta/v1.2_obsolete
 
 # 7. Raw Imports (Optional: uncomment if you don't want to track downloaded IEEE bibtex files)
 bibtex-imports/
@@ -28,6 +29,8 @@ backup_before_restore.parça.zst
 flattened_code.txt
 flattened_code.md
 # .vscode # not ignored to save VScode theme (quiet light teal-tinted)
+# temporarily skipped for release:
+.vscode
 
 config.yaml
 domain-config.yaml

@@ -1,5 +1,5 @@
 # config.yaml
-# General Configuration for Research Parça
+# General Configuration for Research Parsa
 
 # Web App and Queue Manager:
 frontend_port: 5001

@@ -443,7 +443,7 @@ def static_export():
 
     # --- Create a filename based on filters ---
     extra_suffix = "lite" if is_lite_export else ""
-    filename = export_logic.generate_filename("ResearchParça", year_from_value, year_to_value, min_page_count_value, hide_offtopic, extra_suffix) + ".html"
+    filename = export_logic.generate_filename("ResearchParsa", year_from_value, year_to_value, min_page_count_value, hide_offtopic, extra_suffix) + ".html"
 
     # --- Prepare Response Headers ---
     response_headers = {"Content-Type": "text/html"}
@@ -486,7 +486,7 @@ def export_excel():
     excel_bytes = export_logic.generate_xlsx_export_content(papers)
 
     # --- Create a filename based on filters ---
-    filename = export_logic.generate_filename("ResearchParça", year_from_value, year_to_value, min_page_count_value, hide_offtopic) + ".xlsx"
+    filename = export_logic.generate_filename("ResearchParsa", year_from_value, year_to_value, min_page_count_value, hide_offtopic) + ".xlsx"
 
     # --- Return as a downloadable attachment ---
     return Response(

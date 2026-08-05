@@ -602,7 +602,7 @@ def main() -> int:
         return 1
 
     if not args.quiet:
-        print("ResearchParça | Human--AI Alignment Summary")
+        print("ResearchParsa | Human--AI Alignment Summary")
 
     domain_cfg = load_domain_config(args.config, args.ai_db)
     fields = discover_boolean_fields(domain_cfg)

@@ -13,7 +13,7 @@ from queue_manager.dispatcher import dispatcher_loop
 from queue_manager.logging_utils import log, Colors, _color_prefix, _log_to_file
 
 def main():
-    parser = argparse.ArgumentParser(description="Research Parça - Queue Manager")
+    parser = argparse.ArgumentParser(description="ResearchParsa - Queue Manager")
     parser.add_argument('--db', default=config.DATABASE_FILE, help='Path to SQLite database')
     args = parser.parse_args()
 
@@ -33,7 +33,7 @@ def main():
     _log_to_file('dispatcher.log', event='startup', llm_server=config.LLM_SERVER_URL, http_api=f"{config.QUEUE_MANAGER_HOST}:{config.QUEUE_MANAGER_PORT}")
     
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
-    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParça Queue Manager Starting")
+    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParsa Queue Manager Starting")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"vLLM Server: {config.LLM_SERVER_URL}")
     log(f"HTTP API: http://{config.QUEUE_MANAGER_HOST}:{config.QUEUE_MANAGER_PORT}")

@@ -14,7 +14,7 @@ def open_browser(port):
     webbrowser.open(f'http://localhost:{port}')
 
 def main():
-    parser = argparse.ArgumentParser(description="Research Parça - Web UI")
+    parser = argparse.ArgumentParser(description="ResearchParsa - Web UI")
     parser.add_argument('--db', default=config.DATABASE_FILE, help='Path to SQLite database')
     args = parser.parse_args()
     
