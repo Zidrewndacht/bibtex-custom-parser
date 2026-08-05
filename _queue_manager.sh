@@ -1,5 +1,6 @@
 #!/bin/bash
-# For Crostini (Chromebook Linux container)
+# Tested in native Ubuntu 24 LTS in an earlier version, may be outdated. 
+# Current Linux support is untested.
 # Check if .venv exists
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."

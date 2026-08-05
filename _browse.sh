@@ -1,5 +1,6 @@
 #!/bin/bash
 # Tested in Crostini (Chromebook Linux container) and native Ubuntu 24 LTS
+# Current Linux support is untested.
 # Requires exsiting Python installation
 # Check if .venv exists
 if [ ! -d ".venv" ]; then

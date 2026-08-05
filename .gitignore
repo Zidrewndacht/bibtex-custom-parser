@@ -1,6 +1,9 @@
 # 1. Virtual Environment
 .venv/
 
+# temporarily skipped for release:
+.vscode/
+
 # 2. Python Cache (Present in almost all your app folders: shared, tools, web)
 __pycache__/
 
@@ -28,9 +31,7 @@ backup_before_restore.parça.zst
 
 flattened_code.txt
 flattened_code.md
-# .vscode # not ignored to save VScode theme (quiet light teal-tinted)
-# temporarily skipped for release:
-.vscode
+
 
 config.yaml
 domain-config.yaml
