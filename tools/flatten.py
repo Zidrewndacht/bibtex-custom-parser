@@ -344,7 +344,7 @@ def main():
         "web/filters.py",
         # "web/importer.py",
         # "web/routes_data.py",
-        # "web/routes_files.py",
+        "web/routes_files.py",
         "web/routes_ui.py",
         
         # Web static files
@@ -376,13 +376,17 @@ def main():
         
         # Web templates
         "web/templates/agreement_report.html",
-        "web/templates/about_modal_content.html",
         "web/templates/detail_row.html",
         "web/templates/history_row.html",
         "web/templates/index.html",
         "web/templates/papers_table.html",
-        "web/templates/papers_table_tfoot.html",
-        "web/templates/stats_modal_content.html",
+        "web/templates/shared/about_modal_content.html",
+        "web/templates/shared/detail_form.html",
+        "web/templates/shared/history_table.html",
+        "web/templates/shared/paper_cells.html",
+        "web/templates/shared/papers_table_tfoot.html",
+        "web/templates/shared/stats_modal_content.html",
+        "web/templates/shared/table_colgroup.html",
         "web/templates/static_export/loader.html",
         "web/templates/static_export/index_static_export.html",
         "web/templates/static_export/papers_table_static_export.html"

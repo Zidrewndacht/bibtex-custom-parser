@@ -444,6 +444,41 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
 # Load domain config once at module level to derive required fields
 _domain_config = load_domain_config()
 
+# --- User-editable prompt template discovery (backup/restore) ---
+USER_PROMPT_TEMPLATE_KEYS = (
+    (
+        "classify_instructions",
+        os.path.join("prompt_templates", "configurable_classify_instructions.txt"),
+    ),
+    (
+        "classify_output_template",
+        os.path.join("prompt_templates", "configurable_classify_output_template.txt"),
+    ),
+    (
+        "few_shot_examples",
+        os.path.join("prompt_templates", "configurable_few_shot_examples.txt"),
+    ),
+)
+
+
+def get_user_prompt_template_paths(domain_cfg=None):
+    """
+    Returns absolute paths of the user-editable prompt fragments.
+
+    These are the configurable pieces injected into the fixed base templates.
+    The base templates themselves are intentionally excluded.
+    """
+    cfg = domain_cfg if isinstance(domain_cfg, dict) else _domain_config
+    prompts_cfg = (cfg or {}).get("prompts", {}) or {}
+
+    paths = {}
+    for key, default_relpath in USER_PROMPT_TEMPLATE_KEYS:
+        relpath = prompts_cfg.get(key, default_relpath)
+        paths[key] = os.path.abspath(os.path.join(BASE_DIR, relpath))
+
+    return paths
+
+
 def get_required_classification_fields():
     fields = set()
     # 1. Universal inferred fields (hardcoded by design)

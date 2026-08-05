@@ -324,3 +324,5 @@ OK              Essentially include the corresponding meta scripts in the fronte
 
         Add a button in history for agent trace review report: reads the complete log stream (from oldest to newest per set) from all sets and reports issues/explains conflicts across sets, etc.
                 Adds a colored entry in the main log with the report but does NOT recalculates main set.
+
+        Add multilingual UI support

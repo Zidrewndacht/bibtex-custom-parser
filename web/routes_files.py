@@ -10,8 +10,114 @@ from flask import Blueprint, request, jsonify, send_from_directory, send_file, R
 from shared import db
 from shared import config
 from . import export_logic
+import json
+import yaml
 
 files_bp = Blueprint('files', __name__)
+
+def _prompt_arcname(prompt_path: str, key: str) -> str:
+    """
+    Returns a safe tar member name for a user prompt file.
+
+    If the file lives inside BASE_DIR, preserve its relative path.
+    Otherwise, store it under prompt_templates/ with a key-prefixed filename.
+    """
+    try:
+        rel = os.path.relpath(prompt_path, config.BASE_DIR).replace(os.sep, "/")
+        if rel.startswith(".."):
+            raise ValueError("Prompt path is outside BASE_DIR")
+        return rel
+    except ValueError:
+        return f"prompt_templates/{key}_{os.path.basename(prompt_path)}"
+
+
+def _add_user_prompt_templates_to_tar(tar):
+    """
+    Adds user-editable prompt fragments to a tar archive.
+
+    Base templates are intentionally NOT included.
+    """
+    manifest = []
+
+    for key, prompt_path in config.get_user_prompt_template_paths().items():
+        if not os.path.isfile(prompt_path):
+            print(f"[Backup] Warning: user prompt file missing, skipping: {prompt_path}")
+            continue
+
+        arcname = _prompt_arcname(prompt_path, key)
+        tar.add(prompt_path, arcname=arcname)
+        manifest.append({
+            "key": key,
+            "arcname": arcname,
+        })
+
+    if manifest:
+        manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+        info = tarfile.TarInfo(name="prompt_manifest.json")
+        info.size = len(manifest_bytes)
+        tar.addfile(info, io.BytesIO(manifest_bytes))
+
+
+def _restore_user_prompt_templates(temp_dir: str, extracted_domain_config_path: str):
+    """
+    Restores user-editable prompt fragments from the extracted backup.
+
+    This must run BEFORE config.reload_domain_config(), so the reloaded
+    domain config can assemble prompts from the restored files.
+    """
+    manifest_path = os.path.join(temp_dir, "prompt_manifest.json")
+    manifest = []
+
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f) or []
+        except Exception:
+            manifest = []
+
+    manifest_by_key = {
+        entry.get("key"): entry.get("arcname")
+        for entry in manifest
+        if isinstance(entry, dict) and entry.get("key")
+    }
+
+    # Determine prompt target paths from the domain_config being restored,
+    # not from the currently running config.
+    restored_cfg = {}
+    if os.path.exists(extracted_domain_config_path):
+        try:
+            with open(extracted_domain_config_path, "r", encoding="utf-8") as f:
+                restored_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            restored_cfg = {}
+
+    for key, target_path in config.get_user_prompt_template_paths(restored_cfg).items():
+        arcname = manifest_by_key.get(key)
+
+        if arcname:
+            source_path = os.path.join(temp_dir, arcname)
+        else:
+            # Backward-compatible fallback for backups made before the manifest existed.
+            try:
+                rel_target = os.path.relpath(target_path, config.BASE_DIR).replace(os.sep, "/")
+                if rel_target.startswith(".."):
+                    raise ValueError("Prompt path is outside BASE_DIR")
+                source_path = os.path.join(temp_dir, rel_target)
+            except ValueError:
+                source_path = os.path.join(
+                    temp_dir,
+                    "prompt_templates",
+                    f"{key}_{os.path.basename(target_path)}",
+                )
+
+        if os.path.isfile(source_path):
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+            if os.path.exists(target_path):
+                os.remove(target_path)
+
+            shutil.move(source_path, target_path)
+            print(f"[Restore] Restored user prompt file: {target_path}")
 
 @files_bp.route('/backup', methods=['GET'])
 def backup_database():
@@ -55,6 +161,9 @@ def backup_database():
 
                 # Add domain config
                 tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
+
+                # Add user-editable prompt templates, but not base templates
+                _add_user_prompt_templates_to_tar(tar)
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()
@@ -125,6 +234,8 @@ def restore_database():
                     if os.path.exists(config.PDF_STORAGE_DIR): tar.add(config.PDF_STORAGE_DIR, arcname='data/pdf')
                     if os.path.exists(config.ANNOTATED_PDF_STORAGE_DIR): tar.add(config.ANNOTATED_PDF_STORAGE_DIR, arcname='data/pdf_annotated')
                     if os.path.exists(config.DOMAIN_CONFIG_PATH): tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
+                    # Also preserve current user prompt files before overwriting them
+                    _add_user_prompt_templates_to_tar(tar)
 
             # Perform restoration
             # 1. Replace database
@@ -149,9 +260,16 @@ def restore_database():
             else: # Create empty annotated PDF directory if not in backup
                 os.makedirs(config.ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)                
 
-            # 3. Restore domain config:
-            shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
-            config.reload_domain_config() # Hot-reload the web app's memory
+            # 3. Restore user prompt templates before reloading the domain config.
+            _restore_user_prompt_templates(temp_dir, extracted_domain_config_path)
+
+            # 4. Restore domain config
+            if os.path.exists(extracted_domain_config_path):
+                if os.path.exists(config.DOMAIN_CONFIG_PATH):
+                    os.remove(config.DOMAIN_CONFIG_PATH)
+                shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
+
+            config.reload_domain_config()  # Hot-reload the web app's memory
             
             # Notify the queue manager process to hot-reload its memory
             try:

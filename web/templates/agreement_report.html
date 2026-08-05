@@ -7,7 +7,7 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/agreement_report.css') }}">
-    {# Inject Dynamic Theme Overrides #}
+    {#<!-- Inject Dynamic Theme Overrides -->#}
     {% if domain_config.theme_css %}
     <style>{{ domain_config.theme_css | safe }}</style>
     {% endif %}

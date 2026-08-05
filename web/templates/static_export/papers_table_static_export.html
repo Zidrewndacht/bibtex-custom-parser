@@ -1,4 +1,4 @@
-{# templates/static_export/papers_table_static_export.html #}
+{#<!-- templates/static_export/papers_table_static_export.html -->#}
 {% from 'shared/paper_cells.html' import render_domain_cells %}
 {% from 'shared/detail_form.html' import render_detail_form %}
 {% from 'shared/history_table.html' import render_history_tab %}
@@ -14,16 +14,16 @@
 {% endfor %}
 {% set inferred_colspan = 2 + ns.total_dynamic %}
 {% set total_cols = 6 + inferred_colspan + 9 %}
-{# 378px is the width of the fixed contents #}
+{#<!-- 378px is the width of the fixed contents -->#}
 {% set history_table_width = 378 + ns.total_dynamic * 27 %}
 
 <tbody style="position: relative;">
-  {# ... loading overlay row unchanged ... #}
+  {#<!-- ... loading overlay row unchanged ... -->#}
   {% for paper in papers %}
     {% set c = paper.classification %}
     {% set certainty = paper.main_certainty %}
     <tr data-paper-id="{{ paper.id }}">
-      {# 1. LEADING FIXED — PDF column uses direct file paths (export-specific) #}
+      {#<!-- 1. LEADING FIXED — PDF column uses direct file paths (export-specific) -->#}
       <td class="status-cell pdf-status emoji-column">
         {% if paper.pdf_filename %}
           {% if paper.pdf_state == 'annotated' %}
@@ -41,17 +41,17 @@
       <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>
       <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
 
-      {# 2. UNIVERSAL INFERRED — no editable-status class #}
+      {#<!-- 2. UNIVERSAL INFERRED — no editable-status class -->#}
       <td class="status-cell certainty-{{ certainty.get('is_offtopic', 'solid') }}" data-field="is_offtopic">
         {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
         {% else %}<span class="emoji-content">{{ c.get('is_offtopic') | render_status }}</span>{% endif %}
       </td>
       <td class="secondary-text-cell number-cell" data-field="relevance">{{ (c.get('relevance')|round(1)|string).rstrip('0').rstrip('.') if c.get('relevance') else '' }}</td>
 
-      {# 3. DYNAMIC DOMAIN-SPECIFIC — same macro, editable=false #}
+      {#<!-- 3. DYNAMIC DOMAIN-SPECIFIC — same macro, editable=false -->#}
       {{ render_domain_cells(c, certainty, domain_config, editable=false) }}
 
-      {# 4. TRAILING FIXED — same as main #}
+      {#<!-- 4. TRAILING FIXED — same as main -->#}
       <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td>
       <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>
       <td class="status-cell certainty-{{ certainty.get('verified', 'solid') }}" data-field="verified">
@@ -64,7 +64,7 @@
       <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td>
       <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
       <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
-      {# Hidden cells — same as main #}
+      {#<!-- Hidden cells — same as main -->#}
       <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
       <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
       <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
@@ -74,7 +74,7 @@
       {% endfor %}
     </tr>
 
-    {# DETAIL ROW — inlined, uses shared form macro with editable=false #}
+    {#<!-- DETAIL ROW — inlined, uses shared form macro with editable=false -->#}
     <tr class="detail-row">
       <td colspan="{{ total_cols }}">
         <div class="detail-flex-container">
@@ -117,7 +117,7 @@
       <td style="display:none" colspan="5"></td>
     </tr>
 
-    {# HISTORY ROW — inlined, uses shared tab macro with is_lite_export #}
+    {#<!-- HISTORY ROW — inlined, uses shared tab macro with is_lite_export -->#}
     <tr class="history-row">
       <td colspan="{{ total_cols }}">
         <div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">

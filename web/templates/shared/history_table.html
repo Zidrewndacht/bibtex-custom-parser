@@ -1,6 +1,6 @@
-{# shared/history_table.html #}
+{#<!-- shared/history_table.html -->#}
 
-{# Renders the trace/log-entry panel (left column of a history tab) #}
+{#<!-- Renders the trace/log-entry panel (left column of a history tab) -->#}
 {% macro render_trace_panel(log_entries, set_num, is_lite_export=false) %}
 <div class="trace-content">
   {% if log_entries %}
@@ -40,7 +40,7 @@
 {% endmacro %}
 
 
-{# Renders the history table (right column of a history tab) #}
+{#<!-- Renders the history table (right column of a history tab) -->#}
 {% macro render_history_table(log_entries, domain_config, show_certainty=false, show_actions=false, paper_id='') %}
 <div id="history-table-wrapper">
   <table class="history-table">
@@ -150,7 +150,7 @@
 {% endmacro %}
 
 
-{# Full tab panel: trace + table, used 4× per paper #}
+{#<!-- Full tab panel: trace + table, used 4× per paper -->#}
 {% macro render_history_tab(paper, set_num, tab_name, domain_config, show_certainty=false, show_actions=false, is_lite_export=false) %}
 <div class="history-tab-panel {% if tab_name == 'main' %}active{% endif %}" data-tab-panel="{{ tab_name }}" data-paper-id="{{ paper.id }}">
   {% set log_entries = paper['llm_log_entries'] if set_num is none else paper['set_' + (set_num|string) + '_llm_log_entries'] %}

@@ -1,4 +1,4 @@
-{# shared/detail_form.html #}
+{#<!-- shared/detail_form.html -->#}
 {% macro render_detail_form(paper, domain_config, editable=true) %}
 <form id="form-{{ paper.id }}" data-paper-id="{{ paper.id }}">
   {% for field in domain_config.editable_fields %}
