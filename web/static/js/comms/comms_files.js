@@ -364,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Create file input for backup selection
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.zst';
+        fileInput.accept = '.tzst';
         fileInput.style.display = 'none';
 
         fileInput.addEventListener('change', function (event) {
