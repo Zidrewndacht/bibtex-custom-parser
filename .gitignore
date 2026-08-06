@@ -12,7 +12,7 @@ data/
 
 # 4. Runtime Logs
 logs/
-tools/
+debug_tools/
 
 # 5. Generated Outputs (Charts and CSV exports)
 meta/charts/
@@ -34,6 +34,6 @@ flattened_code.txt
 flattened_code.md
 
 config.yaml
-domain-config.yaml
+domain_config.yaml
 meta/agreement_3sets_cli_v1.4.py
-TODO.txt
+TODO
