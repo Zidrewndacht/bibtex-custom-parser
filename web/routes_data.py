@@ -126,3 +126,27 @@ def upload_bibtex():
         if tmp_bib_path and os.path.exists(tmp_bib_path):
             try: os.unlink(tmp_bib_path)
             except: pass
+
+@data_bp.route('/review_traces', methods=['POST'])
+def review_traces():
+    """Proxies the trace-review request to the queue manager (which owns all LLM access)."""
+    data = request.get_json(silent=True) or {}
+    paper_id = data.get('paper_id')
+    if not paper_id:
+        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+
+    try:
+        response = requests.post(
+            f"{config.QUEUE_MANAGER_URL}/review_traces",
+            json={'paper_id': paper_id},
+            timeout=None  # No timeout for this single manual request
+        )
+    except requests.exceptions.RequestException:
+        return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
+
+    try:
+        result = response.json()
+    except ValueError:
+        return jsonify({'status': 'error', 'message': 'Queue manager returned non-JSON response'}), 502
+
+    return jsonify(result), response.status_code

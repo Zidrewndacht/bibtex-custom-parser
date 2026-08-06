@@ -837,7 +837,7 @@ tr.filter-hidden {
     text-align: left;
     display: flex;
     align-content: space-around;
-    justify-content: space-between
+    justify-content: space-between;
 }
 
 .detail-edit form textarea.editable:focus, .detail-edit form input.editable:focus {
@@ -1471,9 +1471,13 @@ li {
 .history-row .row-actions{
     grid-row: 3/4;
     grid-column: 2/3;
-    align-self:end;
-    justify-self: end;
-    padding: 0px 6px 8px 0px;
+    /*! align-self:end; */
+    /*! justify-self: end; */
+    padding: 0px 6px 8px 8px;
+    text-align: left;
+    display: flex;
+    align-content: space-around;
+    justify-content: space-between;
 }
 
 
@@ -1765,3 +1769,37 @@ tr.focus-highlight > td {
     animation: focus-pulse 1.2s ease-in-out 2;
 }
 
+
+/* Agent Trace Review (free-form meta-analysis) entry */
+.log-entry.log-type-trace_review {
+    background-color: #e6f3f1;
+    border-left: 4px solid #10a9bd;
+}
+.trace-review-report pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    font-family: inherit;
+    font-size: 10pt;
+    line-height: 1.4;
+    text-align: justify;
+    overflow-x: hidden;
+}
+.trace-review-thinking {
+    margin-top: 6px;
+    border-top: 1px dashed #ccc;
+    padding-top: 4px;
+}
+.trace-review-thinking summary {
+    cursor: pointer;
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--primary-ui-color);
+    user-select: none;
+}
+.trace-review-thinking[open] summary {
+    margin-bottom: 4px;
+}
+.trace-review-btn {
+    width: 180px
+}

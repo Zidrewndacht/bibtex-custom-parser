@@ -313,7 +313,7 @@ def main():
         # # Root files
         "browse_db.py",
         "queue_manager.py",
-        # "README.md",
+        "README.md",
         "LICENSE",
         
         # # # Prompt templates
@@ -329,10 +329,10 @@ def main():
         "queue_manager/state.py",
 
         # Meta module
-        "meta/agreement_core.py",
-        "meta/agreement_human_cli_v1.4.py",
-        "meta/agreement_3sets_cli_v1.4.py",
-        "meta/time_power_charts_v1.4.py",
+        # "meta/agreement_core.py",
+        # "meta/agreement_human_cli_v1.4.py",
+        # "meta/agreement_3sets_cli_v1.4.py",
+        # "meta/time_power_charts_v1.4.py",
         
         # Shared module
         "shared/__init__.py",
@@ -348,7 +348,7 @@ def main():
         "web/routes_files.py",
         "web/routes_ui.py",
         "web/routes_agreement.py",
-        "web/LICENSE",
+        # "web/LICENSE",
         
         # Web static files
         "web/static/js/agreement_report.js",
@@ -361,24 +361,24 @@ def main():
         "web/static/js/filtering/filtering_engine.js",
         "web/static/js/filtering/filtering_init.js",
         "web/static/js/filtering/filtering_state.js",
-        "web/static/js/ghpages.js",
-        "web/static/js/stats/stats_core.js",
-        "web/static/js/stats/stats_generic.js",
-        "web/static/js/stats/stats_domain.js",
-        "web/static/js/stats/stats_charts.js",
-        "web/static/js/stats/stats_latex.js",
+        # "web/static/js/ghpages.js",
+        # "web/static/js/stats/stats_core.js",
+        # "web/static/js/stats/stats_generic.js",
+        # "web/static/js/stats/stats_domain.js",
+        # "web/static/js/stats/stats_charts.js",
+        # "web/static/js/stats/stats_latex.js",
 
         "web/static/css/style.css",
-        "web/static/css/agreement_report.css",
-        "web/static/css/fonts.css",
+        # "web/static/css/agreement_report.css",
+        # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
-        "web/static/pdfjs/web/autosave.js",
-        "web/static/pdfjs/web/viewer.html",
-        "web/static/pdfjs/web/viewer_mods.css",
+        # "web/static/pdfjs/web/autosave.js",
+        # "web/static/pdfjs/web/viewer.html",
+        # "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
-        "web/templates/agreement_report.html",
+        # "web/templates/agreement_report.html",
         "web/templates/detail_row.html",
         "web/templates/history_row.html",
         "web/templates/index.html",
@@ -404,7 +404,7 @@ def main():
         sys.exit(1)
     
     # Default output file name
-    output_file = "flattened_code.txt"
+    output_file = "flattened_code.md"
     
     # Parse command line arguments for optional custom output file
     if len(sys.argv) > 1:

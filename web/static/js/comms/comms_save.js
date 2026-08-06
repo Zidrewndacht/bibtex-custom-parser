@@ -398,6 +398,51 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
         }
     });
+    
+// --- Agent Trace Review (free-form meta-analysis, single paper, synchronous) ---
+document.addEventListener('click', function (event) {
+    const reviewBtn = event.target.closest('.trace-review-btn');
+    if (!reviewBtn) return;
+    const paperId = reviewBtn.getAttribute('data-paper-id');
+    if (!paperId) return;
+
+    reviewBtn.disabled = true;
+    const originalHTML = reviewBtn.innerHTML;
+    reviewBtn.innerHTML = 'Analyzing traces…';
+
+    fetch('/review_traces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paper_id: paperId })
+    })
+    .then(response => response.json().then(data => ({ ok: response.ok, data: data })))
+    .then(result => {
+        if (!result.ok || result.data.status !== 'success') {
+            throw new Error(result.data.message || 'Trace review failed');
+        }
+        const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
+        const historyRow = row && row.nextElementSibling && row.nextElementSibling.nextElementSibling &&
+            row.nextElementSibling.nextElementSibling.classList.contains('history-row') ?
+            row.nextElementSibling.nextElementSibling : null;
+        if (historyRow && historyRow.classList.contains('expanded')) {
+            const placeholder = historyRow.querySelector('.detail-content-placeholder');
+            if (placeholder) {
+                fetch(`/get_history_row?paper_id=${encodeURIComponent(paperId)}`)
+                    .then(r => r.json())
+                    .then(h => {
+                        if (h.status === 'success' && h.html) placeholder.innerHTML = h.html;
+                    })
+                    .catch(err => console.error('Error refreshing history row:', err));
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Trace review error:', error);
+        alert('Trace review failed: ' + error.message);
+        reviewBtn.disabled = false;
+        reviewBtn.innerHTML = originalHTML;
+    });
+});
 
     // --- Ctrl+S Save Functionality ---
     document.addEventListener('keydown', function (event) {

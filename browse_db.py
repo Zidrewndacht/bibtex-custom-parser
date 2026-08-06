@@ -35,7 +35,7 @@ def main():
         threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
         
     app = create_web_app(db_path)
-    app.run(host='0.0.0.0', port=web_port, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=web_port, debug=True, threaded=True)
 
 if __name__ == '__main__':
     main()

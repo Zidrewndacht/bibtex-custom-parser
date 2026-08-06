@@ -478,6 +478,22 @@ def get_user_prompt_template_paths(domain_cfg=None):
 
     return paths
 
+# --- Trace review (free-form meta-analysis) ---
+# Fixed system template. Deliberately NOT part of assemble_prompt_templates /
+# domain-config assembly. Loaded on demand and filled at request time.
+TRACE_REVIEW_BASE_TEMPLATE_PATH = os.path.join(
+    BASE_DIR, 'prompt_templates', 'base_templates', 'trace_review_base_template.txt'
+)
+
+def load_trace_review_base_template():
+    return _load_text_file(TRACE_REVIEW_BASE_TEMPLATE_PATH)
+
+def get_classify_prompt_fragments():
+    """Returns (classify_instructions_text, classify_output_template_text) for the current domain config."""
+    prompts_cfg = _domain_config.get('prompts', {}) or {}
+    inst_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_instructions', 'prompt_templates/configurable_classify_instructions.txt'))
+    tmpl_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_output_template', 'prompt_templates/configurable_classify_output_template.txt'))
+    return _load_text_file(inst_path), _load_text_file(tmpl_path)
 
 def get_required_classification_fields():
     fields = set()

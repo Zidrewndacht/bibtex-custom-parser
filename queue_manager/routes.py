@@ -1,8 +1,12 @@
 # queue/routes.py
+import os
+import json
 import threading
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from shared import config, db
-from .logging_utils import log, log_file_request, Colors, _color_prefix, _color_mode
+from .logging_utils import log, log_file_request, LOG_DIR, Colors, _color_prefix, _color_mode
+
 from .state import (
     state, log_queue_status,
     ClassificationStateMachine, VerificationStateMachine, ConsensusStateMachine
@@ -288,7 +292,77 @@ def handle_consensus_route():
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
-    
+
+
+@queue_bp.route('/review_traces', methods=['POST'])
+def handle_review_traces():
+    """Free-form LLM meta-review of a paper's complete 3-set log stream.
+
+    Manual, single-paper, synchronous. Deliberately NOT enqueued/dispatched —
+    it runs inline in this request thread, bypassing admission control by design.
+    Appends a 'trace_review' entry to the main llm_log; does NOT recalculate it.
+    """
+    client = request.remote_addr
+    data = request.get_json(silent=True) or {}
+    paper_id = data.get('paper_id')
+    log(f"{_color_prefix('REVIEW REQUEST:', Colors.REQUEST)} from {client}: /review_traces paper_id={paper_id}")
+    log_file_request('/review_traces', client, 'id', paper_id)
+
+    if not paper_id:
+        return jsonify({'status': 'error', 'message': 'Paper ID is required'}), 400
+
+    paper = db.get_paper_by_id(paper_id)
+    if not paper:
+        return jsonify({'status': 'error', 'message': 'Paper not found'}), 404
+
+    def pretty_log(raw):
+        try:
+            entries = json.loads(raw) if raw else []
+        except Exception:
+            entries = []
+        # Full fidelity by design — no truncation.
+        return json.dumps(entries, indent=2, ensure_ascii=False)
+
+    prompt = config.load_trace_review_base_template()
+    classify_inst, classify_tmpl = config.get_classify_prompt_fragments()
+    prompt = prompt.replace('{classify_instructions}', classify_inst)
+    prompt = prompt.replace('{classify_output_template}', classify_tmpl)
+    prompt = prompt.replace('{title}', paper.get('title', '') or '')
+    prompt = prompt.replace('{abstract}', paper.get('abstract', '') or '')
+    prompt = prompt.replace('{keywords}', paper.get('keywords', '') or '')
+    prompt = prompt.replace('{log_set_1}', pretty_log(paper.get('set_1_llm_log')))
+    prompt = prompt.replace('{log_set_2}', pretty_log(paper.get('set_2_llm_log')))
+    prompt = prompt.replace('{log_set_3}', pretty_log(paper.get('set_3_llm_log')))
+
+    # Persist the exact prompt sent to the model, for debugging/auditing.
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    try:
+        dump_dir = os.path.join(LOG_DIR, 'trace_reviews')
+        os.makedirs(dump_dir, exist_ok=True)
+        prompt_dump_path = os.path.join(dump_dir, f"trace_review_prompt_{paper_id}_{timestamp}.txt")
+        with open(prompt_dump_path, 'w', encoding='utf-8') as f:
+            f.write(prompt)
+        log(f"{_color_prefix('REVIEW:', Colors.CONSENSUS)} Prompt dumped to {prompt_dump_path}")
+    except Exception as e:
+        # A dump failure must never block the review itself.
+        log(f"{_color_prefix('ERROR:', Colors.ERROR)} Failed to dump trace review prompt: {e}")
+
+    try:
+        model_alias = config.get_model_alias(config.LLM_SERVER_URL)
+        content, model_name, reasoning_trace = config.send_prompt_to_llm(
+            prompt, model_name=model_alias, is_verification=False
+        )
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Trace review failed: {e}'}), 502
+
+    if content is None:
+        # On failure send_prompt_to_llm returns the error message in the trace slot
+        return jsonify({'status': 'error', 'message': reasoning_trace or 'LLM call failed'}), 502
+
+    db.append_trace_review_log(paper_id, model_name, reasoning_trace, content, valid=True)
+    log(f"{_color_prefix('COMPLETE:', Colors.VLLM_COMPLETE)} trace review paper={paper_id}")
+    return jsonify({'status': 'success', 'paper_id': paper_id})
+
 @queue_bp.app_errorhandler(404)
 def not_found(e):
     log(f"{_color_prefix('ERROR:', Colors.ERROR)} Unknown endpoint {request.path}")

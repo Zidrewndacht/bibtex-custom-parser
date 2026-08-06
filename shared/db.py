@@ -668,3 +668,34 @@ def update_set_log_only(paper_id, set_num, log_type, model_name, reasoning_trace
         existing_log.append(log_entry)
         
         cursor.execute(f"UPDATE papers SET set_{set_num}_llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+
+def append_trace_review_log(paper_id, model_name, reasoning_trace, report_content, valid=True, invalid_reason=None):
+    """Appends a free-form agent trace review report to the MAIN llm_log.
+
+    Deliberately does NOT touch classification, main_certainty, changed/changed_by,
+    and does NOT call recalculate_main_set. It is a standalone audit entry.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        row = cursor.execute("SELECT llm_log FROM papers WHERE id = ?", (paper_id,)).fetchone()
+        if not row:
+            return {'status': 'error', 'message': 'Paper not found'}
+        try:
+            existing_log = json.loads(row[0]) if row and row[0] else []
+        except Exception:
+            existing_log = []
+        log_entry = {
+            "timestamp": timestamp,
+            "type": "trace_review",
+            "model": model_name,
+            "trace": reasoning_trace or "",
+            "output": json.dumps({"report": report_content or ""}),
+            "valid": valid
+        }
+        if invalid_reason:
+            log_entry["invalid_reason"] = invalid_reason
+        existing_log.append(log_entry)
+        cursor.execute("UPDATE papers SET llm_log = ? WHERE id = ?", (json.dumps(existing_log), paper_id))
+        conn.commit()
+    return {'status': 'success'}
