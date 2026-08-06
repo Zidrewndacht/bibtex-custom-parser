@@ -12,6 +12,7 @@ data/
 
 # 4. Runtime Logs
 logs/
+tools/
 
 # 5. Generated Outputs (Charts and CSV exports)
 meta/charts/
@@ -27,14 +28,12 @@ consensus_logic.png
 *.csv
 *.tex
 *.lnk
-backup_before_restore.parça.zst
+backup_before_restore.parsa.tzst
 
 flattened_code.txt
 flattened_code.md
 
-
 config.yaml
 domain-config.yaml
-tools
 meta/agreement_3sets_cli_v1.4.py
 TODO.txt

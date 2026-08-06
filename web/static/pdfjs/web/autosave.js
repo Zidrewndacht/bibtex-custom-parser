@@ -1,3 +1,7 @@
+// Copyright 2026 Luis Alfredo
+// Licensed under the Apache License, Version 2.0 to maintain compatibility 
+// with the parent pdf.js library.
+
 //static/pdfjs/web/autosave.js
 //Autosave script for ResearchParsa Annotator based on PDF.js
 document.addEventListener('DOMContentLoaded', function () {

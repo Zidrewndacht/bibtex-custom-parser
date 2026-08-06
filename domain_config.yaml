@@ -2,7 +2,7 @@
 # DOMAIN CONFIGURATION FILE
 # ==============================================================================
 # This file defines the domain-specific schema, UI layout, and LLM prompts for 
-# ResearchParsa. It tells the application what columns to render in the main 
+# ResearchParça. It tells the application what columns to render in the main 
 # table, what text fields to show in the detail pane, and how to interact with 
 # the LLM for automated classification.
 #

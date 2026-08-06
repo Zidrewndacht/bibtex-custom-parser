@@ -314,18 +314,19 @@ def main():
         "browse_db.py",
         "queue_manager.py",
         # "README.md",
+        "LICENSE",
         
         # # # Prompt templates
-        # "prompt_templates/classify_template.txt",
-        # "prompt_templates/reclassify_template.txt",
-        # "prompt_templates/verify_template.txt",
+        "prompt_templates/classify_template.txt",
+        "prompt_templates/reclassify_template.txt",
+        "prompt_templates/verify_template.txt",
         
         # # # Queue manager module
-        # "queue_manager/__init__.py",
-        # "queue_manager/dispatcher.py",
-        # "queue_manager/logging_utils.py",
-        # "queue_manager/routes.py",
-        # "queue_manager/state.py",
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
 
         # Meta module
         "meta/agreement_core.py",
@@ -340,12 +341,14 @@ def main():
         
         # Web module
         "web/__init__.py",
-        # "web/export_logic.py",
+        "web/export_logic.py",
         "web/filters.py",
-        # "web/importer.py",
-        # "web/routes_data.py",
-        # "web/routes_files.py",
+        "web/importer.py",
+        "web/routes_data.py",
+        "web/routes_files.py",
         "web/routes_ui.py",
+        "web/routes_agreement.py",
+        "web/LICENSE",
         
         # Web static files
         "web/static/js/agreement_report.js",
@@ -367,12 +370,12 @@ def main():
 
         "web/static/css/style.css",
         "web/static/css/agreement_report.css",
-        # "web/static/css/fonts.css",
+        "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
-        # "web/static/pdfjs/web/autosave.js",
-        # "web/static/pdfjs/web/viewer.html",
-        # "web/static/pdfjs/web/viewer_mods.css",
+        "web/static/pdfjs/web/autosave.js",
+        "web/static/pdfjs/web/viewer.html",
+        "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
         "web/templates/agreement_report.html",

@@ -36,7 +36,7 @@ By defining your domain's taxonomy, filters, and prompt templates in a YAML conf
 - **Data Export & Archiving**  
   - **Static HTML Export**: A self-contained, compressed HTML file with full offline filtering, sorting, and charting capabilities – ideal for sharing or archiving.  
   - **XLSX Export**: Formatted Excel spreadsheets with conditional formatting and multi-sheet audit logs.
-  - **Backup & Restore**: Complete Zstandard-compressed archives (`.parça.zst`) containing the database and all original/annotated PDFs.
+  - **Backup & Restore**: Complete Zstandard-compressed archives (`.parsa.tzst`) containing the database and all original/annotated PDFs.
 
 - **Interactive Web Interface**  
   A Flask-based application with an interactive table. Click status symbols to cycle values, edit text fields in expanded detail rows, and preserve your exact filter/sort state in the URL for bookmarking.
@@ -66,6 +66,23 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
 
 4.  **Interactive Help**:
     - Click the **?** button in the top‑right corner for a detailed guide on symbols, keyboard shortcuts (F1 for help, F3 for search, Ctrl+S to save), and UI features.
+
+---
+
+
+## Licensing
+This project uses a modular licensing approach to balance open scientific research with the protection of our product development efforts:
+
+*   **Core Backend & Scientific Artifacts:** The backend pipeline, queue manager, analysis scripts, and reproduction data (everything outside the `/web` directory) are licensed under the **Apache License 2.0**. You are free to use, modify, and distribute these components for any purpose, including commercial applications.
+*   **Web UI:** The web interface and user experience components located in the `/web` directory are licensed under the **PolyForm Noncommercial License 1.0.0**. You may use, modify, and run the frontend for non-commercial purposes (including academic research, peer review, and personal use). Commercial use of the frontend requires a separate licensing agreement with the authors.
+
+## Third-Party Software and Licenses
+
+This project bundles several third-party open-source libraries. While the core ResearchParsa application is licensed as described above, these bundled libraries retain their original licenses:
+
+*   **PDF.js** (`web/static/pdfjs/`): Licensed under the Apache License 2.0 (Mozilla Foundation). Our custom autosave integration (`autosave.js`) is also released under Apache 2.0 to maintain compatibility.
+*   **Chart.js, D3.js, Pako, etc.** (`web/static/libs/`): Licensed under their respective MIT/ISC licenses.
+*   **Inter Tight & Twemoji Mozilla Fonts** (`web/static/css/fonts/`): Licensed under the SIL Open Font License and CC-BY 4.0, respectively.
 
 ---
 

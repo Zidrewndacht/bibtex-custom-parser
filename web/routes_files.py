@@ -124,7 +124,7 @@ def backup_database():
     """Creates a backup of the database and related files."""
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_filename = f"{timestamp}.parça.zst"
+        backup_filename = f"{timestamp}.parsa.tzst"
         
         # Create temporary directory for exports
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -198,13 +198,13 @@ def restore_database():
         if 'backup_file' not in request.files: return jsonify({'status': 'error', 'message': 'No backup file provided'}), 400
         file = request.files['backup_file']
         if file.filename == '': return jsonify({'status': 'error', 'message': 'No file selected'}), 400
-        if not file.filename.endswith('.parça.zst'): return jsonify({'status': 'error', 'message': 'Invalid backup file format. Expected .parça.zst'}), 400
+        if not file.filename.endswith('.parsa.tzst'): return jsonify({'status': 'error', 'message': 'Invalid backup file format. Expected .parsa.tzst'}), 400
             
 
         # Create temporary directory for extraction
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save uploaded file temporarily
-            temp_backup_path = os.path.join(temp_dir, 'backup.parça.zst')
+            temp_backup_path = os.path.join(temp_dir, 'backup.parsa.tzst')
             file.save(temp_backup_path)
 
             # Decompress and extract
@@ -225,7 +225,7 @@ def restore_database():
                 return jsonify({'status': 'error', 'message': 'Backup does not contain required database file'}), 500
 
             # Backup current data before restoring (single file name, overwrites previous)
-            backup_current = "backup_before_restore.parça.zst"
+            backup_current = "backup_before_restore.parsa.tzst"
             backup_current_path = os.path.join(os.getcwd(), backup_current)
             cctx = zstd.ZstdCompressor(level=1)
             with cctx.stream_writer(open(backup_current_path, 'wb')) as compressor:

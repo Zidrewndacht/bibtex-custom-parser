@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 // Extract filename from Content-Disposition header
                 const contentDisposition = response.headers.get('Content-Disposition');
-                let filename = 'backup.parça.zst';
+                let filename = 'backup.parsa.tzst';
                 if (contentDisposition) {
                     const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
                     if (filenameMatch) {
@@ -372,8 +372,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!file) return;
 
             // Validate file extension
-            if (!file.name.endsWith('.parça.zst')) {
-                alert('Invalid backup file. Expected .parça.zst file.');
+            if (!file.name.endsWith('.parsa.tzst')) {
+                alert('Invalid backup file. Expected .parsa.tzst file.');
                 return;
             }
 

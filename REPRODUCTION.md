@@ -7,18 +7,22 @@ Because LLM inference is inherently stochastic, exact numerical replication (e.g
 This release includes the full ResearchParsa application alongside the specific artifacts used for the paper's evaluation:
 
 *   **`/example_config/inference_engine_examples/vLLM Qwen3.6-27B-AutoRound.bat`**: The exact Docker/vLLM launch script used to serve the reasoning model.
-*   **`/reproduction/unclassified_100_papers_backup.parça.zst`**: A backup of the stratified, unclassified 100-paper subset, ready to be imported and classified.
+*   **`/reproduction/backup_unclassified_100_papers.parsa.tzst`**: A backup of the stratified, unclassified 100-paper subset, ready to be imported and classified.
 *   **`/reproduction/db.human_classified_100_papers.sqlite`**: The same 100 papers with human expert annotations (used for the Human-AI Alignment study).
-*   **`/reproduction/ai_classified_papers_backup.parça.zst`**: A backup of the already classified 100-paper subset for convenience (if you can't run inference yourself).
+*   **`/reproduction/backup_ai_classified_papers.parsa.tzst`**: A backup of the already classified 100-paper subset for convenience (if you can't run inference yourself).
 *   **`/meta/agreement_human_cli_v1.4.py`**: Script to generate the Human-AI Alignment Summary table (Table 5 in the paper). Tables 1-4 are generated from the Web interface itself as instructed below.
 
-*(Note: The full 1,200-paper dataset is not included due to possible redistribution restrictions from Scopus/IEEE/ACM. However, the 100-paper stratified subset is sufficient to reproduce the Human-AI alignment table and verify the consensus mechanics. You may also import your own `.bib` or `.csv` files to test the pipeline at scale. PDF files the frontend may say are available also are excluded from the provided backups, so the Annotator module won't open them -- this is not related to the scope of this study)*
+*(Note: The full 1,200-paper dataset is not included due to possible redistribution restrictions from Scopus/IEEE/ACM. However, the 100-paper stratified, human-classified subset is sufficient to reproduce the Human-AI alignment table and verify the consensus mechanics. You may also import your own `.bib` or `.csv` files to test the pipeline at scale, the suggested search query (Scopus format) below was used to gather original BibTeX input data. PDF files that the frontend may say are "available" also are excluded from the provided backups, so the Annotator module won't open them -- this is not related to the scope of this study)*
+
+
+`TITLE-ABS-KEY(( "printed circuit*" OR "Circuit board*" OR pcb OR pcba ) AND ( inspection OR manufactur* OR assembly OR defect* OR solder* OR weld* OR "Automat* optical" )) AND PUBYEAR > 1973 AND PUBYEAR < 2027 AND ( LIMIT-TO ( DOCTYPE,"ar" ) OR LIMIT-TO ( DOCTYPE,"cp" ) OR LIMIT-TO ( DOCTYPE,"re" ) ) AND ( LIMIT-TO ( PUBSTAGE,"final" ) )  `
+
 
 ---
 
 ## Prerequisites
 
-*   **OS**: Windows (Tested on Windows 11 LTSC 26100. The provided `.bat` script assumes a Windows host with WSL2).
+*   **OS**: Windows (Tested on Windows 11 Enterprise LTSC 26100. The provided `.bat` script assumes a Windows host with WSL2). An earlier version was tested and confirmed working on Linux (Ubuntu 24.04 LTS). It should also work, but the version provided here was only tested on Windows.
 *   **Hardware**: NVIDIA GPU(s). The provided script is pre-configured for **dual RTX 3090s (48GB total VRAM)** with no display attached to the discrete GPUs (iGPU display). *See "Hardware Adaptation" below for other setups.*
 *   **Software**: 
     *   Docker Desktop with WSL2 backend and NVIDIA Container Toolkit.
@@ -39,9 +43,9 @@ The pipeline requires a local OpenAI-compatible inference endpoint. We used vLLM
 3. Wait for the Docker container to download the `Lorbus/Qwen3.6-27B-int4-AutoRound` weights and initialize the vLLM server on `http://localhost:8086`.
 
 ### Step 2: Start ResearchParsa and Import Data
-1. Start the ResearchParsa Flask backend and frontend by running `!browse_db.bat`. A Virtual Environment with the required dependencies will be automatically created. The application will be available at `http://127.0.0.1:5001` by default. To enable AI classification, start `!queue_manager.bat` (after !browse_db.bat has finished downloading the venv).
+1. Start the ResearchParsa Flask backend and frontend by running `!browse_db.bat`. A Virtual Environment with the required dependencies will be automatically created. The application will be available at `http://127.0.0.1:5001` by default. To enable AI classification, start `!queue_manager.bat` (wait until !browse_db.bat has finished downloading and initializing the virtual environment).
 
-2. In the ResearchParsa web UI, **Restore the Database**: Instead of importing a `.bib` file, use the "Restore Backup" in "Export & Backup" to load `data/reproduction/unclassified_100_papers.parça.zst`. This will populate the system with the exact 100 papers used in the paper's stratified validation subset as well as the corresponding `domain_config.yaml` (PCB AOI taxonomy) and configurable prompts.
+2. In the ResearchParsa web UI, **Restore the Database**: Instead of importing a `.bib` file, use the "Restore Backup" in "Export & Backup" to load `data/reproduction/unclassified_100_papers.parsa.tzst`. This will populate the system with the exact 100 papers used in the paper's stratified validation subset as well as the corresponding `domain_config.yaml` (PCB AOI taxonomy) and configurable prompts.
 
 ### Step 3: Run the Classification
 1. In the ResearchParsa UI, trigger the **Automated Classify Until Consensus** inside Batch Tools.

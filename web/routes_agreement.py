@@ -47,7 +47,8 @@ def get_consensus_progress(db_path):
         cursor = conn.cursor()
         cursor.execute("SELECT llm_log FROM papers WHERE llm_log IS NOT NULL AND llm_log != '[]' AND llm_log != ''")
         
-        timestamps = []
+        completion_timestamps = []   # latest timestamp per paper (when it finished)
+        earliest_ts = None           # true process start (first log entry of any kind)
         rows = cursor.fetchall()
         print(f"[Agreement Report] Found {len(rows)} papers with llm_log entries.")
         
@@ -56,43 +57,54 @@ def get_consensus_progress(db_path):
                 logs = json.loads(log_str)
                 latest_ts = None
                 for entry in logs:
-                    # Accept averaged_llm, classifier, consensus, or user edits as progress markers
                     if entry.get('type') in ['averaged_llm', 'classifier', 'consensus', 'user']:
                         ts = parse_timestamp(entry.get('timestamp'))
                         if ts:
+                            # Track the earliest timestamp across ALL entries = process start
+                            if earliest_ts is None or ts < earliest_ts:
+                                earliest_ts = ts
+                            # Track the latest timestamp per paper = completion
                             if latest_ts is None or ts > latest_ts:
                                 latest_ts = ts
                 if latest_ts:
-                    timestamps.append(latest_ts)
+                    completion_timestamps.append(latest_ts)
             except Exception as e:
                 print(f"[Agreement Report] Error parsing llm_log: {e}")
                 continue
         conn.close()
         
-        if not timestamps:
+        if not completion_timestamps or earliest_ts is None:
             print("[Agreement Report] No valid timestamps found for consensus progress.")
             return None
-            
-        timestamps.sort()
         
-        # CRITICAL FIX: Ensure all timestamps are consistently offset-naive or offset-aware
-        # before doing math on them. Mixed timezones cause TypeError and silently fail.
-        if timestamps[0].tzinfo is not None:
-            timestamps = [t if t.tzinfo is not None else t.replace(tzinfo=timezone.utc) for t in timestamps]
+        # Normalize timezone awareness consistently across all timestamps
+        has_tz = earliest_ts.tzinfo is not None
+        if has_tz:
+            earliest_ts = earliest_ts if earliest_ts.tzinfo else earliest_ts.replace(tzinfo=timezone.utc)
+            completion_timestamps = [
+                t if t.tzinfo is not None else t.replace(tzinfo=timezone.utc)
+                for t in completion_timestamps
+            ]
         else:
-            timestamps = [t.replace(tzinfo=None) if t.tzinfo is not None else t for t in timestamps]
-            
-        start = timestamps[0]
-        total = len(timestamps)
+            earliest_ts = earliest_ts.replace(tzinfo=None) if earliest_ts.tzinfo else earliest_ts
+            completion_timestamps = [
+                t.replace(tzinfo=None) if t.tzinfo is not None else t
+                for t in completion_timestamps
+            ]
+        
+        completion_timestamps.sort()
+        
+        start = earliest_ts          # <-- process start, not first completion
+        total = len(completion_timestamps)
         
         events = [{'elapsed': 0.0, 'remaining': total}]
-        for i, ts in enumerate(timestamps):
+        for i, ts in enumerate(completion_timestamps):
             elapsed = (ts - start).total_seconds() / 60.0
             events.append({'elapsed': elapsed, 'remaining': total - i - 1})
-            
+        
         return {
             'total': total,
-            'duration_minutes': (timestamps[-1] - start).total_seconds() / 60.0,
+            'duration_minutes': (completion_timestamps[-1] - start).total_seconds() / 60.0,
             'events': events
         }
     except Exception as e:
