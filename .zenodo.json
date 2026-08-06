@@ -37,7 +37,7 @@
     }
   ],
   "upload_type": "software",
-  "title": "ResearchParsa: A Domain-Agnostic Tool for LLM-Driven Systematic Literature Reviews",
+  "title": "ResearchParsa: A Domain-Agnostic Tool for LLM-Assisted SLR and SMS",
   "access_right": "open",
   "notes": "Dual-licensed project: The core backend and scientific artifacts are licensed under the Apache License 2.0. The Web UI components located in the /web directory are licensed under the PolyForm Noncommercial License 1.0.0. See the repository for full license texts."
 }
