@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using the metadata from this file. 
+  Note: This project is dual-licensed. The core backend and scientific artifacts 
+  are licensed under the Apache License 2.0, while the Web UI components located 
+  in the /web directory are licensed under the PolyForm Noncommercial License 1.0.0.
+title: "ResearchParsa"
+type: software
+authors:
+  - family-names: "da Silva"
+    given-names: "Luis Alfredo"
+    affiliation: "Universidade do Estado de Santa Catarina (UDESC)"
+    orcid: "https://orcid.org/0009-0002-3463-3407"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21816041"
+    description: "The concept DOI for the Zenodo archive of ResearchParsa."
+repository-code: "https://github.com/Zidrewndacht/ResearchParsa"
+url: "https://zidrewndacht.github.io/bibtex-custom-parser"
+license: 
+  - Apache-2.0
+  - LicenseRef-PolyForm-Noncommercial-1.0.0
+keywords:
+  - "bibliographic databases"
+  - "systematic literature review"
+  - "LLM classification"
+  - "vLLM"
+  - "BibTeX"
+  - "research tool"

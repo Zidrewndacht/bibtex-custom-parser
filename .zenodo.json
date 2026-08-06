@@ -1,0 +1,43 @@
+{
+  "creators": [
+    {
+      "affiliation": "Universidade do Estado de Santa Catarina (UDESC)",
+      "name": "da Silva, Luis Alfredo",
+      "orcid": "0009-0002-3463-3407"
+    }
+  ],
+  "description": "ResearchParsa is a domain-agnostic tool for managing, classifying, and analyzing bibliographic databases of academic papers. It imports BibTeX/CSV files into an SQLite database and provides a rich, dynamically generated web interface for browsing, filtering, editing, and performing LLM-driven classification and verification. By defining your domain's taxonomy, filters, and prompt templates in a YAML configuration file, the system adapts its data model, UI columns, and statistical dashboards to any specific research field.",
+  "keywords": [
+    "bibliographic databases",
+    "systematic literature review",
+    "LLM classification",
+    "vLLM",
+    "BibTeX",
+    "research tool"
+  ],
+  "rights": [
+    {
+      "id": "Apache-2.0",
+      "title": {
+        "en": "Apache License 2.0"
+      },
+      "description": {
+        "en": "Applies to the core backend, queue manager, analysis scripts, and reproduction data (everything outside the /web directory). A permissive license whose main conditions require preservation of copyright and license notices."
+      },
+      "link": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    {
+      "title": {
+        "en": "PolyForm Noncommercial License 1.0.0"
+      },
+      "description": {
+        "en": "Applies to the web interface and user experience components located in the /web directory. Any noncommercial purpose is a permitted purpose. Commercial use requires a separate licensing agreement."
+      },
+      "link": "https://polyformproject.org/licenses/noncommercial/1.0.0/"
+    }
+  ],
+  "upload_type": "software",
+  "title": "ResearchParsa: A Domain-Agnostic Tool for LLM-Driven Systematic Literature Reviews",
+  "access_right": "open",
+  "notes": "Dual-licensed project: The core backend and scientific artifacts are licensed under the Apache License 2.0. The Web UI components located in the /web directory are licensed under the PolyForm Noncommercial License 1.0.0. See the repository for full license texts."
+}

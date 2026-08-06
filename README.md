@@ -1,5 +1,7 @@
 # ResearchParsa
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21816041.svg)](https://doi.org/10.5281/zenodo.21816041)
+
 Live Demo (read-only HTML export): [ResearchParsa](https://zidrewndacht.github.io/bibtex-custom-parser).  
 
 *The frontend was mostly tested with Mozilla Firefox and works well. The HTML export had known performance issues in Chromium‑based browsers in 2025 and wasn't extensively performance-tested since. If the page lags or stops responding on reasonably modern hardware, please use Firefox instead.*
