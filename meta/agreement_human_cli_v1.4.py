@@ -567,6 +567,29 @@ def generate_latex_table(results: Dict,
 
     print(f"  LaTeX table saved to: {output_path}")
 
+def generate_human_latex_macros(results: Dict, subset_size: int, output_path: str) -> None:
+    lines = [
+        "% AUTO-GENERATED HUMAN-ALIGNMENT MACROS",
+        f"\\newcommand{{\\StatHumanSubsetSize}}{{{subset_size}}}",
+    ]
+    
+    for stratum_key, prefix in [("all", "HumanAll"), ("on_topic", "HumanOnTopic"), ("off_topic", "HumanOffTopic")]:
+        s = results[stratum_key]
+        n_obs = int(s['n_observations'])
+        lines.append(f"\\newcommand{{\\Stat{prefix}Obs}}{{{n_obs:,}}}")
+        for outcome_key, outcome_label in OUTCOMES:
+            d = s[outcome_key]
+            # Convert 'exact_match' to 'ExactMatch'
+            safe_label = outcome_key.replace('_', ' ').title().replace(' ', '')
+            cnt = int(d['count'])
+            pct = float(d['pct'])
+            lines.append(f"\\newcommand{{\\Stat{prefix}{safe_label}Count}}{{{cnt:,}}}")
+            lines.append(f"\\newcommand{{\\Stat{prefix}{safe_label}Pct}}{{{pct:.2f}}}")
+            lines.append(f"\\newcommand{{\\Stat{prefix}{safe_label}Fmt}}{{{pct:.2f}\\% ({cnt:,})}}")
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    print(f"  Human alignment macros saved to: {output_path}")
 
 # ============================================================================
 # Main
@@ -644,13 +667,16 @@ def main() -> int:
 
     if not args.quiet:
         print_summary(results, fields, subset_label)
-
+        
     if not args.no_latex:
         output_path = args.output
         if not output_path.lower().endswith(".tex"):
             output_path += ".tex"
+            
+        macros_path = output_path.replace(".tex", "_macros.tex") # <--- NEW
 
         generate_latex_table(results, output_path, subset_label)
+        generate_human_latex_macros(results, len(common_ids), macros_path) # <--- NEW
 
     if not args.quiet:
         print("Analysis complete.")

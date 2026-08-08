@@ -30,7 +30,9 @@ DEFAULT_OUTPUT_PATH = SCRIPT_DIR / "consensus_progress.png"
 
 POWER_SMOOTHING_WINDOW = 6
 
-PAPER_TICK_INTERVAL = 60
+# Increased intervals for sparser ticks
+PAPER_TICK_INTERVAL = 100
+POWER_TICK_INTERVAL = 100
 TIME_MAJOR_INTERVAL = 60
 TIME_MINOR_INTERVAL = 15
 
@@ -182,16 +184,18 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     max_rem = max(rem_count) if rem_count else 1
     ax1.set_ylim(0, max(max_rem * 1.05, 1))
     ax1.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL))
-    ax1.tick_params(axis='y', labelcolor=C_REM, labelsize=11)
+    ax1.tick_params(axis='y', labelcolor=C_REM, labelsize=14) # Increased labelsize
     
     if has_power and power_smooth:
         ax2 = ax1.twinx()
         # ax2.set_ylabel('Wall Power [W]', fontsize=14, fontweight='bold', color=C_PWR)
         ax2.plot(times, power_smooth, color=C_PWR, linewidth=1.25, label='Wall Power (W)', alpha=0.95)
-        paper_max = ax1.get_ylim()[1]
-        ax2.set_ylim(0, paper_max )
-        ax2.yaxis.set_major_locator(MultipleLocator(PAPER_TICK_INTERVAL))
-        ax2.tick_params(axis='y', labelcolor=C_PWR, labelsize=11)
+        
+        # Fixed power scale to 900W
+        ax2.set_ylim(0, 900)
+        ax2.yaxis.set_major_locator(MultipleLocator(POWER_TICK_INTERVAL))
+        ax2.tick_params(axis='y', labelcolor=C_PWR, labelsize=14) # Increased labelsize
+        ax2.grid(False) # Disable gridlines for power axis
     else:
         ax2 = None
     
@@ -201,12 +205,12 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     ax1.xaxis.set_minor_locator(MultipleLocator(TIME_MINOR_INTERVAL))
     ax1.grid(True, axis='x', which='major', alpha=0.3, linestyle='--')
     ax1.grid(True, axis='x', which='minor', alpha=0.15, linestyle=':')
-    ax1.tick_params(axis='x', labelsize=11)
+    ax1.tick_params(axis='x', labelsize=12) # Slightly increased x-axis tick size for consistency
     
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels() if ax2 else ([], [])
     if lines1 + lines2:
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=10, framealpha=0.95)
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='lower left', fontsize=14, framealpha=0.95) # Moved legend to bottom left
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')

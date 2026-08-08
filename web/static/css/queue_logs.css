@@ -177,7 +177,7 @@
 }
 
 #queue-logs-page .log-tab-btn:hover {
-    filter: saturate(200%) contrast(110%);
+    filter: saturate(150%) contrast(110%);
 }
 
 #queue-logs-page .log-tab-btn .tab-label {
@@ -198,33 +198,38 @@
 
 /* Inactive tab category hints */
 #queue-logs-page .tab-queue_status {
-    color: hsl(210, 50%, 28%);
-    box-shadow: inset 8px 0 24px hsla(234, 64%, 58%, 0.2);
+    color: hsl(240, 50%, 28%);
+/*     box-shadow: inset 8px 0 24px hsla(234, 64%, 58%, 0.2); */
+    background: var(--detail-button-background);
 }
 
 #queue-logs-page .tab-dispatch {
     color: hsl(190, 65%, 22%);
-    box-shadow: inset 8px 0 24px hsla(190, 75%, 55%, 0.2);
+/*     box-shadow: inset 8px 0 24px hsla(190, 75%, 55%, 0.2); */
+    background: var(--detail-button-background);
 }
 
 #queue-logs-page .tab-complete {
     color: hsl(122, 45%, 25%);
-    box-shadow: inset  8px 0 24px hsla(122, 65%, 59%, 0.2);
+/*     box-shadow: inset  8px 0 24px hsla(122, 65%, 59%, 0.2); */
+    background: var(--detail-button-background);
 }
 
 #queue-logs-page .tab-request {
     color: hsl(28, 80%, 28%);
-    box-shadow: inset  8px 0 24px hsla(40, 76%, 53%, 0.2);
+/*     box-shadow: inset  8px 0 24px hsla(40, 76%, 53%, 0.2); */
+    background: var(--detail-button-background);
 }
 
 #queue-logs-page .tab-error {
     color: hsl(0, 60%, 32%);
-    box-shadow: inset  8px 0 24px hsla(0, 68%, 46%, 0.2);
+/*     box-shadow: inset  8px 0 24px hsla(0, 68%, 46%, 0.2); */
+    background: var(--detail-button-background);
 }
 
 /* Active tab category backgrounds, kept dark enough for white text */
 #queue-logs-page .tab-queue_status.active {
-    background: linear-gradient(180deg, hsl(210, 50%, 32%), hsl(210, 50%, 26%));
+    background: linear-gradient(180deg, hsl(240, 40%, 32%), hsl(240, 50%, 26%));
 }
 
 #queue-logs-page .tab-dispatch.active {

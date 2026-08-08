@@ -82,21 +82,21 @@ _general_config = load_general_config()
 DEFAULT_YEAR_FROM = _general_config.get('default_year_from', 2016)
 DEFAULT_YEAR_TO = _general_config.get('default_year_to', 2025)
 DEFAULT_MIN_PAGE_COUNT = _general_config.get('default_min_page_count', 4)
-FRONTEND_PORT = _general_config.get('frontend_port', 5001) # <--- NEW
+FRONTEND_PORT = _general_config.get('frontend_port', 5001)
 
 LLM_SERVER_URL = _general_config.get('llm_server_url', "http://localhost:8086")
-LLM_API_KEY = _general_config.get('llm_api_key', None)    # <--- NEW
+LLM_API_KEY = _general_config.get('llm_api_key', None)
 QUEUE_MANAGER_HOST = _general_config.get('queue_manager_host', "localhost")
 QUEUE_MANAGER_PORT = _general_config.get('queue_manager_port', 6001)
 QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
 
-MAX_CONCURRENT_WORKERS_CLASSIFY = _general_config.get('max_concurrent_workers_classify', 60)
-MAX_CONCURRENT_WORKERS_VERIFY = _general_config.get('max_concurrent_workers_verify', 90)
-MAX_CONCURRENT_WORKERS_RECLASSIFY = _general_config.get('max_concurrent_workers_reclassify', 48)
-MIN_CONCURRENT_WORKERS = _general_config.get('min_concurrent_workers', 32)
+MAX_CONCURRENT_WORKERS_CLASSIFY = _general_config.get('max_concurrent_workers_classify', 70)
+MAX_CONCURRENT_WORKERS_VERIFY = _general_config.get('max_concurrent_workers_verify', 75)
+MAX_CONCURRENT_WORKERS_RECLASSIFY = _general_config.get('max_concurrent_workers_reclassify', 70)
+MIN_CONCURRENT_WORKERS = _general_config.get('min_concurrent_workers', 65)
 
-MAX_CONSENSUS_ITERATIONS = _general_config.get('max_consensus_iterations', 15)
-FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config.get('fresh_classify_fallback_iteration', 8)
+MAX_CONSENSUS_ITERATIONS = _general_config.get('max_consensus_iterations', 8)
+FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config.get('fresh_classify_fallback_iteration', 4)
 
 
 
@@ -152,14 +152,6 @@ def assemble_prompt_templates(prompts_cfg):
     final_reclassify = final_reclassify.replace('{configurable_few_shot_examples}', few_shot)
     
     return final_classify, final_verify, final_reclassify
-
-
-
-
-
-
-
-
 
 
 # --- 2. Domain Config & Dynamic Theme/Prompt Engine ---
@@ -380,8 +372,9 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
     try:
         if is_shutdown_flag_set():
             return None, None, None
-            
-        response = requests.post(chat_url, headers=headers, json=payload, timeout=2400)
+        # vLLM requests may take hours to complete and should not be discarded. 
+        # This is by design, Do NOT reduce this timeout.
+        response = requests.post(chat_url, headers=headers, json=payload, timeout=7200)
         
         if is_shutdown_flag_set():
             return None, None, None

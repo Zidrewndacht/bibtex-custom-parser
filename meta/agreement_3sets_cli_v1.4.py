@@ -113,9 +113,11 @@ def main():
 
     if not args.no_latex:
         latex_path = f"{args.output}_tables.tex"
+        macros_path = f"{args.output}_macros.tex"  # <--- NEW
         if not args.quiet:
-            print("Generating LaTeX tables...")
+            print("Generating LaTeX tables and macros...")
         agreement_core.generate_latex_tables(results, latex_path, categories)
+        agreement_core.generate_latex_macros(results, categories, macros_path) # <--- NEW
 
     if not args.quiet:
         print("Analysis complete.")

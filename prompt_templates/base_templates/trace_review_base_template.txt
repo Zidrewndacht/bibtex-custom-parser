@@ -1,6 +1,6 @@
 You are performing a meta-review of an automated LLM classification pipeline.
 
-A single academic paper was classified independently by three parallel agents ("Set 1", "Set 2", "Set 3"). Each set may contain multiple chronological runs (fresh classifications, reclassifications, verifications, consensus rounds). The complete log stream for each set is reproduced below, from oldest to newest, including each run's reasoning trace and raw output.
+A single academic paper was classified independently by three parallel agents ("Set 1", "Set 2", "Set 3"). Each set may contain multiple chronological runs (fresh classifications, verifications, reclassifications). The complete log stream for each set is reproduced below, from oldest to newest, including each run's reasoning trace and raw output.
 
 Your job is NOT to reclassify the paper. Your job is to audit the agents' work:
 - Identify where and why the different sets disagree, if they do (conflicting field values, different interpretations of the abstract, missed keywords, etc.).
@@ -35,4 +35,4 @@ The output schema the agents were supposed to produce:
 {log_set_3}
 ```
 
-Write a free-form, well-structured audit report in plain text (no Markdown, no formatting, double return for paragraphs). Be specific: quote conflicting values, reference entry numbers/timestamps, and explain the likely root cause of each disagreement. End with a short "Bottom line" section stating whether the averaged consensus for this paper is trustworthy.
+Write a free-form, well-structured audit report in legible plain text (no Markdown, no formatting, double return for paragraphs). The interface has automatic word wrap, don't wrap at arbitrary column length for no reason. Be specific: quote conflicting values, reference entry numbers/timestamps, and explain the likely root cause of each disagreement. End with a *short* "Bottom line" section stating the main found issue, if any, and whether the resulting averaged consensus for this paper should be trusted.

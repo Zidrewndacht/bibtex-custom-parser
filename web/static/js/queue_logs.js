@@ -437,8 +437,8 @@ class QueueLogViewer {
                     this.state.filtered = [];
 
                     if (view.id === "error") {
-                        this.state.emptyMessage = "No errors logged yet.";
-                        this.setStatus("This is usually a good sign.");
+                        this.state.emptyMessage = "No errors logged yet. This is usually a good sign.";
+                        this.setStatus("");
                     } else {
                         this.state.emptyMessage = `No ${view.label.toLowerCase()} entries yet.`;
                         this.setStatus("");
