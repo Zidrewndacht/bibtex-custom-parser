@@ -351,7 +351,7 @@ def serve_pdf(paper_id):
         print(f"No PDF file found for paper_id: {paper_id} (filename: {filename})")
         new_state = 'none'
         with db.get_db() as conn:
-            conn.execute("UPDATE papers SET pdf_state = ? WHERE id = ?", (new_state, paper_id))
+            conn.execute("UPDATE papers SET pdf_state = ?, pdf_filename = NULL WHERE id = ?", (new_state, paper_id))
         abort(404)
         
     if current_db_state != new_state:
@@ -417,9 +417,10 @@ def static_export():
     year_from_param = request.args.get('year_from')
     year_to_param = request.args.get('year_to')
     min_page_count_param = request.args.get('min_page_count')
-    # hidden params (usable, but not implemented in the Web client GUI):
+
     lite_param = request.args.get('lite', default='0')
     download_param = request.args.get('download', default='1')
+    skip_abstracts_param = request.args.get('skip_abstracts', default='0') 
 
     # --- Determine filter values ---
     hide_offtopic, year_from_value, year_to_value, min_page_count_value= export_logic.get_default_filter_values(
@@ -435,10 +436,12 @@ def static_export():
     )
 
     is_lite_export = lite_param.lower() in ['1', 'true', 'yes']
+    skip_abstracts = skip_abstracts_param.lower() in ['1', 'true', 'yes'] 
 
     # --- Generate the content using the core function ---
     full_html_content = export_logic.generate_html_export_content(
-        papers, hide_offtopic, year_from_value, year_to_value, min_page_count_value, is_lite_export
+        papers, hide_offtopic, year_from_value, year_to_value,
+        min_page_count_value, is_lite_export, skip_abstracts 
     )
 
     # --- Create a filename based on filters ---

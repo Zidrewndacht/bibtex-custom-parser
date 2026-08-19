@@ -175,7 +175,8 @@ def prepare_history_log_data(paper_dict, set_num=None):
     return processed_entries
 
 
-def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to_value, min_page_count_value, is_lite_export=False):
+def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to_value,
+                                 min_page_count_value, is_lite_export=False, skip_abstracts=False):
     for paper in papers:
         paper['llm_log_entries'] = prepare_history_log_data(paper, set_num=None)
         paper['set_1_llm_log_entries'] = prepare_history_log_data(paper, set_num=1)
@@ -234,6 +235,7 @@ def generate_html_export_content(papers, hide_offtopic, year_from_value, year_to
         type_emojis=config.TYPE_EMOJIS, pdf_emojis=config.PDF_EMOJIS, default_type_emoji=config.DEFAULT_TYPE_EMOJI,
         hide_offtopic=hide_offtopic, year_from_value=str(year_from_value), year_to_value=str(year_to_value),
         min_page_count_value=str(min_page_count_value), is_lite_export=is_lite_export,
+        skip_abstracts=skip_abstracts, 
     )
     
     full_html_content = render_template(

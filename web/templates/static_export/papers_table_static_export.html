@@ -34,7 +34,7 @@
     <tr data-paper-id="{{ paper.id }}">
       {#<!-- 1. LEADING FIXED — PDF column uses direct file paths (export-specific) -->#}
       <td class="status-cell pdf-status emoji-column">
-        {% if paper.pdf_filename %}
+        {% if paper.pdf_filename and paper.pdf_state in ['PDF', 'annotated'] %}
           {% if paper.pdf_state == 'annotated' %}
             <a href="data/pdf_annotated/{{ paper.pdf_filename }}" target="_blank" class="pdf-link" title="Open PDF">{{ pdf_emojis.get(paper.pdf_state) }}</a>
           {% else %}
@@ -43,6 +43,7 @@
         {% elif paper.pdf_state == 'paywalled' %}
           <span title="This paper is paywalled">{{ pdf_emojis.get(paper.pdf_state) }}</span>
         {% endif %}
+        {#<!--  pdf_state == 'none': render nothing. No ❔ in exports. -->#}
       </td>
       <td class="title-cell">{% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>{% else %}<span style="font-weight: 300;">{{ paper.title }}</span>{% endif %}</td>
       <td class="secondary-text-cell number-cell">{{ paper.year or '' }}</td>
@@ -74,7 +75,13 @@
       <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
       <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
       {#<!-- Hidden cells — same as main -->#}
-      <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
+      <td class="hidden-data-cell" data-field="abstract" style="display: none;">
+        {% if skip_abstracts %}
+          No data.
+        {% else %}
+          {{ paper.abstract }}
+        {% endif %}
+      </td>
       <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
       <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
       <td class="hidden-data-cell" data-field="user_trace" style="display: none;">{{ paper.user_trace or '' }}</td>
@@ -94,7 +101,13 @@
               <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')"><em>\citeN</em></button>
               <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')">Copy</button>
             </div>
-            <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+            <p><strong>Abstract:</strong>
+            {% if skip_abstracts %}
+              <em>Abstract removed to avoid potential copyright complaints.</em>
+            {% else %}
+              {{ paper.abstract }}
+            {% endif %}
+          </p>
           </div>
           <div class="detail-content detail-metadata">
             <div class="bibtex-section">

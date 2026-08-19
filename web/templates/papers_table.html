@@ -28,14 +28,14 @@
     <tr data-paper-id="{{ paper.id }}">
       {#<!-- 1. LEADING FIXED (6) — unchanged -->#}
       <td class="status-cell pdf-status emoji-column">
-        {% if paper.pdf_filename %}
+        {% if paper.pdf_filename and paper.pdf_state in ['PDF', 'annotated'] %}
           <a href="{{ url_for('static', filename='pdfjs/web/viewer.html') }}?file={{ url_for('files.serve_pdf', paper_id=paper.id) | urlencode }}" target="_blank" class="pdf-link"
-             title="{% if paper.pdf_state == 'annotated' %}Open this annotated PDF in the Annotator{% else %}Open this PDF in the Annotator{% endif %}">
+            title="{% if paper.pdf_state == 'annotated' %}Open this annotated PDF in the Annotator{% else %}Open this PDF in the Annotator{% endif %}">
             {{ pdf_emojis.get(paper.pdf_state) }}
           </a>
         {% else %}
           <a href="#" class="pdf-upload-link" data-paper-id="{{ paper.id }}"
-             title="{% if paper.pdf_state == 'paywalled' %}Article is paywalled. Click to upload if a copy is available{% else %}No PDF stored yet. Click to upload PDF{% endif %}">
+            title="{% if paper.pdf_state == 'paywalled' %}Article is paywalled. Click to upload if a copy is available{% else %}No PDF stored yet. Click to upload PDF{% endif %}">
             {{ pdf_emojis.get(paper.pdf_state) }}
           </a>
         {% endif %}

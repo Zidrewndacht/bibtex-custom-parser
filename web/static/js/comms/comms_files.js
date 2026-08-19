@@ -83,33 +83,37 @@ function uploadPDFForPaper(paperId) {
         });
 }
 
-function updateTableRowWithPDFData(paperId, filename) {
+function updateTableRowWithPDFData(paperId, filename, pdfState) {
     const row = document.querySelector(`tr[data-paper-id="${paperId}"]`);
-    if (!row) {
-        console.error(`Row for paper ID ${paperId} not found.`);
-        return;
+    if (!row) return;
+    const pdfCell = row.cells[pdfCellIndex];
+    if (!pdfCell) return;
+
+    pdfCell.innerHTML = '';
+    pdfCell.title = "PDF Status";
+
+    if (filename && (pdfState === 'PDF' || pdfState === 'annotated')) {
+        const filenameWithoutExtension = filename.replace(/\.pdf$/i, '');
+        const pdfLink = document.createElement('a');
+        pdfLink.href = `/static/pdfjs/web/viewer.html?file=/serve_pdf/${encodeURIComponent(filenameWithoutExtension)}`;
+        pdfLink.target = '_blank';
+        pdfLink.title = pdfState === 'annotated'
+            ? 'Open this annotated PDF in the Annotator'
+            : 'Open this PDF in the Annotator';
+        pdfLink.textContent = pdfState === 'annotated' ? '📗' : '📕';
+        pdfCell.appendChild(pdfLink);
+    } else {
+        const uploadLink = document.createElement('a');
+        uploadLink.href = '#';
+        uploadLink.className = 'pdf-upload-link';
+        uploadLink.setAttribute('data-paper-id', paperId);
+        const isPaywalled = pdfState === 'paywalled';
+        uploadLink.title = isPaywalled
+            ? 'Article is paywalled. Click to upload if a copy is available'
+            : 'No PDF stored yet. Click to upload PDF';
+        uploadLink.textContent = isPaywalled ? '💰' : '❔';
+        pdfCell.appendChild(uploadLink);
     }
-
-    const pdfCell = row.cells[pdfCellIndex]; // PDF cell is the second cell (index 1)
-    if (!pdfCell) {
-        console.error(`PDF cell for paper ID ${paperId} not found.`);
-        return;
-    }
-
-    // Remove .pdf extension from filename for the viewer URL
-    const filenameWithoutExtension = filename.replace(/\.pdf$/i, '');
-
-    // Create the new link element for the PDF.js viewer
-    const pdfLink = document.createElement('a');
-    pdfLink.href = `/static/pdfjs/web/viewer.html?file=/serve_pdf/${encodeURIComponent(filenameWithoutExtension)}`;
-    pdfLink.target = '_blank';
-    pdfLink.title = `Open PDF.js Annotator for: ${filename}`;
-    pdfLink.textContent = '📕';
-
-    // Replace the cell content with the new link
-    pdfCell.innerHTML = ''; // Clear existing content (like '⏳')
-    pdfCell.appendChild(pdfLink);
-    pdfCell.title = "PDF Status"; // Set title back
 }
 
 // Event delegation for the PDF upload links
@@ -131,7 +135,7 @@ document.addEventListener('click', function (event) {
         // Add event listener for when a file is selected
         pdfFileInput.onchange = function (e) {
             if (e.target.files.length > 0) {
-                uploadPDFForPaper(paperId);
+                updateTableRowWithPDFData(paperId, data.pdf_filename, data.pdf_state);            
             }
         };
 
@@ -248,7 +252,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // // Make lite export optional: Read checkbox state
         const liteExportCheckbox = document.getElementById('lite-export-checkbox');
         exportUrl += `lite=${liteExportCheckbox.checked ? '1' : '0'}&`;
-        // exportUrl += `lite=1&`; //Default to lite export - no thinking traces history in exports from webpage.
+        
+        const skipAbstractsCheckbox = document.getElementById('skip-abstracts-checkbox');
+        exportUrl += `skip_abstracts=${skipAbstractsCheckbox.checked ? '1' : '0'}&`;
 
         // Add filters to the URL query parameters
         if (hideOfftopicCheckbox) {
