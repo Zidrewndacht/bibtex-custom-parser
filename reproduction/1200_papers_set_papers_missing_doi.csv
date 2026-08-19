@@ -1,0 +1,130 @@
+id,type,title,authors,year,journal,pages
+li_efficient_2025,article,An efficient PCBA semantic segmentation network based on automated optical inspection,"Li, Tingxin; Qi, Kunkun; Liu, Weihua; Yang, Xianqiang; Sun, Hao",2025,Optics and Lasers in Engineering,
+mendizabal-arrieta_deep_2025,article,Deep learning-based solder joint defect detector,"Mendizabal-Arrieta, Inigo; alvarez, Hugo; Aguinaga, Daniel; Pellicer, Asier; Sanchez, Jairo R.; Torres, Fernando",2025,International Journal of Advanced Manufacturing Technology,5133 - 5147
+zhang_defect_2025,inproceedings,Defect detection of PCB-AoI dataset based on improved YOLOv10 algorithm,"Zhang, Qingchen; Xu, Xinyu; Wang, Zhibo; Wen, Yanhuan",2025,"Proceedings of the 4th International Conference on Computer, Artificial Intelligence and Control Engineering",60 - 66
+geng_ear-yolo_2025,article,EAR-YOLO: An Improved Model for Printed Circuit Board Surface Defect Detection,"Geng, Rui; Zhao, Nannan; Wang, Yang; Ouyang, Xinyu",2025,Engineering Letters,1519 - 1529
+zheng_quantitative_2025,article,Quantitative Detection of Micro Hole Wall Roughness in PCBs Based on Improved U-Net Model,"Zheng, Lijuan; Li, Yonghao; Sun, Zhuangzhuang; Luo, Yangquan; Xu, Ying; Wang, Jun; Wang, Chengyong; Wei, Xin",2025,Chinese Journal of Mechanical Engineering (English Edition),
+kim_design_2024,article,Design and Development of a Precision Defect Detection System Based on a Line Scan Camera Using Deep Learning,"Kim, Byungcheol; Shin, Moonsun; Hwang, Seonmin",2024,Applied Sciences (Switzerland),
+manfredi_uncertainty_2024,inproceedings,Uncertainty Quantification and Sensitivity Analysis of Crosstalk in PCB Lines via the Combination of Machine Learning and Polynomial Chaos Expansion,"Manfredi, Paolo; Trinchero, Riccardo",2024,,639 - 642
+lee__2024,article,이상 감지 모델 기반 PCB 제조 공정 중 비전검사 방법,"Lee, Sang-Jeong; Seo, Sung-Bal; Bae, You-Suk",2024,Transactions of the Korean Institute of Electrical Engineers,2024 - 2029
+ma_deepgd3_2023,inproceedings,DeepGD3: Unknown-Aware Deep Generative/Discriminative Hybrid Defect Detector for PCB Soldering Inspection,"Ma, Ching-Wen; Liu, Yanwei",2023,Proceedings of Machine Learning Research,1326 - 1335
+pham_defect_2023,article,Defect Detection in Printed Circuit Boards Using Semi-Supervised Learning,"Pham, Thi Tram Anh; Thoi, Do Kieu Trang; Choi, Hyohoon; Park, Suhyun",2023,Sensors,
+tangsuksant_defect_2023,inproceedings,Defect Solder Classification in Print Circuit Boards using Machine Learning,"Tangsuksant, Watcharin; Inthiam, Jiraphan; Silangren, Hattapat; Iamcharoen, Phattharaporn; Jitviriya, Wisanu",2023,Proceedings of International Conference on Artificial Life and Robotics,844 - 848
+ulger_fine-grained_2023,article,Fine-Grained Classification of Solder Joints With -Skew Jensen-Shannon Divergence,"Ulger, Furkan; Yuksel, Seniha Esen; Yilmaz, Atila; Gokcen, Dincer",2023,"IEEE Transactions on Components, Packaging and Manufacturing Technology",257 - 264
+passlack_innovative_2023,inproceedings,Innovative Fabrication of Polymer-Based Sensor Systems by Flip-Chip Integration of Ultrathin Chips Using Nanowires for Medical Applications,"Passlack, Ulrike; Albrecht, Bjoern; Harendt, Christine; Weissenborn, Florian; Quednau, Sebastian; Burghartz, Joachim N.",2023,,480 - 482
+ling_precise_2023,article,Precise Detection for Dense PCB Components Based on Modified YOLOv8,"Ling, Qin; Isa, Nor Ashidi Mat; Asaari, Mohd Shahrimie Mohd",2023,IEEE Access,116545 - 116560
+niu_pcb_2022,inproceedings,A PCB Defect Detection Algorithm with Improved Faster R-CNN,"Niu, Junhao; Huang, Jin; Cui, Lili; Zhang, Benxin; Zhu, Aijun",2022,CEUR Workshop Proceedings,283 - 292
+cai_defect_2022,inproceedings,Defect Identification of PCB Board Based on Machine Vision,"Cai, Li; Li, Jingchuan; Yuan, Yong",2022,"2nd International Symposium on Mechanical Systems and Electronic Engineering, ISMSEE 2022",312 - 315
+chien_design_2022,inproceedings,Design of industrial inspection system based on GPU,"Chien, Chungchun; Chen, Dihu; Wang, Zixin; Cai, Zhigang; Chen, Jiarong",2022,"2nd International Symposium on Mechanical Systems and Electronic Engineering, ISMSEE 2022",237 - 241
+yesilbas_rethinking_2022,inproceedings,Rethinking Pre-Training in Industrial Quality Control,"Yesilbas, Dilara; Arnold, Stefan; Felker, Alex",2022,"17th International Conference on Wirtschaftsinformatik, WI 2022",
+vandevelde_enhanced_2021,inproceedings,Enhanced processability and thermal fatigue reliability with low melting point SnBi solder alloy LMPA-Q,"Vandevelde, Bart; Nawghane, Chinmay; Labie, Riet; Lauwaert, Ralph; Werkhoven, Daniel",2021,,
+bougaham_ganodip_2021,inproceedings,GanoDIP - GAN Anomaly Detection through Intermediate Patches: A PCBA Manufacturing Case,"Bougaham, Arnaud; Bibal, Adrien; Linden, Isabelle; Fr{\'e}nay, Beno{\^\i}t",2021,Proceedings of Machine Learning Research,104 - 117
+sun_modular_2021,article,The Modular Integrated Stackable Layer- Analog System Environment Board Design for Experiential Learning of Embedded Systems,"Sun, Gang; Morgan, Joseph; Porte, Jay",2021,Journal of Engineering Technology,50 - 61
+kalber_u-net_2021,inproceedings,U-Net based zero-hour defect inspection of electronic components and semiconductors,"K{\""a}lber, Florian; K{\""o}p{\""u}kl{\""u}, Okan; Lehment, Nicolas; Rigoll, Gerhard",2021,"VISIGRAPP 2021 - Proceedings of the 16th International Joint Conference on Computer Vision, Imaging and Computer Graphics Theory and Applications",593 - 601
+anitha_bare_2020,article,BARE BOARD MULTILAYER PRINTED CIRCUIT BOARD DEFECT IDENTIFICATION FOLLOWED BY LOCALIZATION,"Anitha, D.B.; Rao, Mahesh K",2020,International Journal of Computer Information Systems and Industrial Management Applications,310 - 329
+prathima_defect_2020,article,Defect detection in PCB using image processing,"Prathima, G.; Yasaswini Naga Lakshmi, A.; Vinay Kumar, C.; Manikanta, A.; Jaya Sandeep, B.",2020,International Journal of Advanced Science and Technology,1205 - 1210
+ye_detection_2020,article,Detection and Classification of Printed Circuit Board Assembly Defects Based on Deep Learning; [基於深度學習的印刷電路板元件組裝瑕疵檢測與分類],"Ye, Ruifang; Pan, Chia-Sheng; Hung, Pei-Yuan; Chang, Ming; Chen, Kuan-Yu",2020,"Journal of the Chinese Society of Mechanical Engineers, Transactions of the Chinese Institute of Engineers, Series C/Chung-Kuo Chi Hsueh Kung Ch\textquotesingle eng Hsuebo Pao",401 - 407
+roy_recent_2020,article,Recent Advances in PCB Manufacturing Equipment,"Roy, Akber",2020,Printed Circuit Design and Fab/Circuits Assembly,74 - 75
+song_analysis_2019,article,Analysis on AOI logic and resolution,"Song, Zhou",2019,,
+vijaya_kumar_detection_2019,article,Detection of printed circuit board faults using bottom-hat filter,"Vijaya Kumar, D.; Usha, S.",2019,Test Engineering and Management,6407 - 6411
+shcherbakova_information_2019,inproceedings,Information technologies based on wavelet transform for soldered joints diagnostic of printed circuit boards,"Shcherbakova, Galina; Krylov, Viktor; Sachenko, Anatoliy; Bykovyy, Pavlo; Zahorodnia, Diana; Komar, Myroslav; Kit, Ivan; Lendiuk, Dmytro; Kaniovskyi, Andriy; Dacko, Mykola",2019,CEUR Workshop Proceedings,1030 - 1041
+karimian_non-destructive_2019,inproceedings,Non-destructive detection of discontinuity of circuit board using image processing techniques,"Karimian, Noushin; Varzaneh, Salma Ghafouri",2019,"58th Annual Conference of the British Institute of Non-Destructive Testing, NDT 2019",
+herrmann_sustainability_2019,article,Sustainability as strategic business model for profitable business,"Herrmann, Constantin",2019,,
+lin_using_2019,article,Using convolutional neural networks for character verification on integrated circuit components of printed circuit boards,"Lin, Chun-Hui; Wang, Shyh-Hau; Lin, Cheng-Jian",2019,Applied Intelligence,4022 - 4032
+lee_application_2017,article,Application of laser spot cutting on spring contact probe for semiconductor package inspection,"Lee, Dongkyoung; Cho, Jungdon; Kim, Chan Ho; Lee, Seung Hwan",2017,Optics and Laser Technology,90 - 96
+li_defect_2017,article,Defect Detection for PCBs Based on Gradient Direction Information Entropy,"Li, Yunfeng; Li, Shengyang",2017,Zhongguo Jixie Gongcheng/China Mechanical Engineering,695 - 701
+sandy-smith_investigating_2017,inproceedings,Investigating test methods for electrochemical consistency in PCB assembly processes,"Sandy-Smith, Brook",2017,"2017 Pan Pacific Microelectronics Symposium, Pan Pacific 2017",
+mcdonnell_supportive_2017,article,Supportive tooling: The magic ingredient for flex circuit assembly,"McDonnell, Davina",2017,SMT Surface Mount Technology Magazine,30 - 34
+yuan_circuit_2017,article,The circuit break detection of flexible deformation FPC based on skeleton,"Yuan, Weiqi; Li, Dejian; Li, Shaoli",2017,Yi Qi Yi Biao Xue Bao/Chinese Journal of Scientific Instrument,996 - 1004
+bogdan_integrated_2016,inproceedings,Integrated testing system FiTest for diagnosis of PCBA,"Bogdan, Arkadiusz; Lesniak, Adam",2016,Proceedings of SPIE - The International Society for Optical Engineering,COMEF Scientific and Research Equipment Sp. z o.o.; Fitech Sp. z o.o. --
+fraser_vapor_2016,article,"Vapor phase technology is a viable solution, but carries a learning curve","Fraser, Steve",2016,SMT Surface Mount Technology Magazine,70 - 73
+shea_new_2015,article,A NEW SPI tool for defect prevention,"Shea, Chrys",2015,Printed Circuit Design and Fab/Circuits Assembly,36 - 39
+tuncalp_automated_2015,article,Automated image processing system design for engineering education: The case of automatic inspection for printed circuit boards,"Tuncalp, B. Koray; Taskin, Sezai; Turgut, Yusuf",2015,Journal of Engineering Technology,10 - 17
+willis_case_2015,article,Case study: Detecting process defects,"Willis, Bob",2015,SMT Surface Mount Technology Magazine,56 - 64
+lau_high-density_2015,article,High-density interconnect and embedded board test,"Lau, Mark",2015,SMT Surface Mount Technology Magazine,8 - 16
+tutsch_speckle_2015,inproceedings,Speckle reduction for a laser light sectioning sensor,"Tutsch, Rainer; Han, Sida; Dierke, Hanno",2015,MATEC Web of Conferences,
+kaiser_thin_2015,inproceedings,Thin Film based lcp multi-layer circuits: Manufacturing technology and characterization,"Kaiser, A.; Bee, C. M.; Dupuis, F.; Metzen, R. von; Rue{\ss}, K.; Matej, P.; Herbort, C.; Holl, B.; L{\""o}ffler, S.; Baub{\""o}ck, G.; Fritz, K. -H.",2015,2015 European Microelectronics Packaging Conference (EMPC),1 - 6
+di_stefano_three-dimensional_2015,inproceedings,Three-dimensional inspection of printed circuit boards using phase profilometry,"Di Stefano, Luigi; Frank Boland, Francis M.",2015,European Signal Processing Conference,
+camillo_automated_2014,article,Automated inspection delivers quality PCBs,"Camillo, Jim",2014,Assembly,
+fischthal_beyond_2014,inproceedings,Beyond 0402M placement: Process considerations for 03015M microchip mounting,"Fischthal, Brent; Cieslinski, Michael",2014,,
+yazdani_design_2014,article,Design and direct assembly of 2.5D/3D rigid silicon interposer on PCB,"Yazdani, Farhang",2014,,783 - 786
+sjoberg_miniaturization_2014,inproceedings,Miniaturization with help of reduced component to component spacing,"Sj{\""o}berg, Jonas; Aranda, Ranilo; Geiger, David A.; Mohammed, Anwar; Kurwa, Murad",2014,,
+snider_study_2013,article,A study in PCB failure analysis: The intermittent connection,"Snider, Derek",2013,SMT Surface Mount Technology Magazine,76 - 80
+gaillard_board_2013,inproceedings,Board level reliability testing of hermetic packages equipped with high-rel interconnection solutions and dedicated to space applications,"Gaillard, Olivier",2013,,
+chrusciel_improving_2013,article,Improving product reliability through HALT and HASS testing of electronics and PCB s,"Chrusciel, Mark R.",2013,,402 - 418
+wolf_semi-automated_2013,article,Semi-automated inspection unit for printed circuit boards,"Wolf, Christian; Fischer, Bj{\""o}rn; Lehmann, Andreas",2013,,
+xiong_detection_2012,article,Detection method of printed circuit board defect based on image,"Xiong, Bangshu; Xiong, Zhenjiao; Mo, Yan; Chen, Gancai",2012,Bandaoti Guangdian/Semiconductor Optoelectronics,303 - 306
+melcioiu_obtaining_2012,article,Obtaining and characterization of nanocrystalline alloys for lead-free soldering of electronic components,"Melcioiu, Georgiana; Serban, Viorel Aurel; Codrean, Cosmin; Utu, Ion Dragos; Locovei, Cosmin",2012,,18 - 22
+zou_-line_2012,article,On-line visual inspection on PCB holes based on machine learning,"Zou, Huadong",2012,Liaoning Gongcheng Jishu Daxue Xuebao (Ziran Kexue Ban)/Journal of Liaoning Technical University (Natural Science Edition),93 - 97
+kokott_safe_2012,article,Safe inspection of dangerous voids,"Kokott, Jens",2012,SMT Surface Mount Technology Magazine,28 - 32
+geng_ball_2011,inproceedings,Ball grid array lead-free solder joint strength under monotonie flexural load,"Geng, Phil",2011,ASTM Special Technical Publication,139 - 157
+pal_singh_chauhan_detection_2011,inproceedings,Detection of bare PCB defects by image subtraction method using Machine Vision,"Pal Singh Chauhan, Ajay; Bhardwaj, Sharat Chandra",2011,,1597 - 1601
+boettcher_embedding_2011,article,Embedding technology for manufacturing of high density SiP,"Boettcher, Lars; Karaszkiewicz, Stefan; Manessis, Dionysios; Ostmann, Andreas",2011,,52 - 58
+pu_fast_2011,article,Fast AOI for large area and high-density PCB based on optimized K-D tree,"Pu, Liang; Ye, Yutang; Song, Yuncen; Liu, Li; Chen, Dongming; Pan, Ming",2011,Yi Qi Yi Biao Xue Bao/Chinese Journal of Scientific Instrument,955 - 960
+shea_man_2011,article,Man vs. machine listen: Your SPI might be trying to tell you something,"Shea, Chrys",2011,Printed Circuit Design and Fab/Circuits Assembly,54 - 64
+zhang_measurement_2011,article,Measurement system for surface current based on analogue optic-fiber transmission,"Zhang, Bingwei",2011,Gaodianya Jishu/High Voltage Engineering,2959 - 2964
+kokott_power_2011,article,Power module solder-void inspection,"Kokott, Jens",2011,EE: Evaluation Engineering,28 - 29
+yang_software_2011,article,Software design for PCB defects detection system based on AOI technology,"Yang, Qi; Li, Ziyin",2011,Information,4041 - 4046
+johnson_using_2011,article,Using stencils to simplify the pcb assembly process,"Johnson, Nolan",2011,SMT Surface Mount Technology Magazine,64 - 70
+chen_novel_2010,article,A novel algorithm for inspecting and classifying the defects of printed circuit boards,"Chen, Xiaohui; Liu, Xiaojun",2010,Huazhong Keji Daxue Xuebao (Ziran Kexue Ban)/Journal of Huazhong University of Science and Technology (Natural Science Edition),70 - 73
+subbarayan_novel_2010,article,A novel approach to experimentally create and mitigate head-in-pillow defects,"Subbarayan, Guhan; Priore, Scott; Sethuraman, Sundar",2010,,2484 - 2516
+chen_integrated_2010,inproceedings,An integrated mathematical model for optimizing the component placement process with a multi-heads placement machine,"Chen, Shijun; Shen, Yindong",2010,,1839 - 1842
+cheng-hsin_parametric_2010,inproceedings,Parametric study of flip chip packaging for MEMS device with diaphragm,"Cheng-Hsin, Chuang; Li, Wenhui; Wang, Chinhung; Lee, Shinli",2010,,362 - 365
+tucan_preparation_2010,inproceedings,Preparation of vibration tests of electrically conductive adhesives and leadfree solders,"Tu{\v c}an, Marek; {\v Z}{\'a}k, Pavel; Urb{\'a}nek, Jan",2010,,355 - 358
+noauthor_smt_2010,article,SMT component reliability for RF applications,,2010,Printed Circuit Design and Fab/Circuits Assembly,61 - 62
+qiao_study_2010,article,Study of line detection for PCB photoelectric image,"Qiao, Naosheng; Ye, Yutang; Liu, Lin; Huang, Yonglin; Yang, Xianming; Wang, Yulin",2010,Guangdianzi Jiguang/Journal of Optoelectronics Laser,1885 - 1889
+acciani_aoi_2009,inproceedings,AOI based neurofuzzy system to evaluate solder joint quality,"Acciani, Giuseppe; Brunetti, Gioacchino; Fornarelli, Girolamo; Giaquinto, Antonio; Maiullari, Domenico",2009,,50 - 53
+upton_aoi-axi_2009,article,AOI-AXI Duo Improves Product Yield,"Upton, David",2009,EE: Evaluation Engineering,60 - 63
+hu_improved_2009,article,An improved run-based boundary extraction algorithm,"Hu, Tao; Guo, Baoping; Guo, Xuan",2009,Shenzhen Daxue Xuebao (Ligong Ban)/Journal of Shenzhen University Science and Engineering,405 - 410
+wang_automatic_2009-1,article,Automatic optical inspection for solder joints based on BP neural network,"Wang, Xiaobin; Gu, Jihua; Yang, Yong; Zhou, Hao; Wang, Yongbin; Xu, Yajuan",2009,Guangxue Jishu/Optical Technique,905 - 909
+brown_changing_2009,article,Changing the paradigm for optical and X-ray Inspection of backplanes and large PCB assemblies,"Brown, Ian J.",2009,,3148 - 3161
+wu_inspection_2009,article,Inspection of surface mounted IC devices with edge and color features,"Wu, Huihui; Zhang, Xianmin; Hong, Shiliang",2009,Guangxue Jingmi Gongcheng/Optics and Precision Engineering,2283 - 2291
+fenner_new_2009,inproceedings,New developments in high performance solder products for power die assemblies,"Fenner, Mike; MacKie, Andy C.; Wilson, Graham",2009,,
+sundaraj_pcb_2009,article,PCB inspection for missing or misaligned components using background subtraction,"Sundaraj, Kenneth",2009,WSEAS Transactions on Information Science and Applications,778 - 787
+qiao_study_2009-1,article,Study on the method of defect circle hole detection in PCB microscope image,"Qiao, Naosheng; Ye, Yutang; Huang, Yonglin; Liu, Lin",2009,Guangdianzi Jiguang/Journal of Optoelectronics Laser,964 - 982
+lipson_landscape_2009,article,The landscape of PCB technology is changing rapidly. How will AOI testing keep up?,"Lipson, Pamela R.; Sherwood, Lyle",2009,,1646 - 1661
+azarian_use_2009,article,Use of the skin effect for detection of interconnect degradation,"Azarian, Michael H.; Kwon, Daeil; Pecht, Michael G.",2009,,532 - 536
+ding_warpage_2009,article,Warpage control of thermally enhanced PBGA package with internal heat spreader during reliability test,"Ding, Ming; Low, B. Y.; Guajardo, James R.; Downey, Harold; Chopin, Sheila F.",2009,,544 - 551
+crisp_3-d_2008,article,3-D packaging in cellular handsets,"Crisp, Richard D.",2008,Electronic Products,
+seo_study_2008,article,A study on the characteristics of micro deep hole machining processes,"Seo, Tae-il; Kim, Dong-woo; Cho, Myeongwoo; Lee, Eungsook",2008,Key Engineering Materials,566 - 571
+kahn_aoi_2008,article,AOI - Defining reliability for complex designs,"Kahn, Zulki",2008,Printed Circuit Design and Fab/Circuits Assembly,34 - 37
+kaitwanidvilai_automatic_2008,article,Automatic visual inspection of bump in hard disk drive component using neural network and image processing,"Kaitwanidvilai, Somyot; Seanton, Anakkapon",2008,,112 - 116
+potts_design_2008,article,Design to manufacturing - Bridging the gap,"Potts, Henry",2008,SMT Surface Mount Technology Magazine,
+zatko_drives_2008,article,"Drives and motion control. Linear drives in laser machines. Knife-sharp guidance. Linear motors move automatic knife; Antriebe \& Motion Control. Linearantriebe in Lasermaschinen. Messerscharfe F\""uhrung. Linearmotoren Bewegen Automatisches Messer","Zatko, J.; Reiff, Ellen Christine",2008,F und M Mechatronik,58 - 60
+sundaraj_homogeneous_2008,article,Homogeneous pin-through-hole component inspection using fringe tracking,"Sundaraj, Kenneth",2008,WSEAS Transactions on Signal Processing,419 - 429
+xiong_image-based_2008,article,Image-based line width measurement system,"Xiong, Bangshu; Lei, Ling; Xu, Jinghua",2008,Bandaoti Guangdian/Semiconductor Optoelectronics,945 - 952
+laing_improving_2008,article,Improving Design communication using DfA analysis and feedback,"Laing, Mark",2008,Printed Circuit Design and Fab/Circuits Assembly,22 - 25
+schoenholz_laser_2008,article,Laser structured printed circuit boards - Application and characteristics,"Schoenholz, Roland; Nowottnick, Mathias; Novikov, Andrej I.",2008,,910 - 942
+wade_micro_2008,article,"Micro copper contacts replace BGA, improve reliability","Wade, Christopher P.; Moran, Sean P.",2008,Semiconductor International,SP1 -- SP6
+zhou_multi-feature-input_2008,article,Multi-feature-input ANN ensembles based machine vision inspection for solder joints,"Zhou, Xianshan; Luo, Bing",2008,Wuhan Ligong Daxue Xuebao/Journal of Wuhan University of Technology,113 - 116
+waffenschmidt_printed_2008,inproceedings,Printed circuit board integrated multi-output transformer,"Waffenschmidt, Eberhard",2008,,175 - 180
+nissan_tips_2008,article,Tips to improve manufacturability,"Nissan, Arbel",2008,Printed Circuit Design and Fab/Circuits Assembly,18 - 23
+sherwood_be_2008,inproceedings,To be or not to be (before reflow): That is the question (in AOI),"Sherwood, Lyle; Lipson, Pamela R.",2008,,181 - 193
+messina_understanding_2008,inproceedings,Understanding EuP and REACH,"Messina, John; Simmon, Eric D.",2008,,562 - 588
+swarup_generalized_2007,article,A generalized wide band model for 3D multi-chip microwave integrated circuits and packaging technique adaptable to satellite applications,"Swarup, Arvind; Davitt, Dave; Christison, Ian",2007,,346 - 353
+bernard_--z_2007,article,An A-to-Z guide to X-ray inspection,"Bernard, David",2007,Circuits Assembly,28 - 31
+feng_detect_2007,article,Detect defects with SPI \& AXI,"Feng, Zhen; Garcia, Alex; Kingery, Scott; Kurwa, Murad; Meliane, Walid; Munnerlyn, Thomas",2007,SMT Surface Mount Technology Magazine,
+kuczynski_dimensional_2007,article,Dimensional changes in LCP SMT DIMM connectors and the effect on circuit card flatness,"Kuczynski, Joseph P.; Lewis, Theron L.; Mikhail, Amanda E.; Sinha, Arv K.",2007,,362 - 368
+chacon_i_2007,article,I sothermal aging of lead-free joints,"Chacon, Mercedes; Manriquez, Jorge A.; Mendoza, Jose L.; Toleno, Brian J.",2007,SMT Surface Mount Technology Magazine,
+li_preprocess_2007,article,Preprocess algorithm of PCB line detection,"Li, Zhimin; Lin, Yuewei; Huang, Jun; Zhang, Fengyang; Wan, Rui; Zhang, Jing; Huang, Fan",2007,Guangxue Jingmi Gongcheng/Optics and Precision Engineering,272 - 276
+yu_solder_2007,article,Solder joint shape inspection using least square fitting,"Yu, Longjiang; Yang, Ying; Sun, Shenghe",2007,Yi Qi Yi Biao Xue Bao/Chinese Journal of Scientific Instrument,1255 - 1258
+pippert_x-ray_2007,article,X-Ray choice for SMT manufacturing,"Pippert, Tamara; Bernard, David",2007,SMT Surface Mount Technology Magazine,
+khan_primer_2006,article,A primer on AOI and AOT,"Khan, Zulki",2006,Circuits Assembly,38 - 41
+lipson_automating_2006,article,Automating tolerance to process variation,"Lipson, Pamela R.",2006,,751 - 761
+pham-van-diep_closed-loop_2006,article,Closed-loop process control in the solder paste printing process,"Pham-Van-Diep, Gerald C.; Belmonte, Joe; Aravamudhan, Srinivasa R.; Harrell, Jeff",2006,,359 - 365
+noauthor_compliant_2006,article,Compliant pin prese with small 2-position turntable on a 2-position slide with pre- And post-prass Inspection,,2006,Research Disclosure,1595 - 1595
+ayoub_inspecting_2006,article,Inspecting post wirebond interconnects,"Ayoub, George T.",2006,Advanced Packaging,27 - 28
+cirimele_lead_2006,article,Lead Free BGA rework: A comparison of the effect on reliability of reworked BGAs that have been processed with solder paste printing or flux only attachment,"Cirimele, Ray",2006,,81 - 84
+colet_machine_2006,article,Machine vision aids quality inspection,"Colet, Philip",2006,Quality,22 - 23
+niermeyer_quality_2006,article,Quality control for the lead-free process,"Niermeyer, Thorsten",2006,European Semiconductor,37 - 39
+cheng_research_2006,article,Research of vision detection system on PCB,"Cheng, Songlin; Zhou, Zude; Hu, Wenjuan",2006,Wuhan Ligong Daxue Xuebao/Journal of Wuhan University of Technology,714 - 717
+sweatman_fluidity_2006,article,The fluidity of the Ni-modified Sn-Cu eutectic lead free solder,"Sweatman, Keith W.; Nishimura, Tetsuro",2006,,316 - 321
+ding_projection_2005,article,A projection moir\'e system for measuring warpage with case studies,"Ding, Hai; Powell, Reinhard E.; Ume, I. Charles",2005,International Journal of Microcircuits and Electronic Packaging,15 - 26
+jessen_axi_2005,article,AXI conquers hidden joint defects,"Jessen, Jeremy",2005,SMT Surface Mount Technology Magazine,38 - 44
+singh_beyond_2005,article,Beyond AOI - SMT quality control,"Singh, Parminder",2005,SMT Surface Mount Technology Magazine,44 - 48
+prince_bridge_2005,article,Bridge detection in the solder paste print process,"Prince, David P.",2005,,477 - 518
+varghese_drop_2005,inproceedings,Drop testing of printed wiring assemblies,"Varghese, Joseph; Dasgupta, Abhijit",2005,,1591 - 1595
+davignon_enabling_2005,article,Enabling ultra-fine pitch packages: Soldermask patterning using laser ablation,"Davignon, John J.; Howerton, Jeff; Alger, William H.; Brist, Gary A.; Long, Gary B.",2005,,594 - 606
+stoeckl_improving_2005,inproceedings,Improving the solder joint reliability of VQFN packages,"Stoeckl, Stephan; Pape, Heinz",2005,,760 - 767
+vandecasteele_lead-free_2005,article,Lead-free flip chip: A comparison between lead-free solder and adhesives,"Vandecasteele, Bj{\""o}rn; Vanfleteren, Jan; Manessis, Dionysios; Ostmann, Andreas; Hagedorn, Hans Werner; Wiese, Joachim",2005,,434 - 439
+levin_room_2005-1,inproceedings,Room temperature lead-free soldering of microelectronic components using a local heat source,"Levin, Jonathan P.; Rude, Timothy R.; Subramanian, Jai S.; Besnoin, Etienne; Weihs, Timothy P.; Knio, Omar M.; van Heerden, David P.; Powers, Michael T.; Enns, Christina D.",2005,ASM Conference Proceedings: Joining of Advanced and Specialty Materials,75 - 79

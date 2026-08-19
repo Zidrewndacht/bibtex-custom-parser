@@ -1,0 +1,11 @@
+id,type,title,authors,year,journal,pages
+zhang_defect_2025,inproceedings,Defect detection of PCB-AoI dataset based on improved YOLOv10 algorithm,"Zhang, Qingchen; Xu, Xinyu; Wang, Zhibo; Wen, Yanhuan",2025,"Proceedings of the 4th International Conference on Computer, Artificial Intelligence and Control Engineering",60 - 66
+tangsuksant_defect_2023,inproceedings,Defect Solder Classification in Print Circuit Boards using Machine Learning,"Tangsuksant, Watcharin; Inthiam, Jiraphan; Silangren, Hattapat; Iamcharoen, Phattharaporn; Jitviriya, Wisanu",2023,Proceedings of International Conference on Artificial Life and Robotics,844 - 848
+chien_design_2022,inproceedings,Design of industrial inspection system based on GPU,"Chien, Chungchun; Chen, Dihu; Wang, Zixin; Cai, Zhigang; Chen, Jiarong",2022,"2nd International Symposium on Mechanical Systems and Electronic Engineering, ISMSEE 2022",237 - 241
+kalber_u-net_2021,inproceedings,U-Net based zero-hour defect inspection of electronic components and semiconductors,"K{\""a}lber, Florian; K{\""o}p{\""u}kl{\""u}, Okan; Lehment, Nicolas; Rigoll, Gerhard",2021,"VISIGRAPP 2021 - Proceedings of the 16th International Joint Conference on Computer Vision, Imaging and Computer Graphics Theory and Applications",593 - 601
+fischthal_beyond_2014,inproceedings,Beyond 0402M placement: Process considerations for 03015M microchip mounting,"Fischthal, Brent; Cieslinski, Michael",2014,,
+johnson_using_2011,article,Using stencils to simplify the pcb assembly process,"Johnson, Nolan",2011,SMT Surface Mount Technology Magazine,64 - 70
+sundaraj_pcb_2009,article,PCB inspection for missing or misaligned components using background subtraction,"Sundaraj, Kenneth",2009,WSEAS Transactions on Information Science and Applications,778 - 787
+lipson_landscape_2009,article,The landscape of PCB technology is changing rapidly. How will AOI testing keep up?,"Lipson, Pamela R.; Sherwood, Lyle",2009,,1646 - 1661
+crisp_3-d_2008,article,3-D packaging in cellular handsets,"Crisp, Richard D.",2008,Electronic Products,
+messina_understanding_2008,inproceedings,Understanding EuP and REACH,"Messina, John; Simmon, Eric D.",2008,,562 - 588

@@ -7,16 +7,17 @@ Because LLM inference is inherently stochastic, exact numerical replication (e.g
 This release includes the full ResearchParsa application alongside the specific artifacts used for the paper's evaluation:
 
 *   **`/example_config/inference_engine_examples/vLLM Qwen3.6-27B-AutoRound.bat`**: The exact Docker/vLLM launch script used to serve the reasoning model.
-*   **`/reproduction/backup_unclassified_100_papers.parsa.tzst`**: A backup of the stratified, unclassified 100-paper subset, ready to be imported and classified.
-*   **`/reproduction/db.human_classified_100_papers.sqlite`**: The same 100 papers with human expert annotations (used for the Human-AI Alignment study).
-*   **`/reproduction/backup_ai_classified_papers.parsa.tzst`**: A backup of the already classified 100-paper subset for convenience (if you can't run inference yourself).
+*   **`/reproduction/100_papers_set_doi.txt`**: Almost complete list of DOIs for the 100-paper stratified subset.
+*   **`/reproduction/100_papers_set_papers_missing_doi.csv`**: Metadata for papers in the 100-paper set lacking a DOI (for manual retrieval if an exact replica is needed).
+*   **`/reproduction/1200_papers_set_doi.txt`**: Almost complete list of DOIs for the full 1,200-paper dataset (for large-scale testing).
+*   **`/reproduction/1200_papers_set_papers_missing_doi.csv`**: Metadata for papers in the full dataset lacking a DOI.
+*   **`/reproduction/build_bibtex_from_doi.py`**: Sample script to reconstruct the source BibTeX file by querying the Crossref API using the DOI lists.
+*   **`/reproduction/db.human_classified_100_papers.sqlite`**: The 100-paper database with human expert annotations (used for the Human-AI Alignment study). *Note: Publisher-owned abstracts and keywords have been deliberately scrubbed from this file to comply with copyright restrictions. It serves purely as the ground-truth classification labels.*
 *   **`/meta/agreement_human_cli_v1.4.py`**: Script to generate the Human-AI Alignment Summary table (Table 5 in the paper). Tables 1-4 are generated from the Web interface itself as instructed below.
 
-*(Note: The full 1,200-paper dataset is not included due to possible redistribution restrictions from Scopus/IEEE/ACM. However, the 100-paper stratified, human-classified subset is sufficient to reproduce the Human-AI alignment table and verify the consensus mechanics. You may also import your own `.bib` or `.csv` files to test the pipeline at scale, the suggested search query (Scopus format) below was used to gather original BibTeX input data. PDF files that the frontend may say are "available" also are excluded from the provided backups, so the Annotator module won't open them -- this is not related to the scope of this study)*
-
+*(Note: We provide DOI lists and a script to legally reconstruct the source BibTeX data via the Crossref API. The full 1,200-paper dataset DOI list is also provided for large-scale testing. You may also import your own `.bib` or `.csv` files to test the pipeline at scale; the suggested search query (Scopus format) below was used to gather most of the original BibTeX input data.)*
 
 `TITLE-ABS-KEY(( "printed circuit*" OR "Circuit board*" OR pcb OR pcba ) AND ( inspection OR manufactur* OR assembly OR defect* OR solder* OR weld* OR "Automat* optical" )) AND PUBYEAR > 1973 AND PUBYEAR < 2027 AND ( LIMIT-TO ( DOCTYPE,"ar" ) OR LIMIT-TO ( DOCTYPE,"cp" ) OR LIMIT-TO ( DOCTYPE,"re" ) ) AND ( LIMIT-TO ( PUBSTAGE,"final" ) )  `
-
 
 ---
 
@@ -42,10 +43,12 @@ The pipeline requires a local OpenAI-compatible inference endpoint. We used vLLM
    ```
 3. Wait for the Docker container to download the `Lorbus/Qwen3.6-27B-int4-AutoRound` weights and initialize the vLLM server on `http://localhost:8086`.
 
-### Step 2: Start ResearchParsa and Import Data
-1. Start the ResearchParsa Flask backend and frontend by running `!browse_db.bat`. A Virtual Environment with the required dependencies will be automatically created. The application will be available at `http://127.0.0.1:5001` by default. To enable AI classification, start `!queue_manager.bat` (wait until !browse_db.bat has finished downloading and initializing the virtual environment).
+### Step 2: Reconstruct Source Data and Start ResearchParsa
+1. **Reconstruct the BibTeX data**: Rebuild the source `.bib` file using the provided DOI lists. This can be done via the Crossref API (e.g., querying `https://api.crossref.org/works/{DOI}/transform/application/x-bibtex` or using DOI content negotiation with the `Accept: application/x-bibtex` header). Combine the retrieved entries into a single BibTeX file. A small number of older or niche papers lack DOIs, refer to the `*_missing_doi.csv` files if exact dataset reproduction is desired.
 
-2. In the ResearchParsa web UI, **Restore the Database**: Instead of importing a `.bib` file, use the "Restore Backup" in "Export & Backup" to load `data/reproduction/unclassified_100_papers.parsa.tzst`. This will populate the system with the exact 100 papers used in the paper's stratified validation subset as well as the corresponding `domain_config.yaml` (PCB AOI taxonomy) and configurable prompts.
+2. Start the ResearchParsa Flask backend and frontend by running `!browse_db.bat`. A Virtual Environment with the required dependencies will be automatically created. The application will be available at `http://127.0.0.1:5001` by default. To enable AI classification, start `!queue_manager.bat` (wait until `!browse_db.bat` has finished downloading and initializing the virtual environment).
+
+3. In the ResearchParsa web UI, **Import the BibTeX**: Use the "Import BibTeX / CSV" button to load the `reproduction\reconstructed_100.bib` file you just generated. This will populate the system with the exact 100 papers used in the paper's stratified validation subset, complete with their abstracts. Ensure your `domain_config.yaml` is configured for the PCB AOI taxonomy.
 
 ### Step 3: Run the Classification
 1. In the ResearchParsa UI, trigger the **Automated Classify Until Consensus** inside Batch Tools.
@@ -62,11 +65,11 @@ The LaTeX tables themselves can be exported via the "Copy LaTeX" button.
 
 #### Table 5: Human-AI Alignment Summary
 
-This requires the separate human-annotated database database and a standalone script, which script compares the generated AI classifications against the human-annotated database.
+This requires the separate human-annotated database and a standalone script, which compares the generated AI classifications against the human-annotated database.
 
 ```batch
 python meta/agreement_human_cli_v1.4.py ^
-  --user-db data/reproduction/human_classified_100_papers.db ^
+  --user-db reproduction/db.human_classified_100_papers.sqlite ^
   --ai-db <path_to_your_live_researchparsa_db.sqlite> ^
   --config domain_config.yaml ^
   -o output_tables/human_ai_alignment_table.tex
@@ -90,8 +93,9 @@ If you are reproducing this on different hardware (e.g., a single GPU, or a GPU 
 
 **Adjustments for Single GPU / Lower VRAM:**
 1. Change `--tensor-parallel-size 2` to `--tensor-parallel-size 1`.
-3. Remove, lower `--kv-cache-memory` or replace it with `--gpu-memory-utilization 0.90` (with a value that fits your environment).
-4. *Warning*: Throughput and energy efficiency will scale non-linearly. The superlinear scaling reported in the paper (Table 6) is a direct result of the batch-size ceiling imposed by VRAM; a single 24GB GPU will be significantly slower and less energy-efficient per paper.
+2. Remove, lower `--kv-cache-memory` or replace it with `--gpu-memory-utilization 0.90` (with a value that fits your environment).
+3. *Warning*: Throughput and energy efficiency will scale non-linearly. The superlinear scaling reported in the paper (Table 6) is a direct result of the batch-size ceiling imposed by VRAM; a single 24GB GPU will be significantly slower and less energy-efficient per paper.
 
 **Display Attachment Warning:**
 As noted in the paper, attaching a monitor directly to the discrete GPUs running vLLM under WSL2 causes severe performance degradation due to host/VM context switching. Ensure your displays are connected to the motherboard (iGPU) or run the machine headless.
+```
