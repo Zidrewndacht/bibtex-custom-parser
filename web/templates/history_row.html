@@ -1,0 +1,29 @@
+{#<!-- templates/history_row.html -->#}
+{% from 'shared/history_table.html' import render_history_tab %}
+
+{% block history_row_content %}
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+  {% if group.filter_type == 'tri_state' %}
+    {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+  {% elif group.filter_type in ['inclusion', 'none'] %}
+    {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+  {% endif %}
+{% endfor %}
+{% set history_table_width = 378 + ns.total_dynamic * 27 %}
+
+<div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">
+  <div class="history-tabs-nav">
+    <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}"><span>Main <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}"><span>Set 1 <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}"><span>Set 2 <span class="arrow">▼</span></span></button>
+    <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}"><span>Set 3 <span class="arrow">▼</span></span></button>
+  </div>
+  <div class="history-tabs-content">
+    {{ render_history_tab(paper, none, 'main', domain_config, show_certainty=true, show_actions=true, is_lite_export=false) }}
+    {{ render_history_tab(paper, 1, 'set1', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+    {{ render_history_tab(paper, 2, 'set2', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+    {{ render_history_tab(paper, 3, 'set3', domain_config, show_certainty=false, show_actions=false, is_lite_export=false) }}
+  </div>
+</div>
+{% endblock %}

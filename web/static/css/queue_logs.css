@@ -1,0 +1,542 @@
+/* ==========================================================================
+   queue_logs.css
+
+   App-frame layout for /queue_logs, closer to the main papers table than to
+   the agreement-report card layout.
+
+   - Toolbar/titlebar is attached to the content.
+   - The workspace fills the viewport height.
+   - Left vertical tabs are event views, not log files.
+========================================================================== */
+
+.queue-logs-body {
+    margin: 8px;
+    background-color: var(--background-color);
+    background: linear-gradient(
+        90deg,
+        #eaecf0 0%,
+        var(--background-color) 13%,
+        var(--background-color) 87%,
+        #eaecf0 100%
+    );
+}
+
+#queue-logs-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 16px);
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid var(--primary-ui-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+/* ---- Toolbar ------------------------------------------------------------ */
+#queue-logs-page .queue-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--detail-button-background);
+    border-bottom: 1px solid var(--primary-ui-color);
+}
+
+#queue-logs-page .toolbar-group {
+    text-align: right;
+}
+
+#queue-logs-page .toolbar-right {
+    margin-left: auto;
+}
+
+#queue-logs-page .queue-branding {
+    flex: 1;
+    text-align: center;
+    font-size: 18pt;
+    font-family: "Arial Narrow", sans-serif;
+    font-weight: 400;
+    color: #3f8d82;
+    text-shadow: var(--light-shadow);
+    white-space: nowrap;
+}
+
+#queue-logs-page .queue-branding .branding-strong {
+    font-weight: 600;
+    color: var(--primary-ui-color);
+}
+
+#queue-logs-page .queue-branding .branding-suffix {
+    font-size: 0.8em;
+}
+
+#queue-logs-page .queue-toolbar .toolbar-btn {
+    min-width: 0;
+    width: auto;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 10pt;
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+}
+
+#queue-logs-page .toolbar-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5pt;
+    padding: 0px;
+    margin: 0;
+    color: var(--text-color);
+}
+
+#queue-logs-page .toolbar-select {
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid #0003;
+    background: #fff;
+    color: var(--text-color);
+    font-family: inherit;
+    padding: 0 6px;
+}
+
+/* Override the global header search styling for this toolbar. */
+#queue-logs-page .queue-toolbar input[type="search"] {
+    width: 260px;
+    height: 34px;
+    margin: 0;
+    color: var(--text-color);
+    background: #fff;
+    -webkit-text-fill-color: var(--text-color);
+    opacity: 1;
+    font-style: normal;
+    border: 1px solid #0003;
+    border-radius: 6px;
+    padding: 0 8px;
+}
+
+#queue-logs-page .queue-toolbar input[type="search"]::placeholder {
+    color: #777;
+    opacity: 1;
+}
+
+#queue-logs-page .toolbar-note {
+    font-size: 9pt;
+    color: var(--text-color);
+    opacity: 0.75;
+    white-space: nowrap;
+}
+
+/* ---- Workspace ------------------------------------------------------------ */
+#queue-logs-page .queue-workspace {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+}
+
+/* ---- Vertical event tabs --------------------------------------------------- */
+#queue-logs-page .queue-tabs-nav {
+    display: flex;
+    flex-direction: column;
+    background: #f5f7fa;
+    border-right: 1px solid var(--detail-border-color);
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+#queue-logs-page .log-tab-btn {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 110px;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--detail-border-color);
+    background: linear-gradient(
+        180deg,
+        hsl(210, 24%, 87%) 0%,
+        hsl(210, 32%, 93%) 60%
+    );
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: filter 0.2s ease;
+}
+
+#queue-logs-page .log-tab-btn:last-child {
+    border-bottom: 0;
+}
+
+#queue-logs-page .log-tab-btn:hover {
+    filter: saturate(150%) contrast(110%);
+}
+
+#queue-logs-page .log-tab-btn .tab-label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    white-space: nowrap;
+    font-size: 9.5pt;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    filter: contrast(1);
+}
+
+#queue-logs-page .log-tab-btn.active .tab-label {
+    color: #fff;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Inactive tab category hints */
+#queue-logs-page .tab-queue_status {
+    color: hsl(240, 50%, 28%);
+/*     box-shadow: inset 8px 0 24px hsla(234, 64%, 58%, 0.2); */
+    background: var(--detail-button-background);
+}
+
+#queue-logs-page .tab-dispatch {
+    color: hsl(190, 65%, 22%);
+/*     box-shadow: inset 8px 0 24px hsla(190, 75%, 55%, 0.2); */
+    background: var(--detail-button-background);
+}
+
+#queue-logs-page .tab-complete {
+    color: hsl(122, 45%, 25%);
+/*     box-shadow: inset  8px 0 24px hsla(122, 65%, 59%, 0.2); */
+    background: var(--detail-button-background);
+}
+
+#queue-logs-page .tab-request {
+    color: hsl(28, 80%, 28%);
+/*     box-shadow: inset  8px 0 24px hsla(40, 76%, 53%, 0.2); */
+    background: var(--detail-button-background);
+}
+
+#queue-logs-page .tab-error {
+    color: hsl(0, 60%, 32%);
+/*     box-shadow: inset  8px 0 24px hsla(0, 68%, 46%, 0.2); */
+    background: var(--detail-button-background);
+}
+
+/* Active tab category backgrounds, kept dark enough for white text */
+#queue-logs-page .tab-queue_status.active {
+    background: linear-gradient(180deg, hsl(240, 40%, 32%), hsl(240, 50%, 26%));
+}
+
+#queue-logs-page .tab-dispatch.active {
+    background: linear-gradient(180deg, hsl(190, 65%, 28%), hsl(190, 65%, 23%));
+}
+
+#queue-logs-page .tab-complete.active {
+    background: linear-gradient(180deg, hsl(122, 45%, 30%), hsl(122, 45%, 25%));
+}
+
+#queue-logs-page .tab-request.active {
+    background: linear-gradient(180deg, hsl(28, 80%, 34%), hsl(28, 80%, 28%));
+}
+
+#queue-logs-page .tab-error.active {
+    background: linear-gradient(180deg, hsl(0, 60%, 38%), hsl(0, 60%, 31%));
+}
+
+/* ---- Content -------------------------------------------------------------- */
+#queue-logs-page .queue-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+#queue-logs-page .queue-status {
+    color: #a33;
+    font-size: 9.5pt;
+    padding: 6px 10px;
+}
+
+#queue-logs-page .queue-status:empty {
+    display: none;
+}
+
+#queue-logs-page #log-table-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+/* Override the main app's huge table min-width for this page. */
+#queue-logs-page #log-table {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    font-size: 9.5pt;
+    border-radius: 0;
+    table-layout: auto;
+    background: #fff;
+}
+
+#queue-logs-page #log-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    font-size: 8.5pt;
+    text-align: left;
+}
+
+#queue-logs-page #log-table td {
+    padding: 5px 7px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--detail-border-color);
+}
+
+#queue-logs-page #log-table tbody tr:nth-child(even) td {
+    background-color: var(--table-row-even);
+}
+
+#queue-logs-page .log-ts {
+    white-space: nowrap;
+    color: #555;
+}
+
+#queue-logs-page .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#queue-logs-page .log-json {
+    font-family: Consolas, monospace;
+    font-size: 8.5pt;
+    word-break: break-word;
+}
+
+#queue-logs-page .mode-detail {
+    color: #666;
+    font-size: 8pt;
+    margin-left: 6px;
+}
+
+/* ---- Semantic pills -------------------------------------------------------- */
+#queue-logs-page .log-pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 8pt;
+    line-height: 1.2;
+    border: 1px solid;
+    white-space: nowrap;
+}
+
+#queue-logs-page .pill-classify {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+#queue-logs-page .pill-verify {
+    color: #86198f;
+    background: #fdf4ff;
+    border-color: #f5d0fe;
+}
+
+#queue-logs-page .pill-reclassify {
+    color: #0e7490;
+    background: #ecfeff;
+    border-color: #a5f3fc;
+}
+
+#queue-logs-page .pill-request {
+    color: #a16207;
+    background: #fefce8;
+    border-color: #fde68a;
+}
+
+#queue-logs-page .pill-error {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+#queue-logs-page .pill-status {
+    color: #475569;
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+#queue-logs-page .pill-other {
+    color: #334155;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+/* ---- Row hints ------------------------------------------------------------- */
+#queue-logs-page #log-table tbody tr.log-row-error > td {
+    background: #fff6f6;
+}
+
+#queue-logs-page #log-table tbody tr.log-row-error td:first-child {
+    box-shadow: inset 3px 0 0 rgba(220, 38, 38, 0.8);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-success td:first-child {
+    box-shadow: inset 3px 0 0 rgba(22, 163, 74, 0.8);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-dispatch td:first-child {
+    box-shadow: inset 3px 0 0 rgba(8, 145, 178, 0.8);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-request td:first-child {
+    box-shadow: inset 3px 0 0 rgba(217, 119, 6, 0.8);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-classify td:first-child {
+    box-shadow: inset 3px 0 0 rgba(22, 163, 74, 0.8);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-verify td:first-child {
+    box-shadow: inset 3px 0 0 rgba(134, 25, 143, 0.75);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-reclassify td:first-child {
+    box-shadow: inset 3px 0 0 rgba(14, 116, 144, 0.75);
+}
+
+#queue-logs-page #log-table tbody tr.log-row-mixed td:first-child {
+    box-shadow: inset 3px 0 0 rgba(100, 116, 139, 0.75);
+}
+
+#queue-logs-page .queue-empty-state {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 24px 10px;
+}
+
+input[type="checkbox"]{
+    margin: 8px;
+    transform: scale(2.5);
+}
+
+/* ---- Responsive ------------------------------------------------------------- */
+@media (max-width: 1200px) {
+    .queue-logs-body {
+        margin: 0;
+    }
+
+    #queue-logs-page {
+        height: 100vh;
+        border-radius: 0;
+        border: 0;
+        box-shadow: none;
+        max-width: none;
+    }
+    
+    #queue-logs-page {
+        min-width: 900px;
+    }
+
+    #queue-logs-page .queue-branding {
+        font-size: 15pt;
+    }
+
+    #queue-logs-page .queue-toolbar input[type="search"] {
+        width: 180px;
+    }
+}
+
+@media (min-width: 1600px) {
+    .queue-logs-body {
+        width: calc(1600px - 20px);
+        margin:8px auto
+    }
+}
+
+/* ---- Queue limit bars ----------------------------------------------------- */
+#queue-logs-page td.bar-cell {
+    white-space: nowrap;
+}
+
+#queue-logs-page .queue-bar-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 90px;
+}
+
+#queue-logs-page .queue-bar-track {
+    flex: 1;
+    max-width: 110px;
+    height: 8px;
+    background: #e6e9ed;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+#queue-logs-page .queue-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.25s ease;
+}
+
+#queue-logs-page .queue-bar-value {
+    min-width: 18px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+#queue-logs-page .fill-classify {
+    background: linear-gradient(
+        90deg,
+        hsl(122, 45%, 50%),
+        hsl(122, 45%, 34%)
+    );
+}
+
+#queue-logs-page .fill-verify {
+    background: linear-gradient(
+        90deg,
+        hsl(291, 35%, 58%),
+        hsl(291, 35%, 38%)
+    );
+}
+
+#queue-logs-page .fill-reclassify {
+    background: linear-gradient(
+        90deg,
+        hsl(190, 65%, 42%),
+        hsl(190, 65%, 28%)
+    );
+}
+
+#queue-logs-page .queue-bar-fill.is-full {
+    filter: saturate(160%) brightness(1.05);
+}
+
+/* ---- Paper deep links ------------------------------------------------------ */
+#queue-logs-page .paper-link {
+    color: var(--link-color);
+    text-decoration: none;
+    border-bottom: 1px dotted currentColor;
+}
+
+#queue-logs-page .paper-link:hover {
+    filter: saturate(200%) contrast(110%);
+}
+
+#queue-logs-page .fill-total {
+    background: linear-gradient(
+        90deg,
+        hsl(210, 35%, 55%),
+        hsl(210, 35%, 35%)
+    );
+}

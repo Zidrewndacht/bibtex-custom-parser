@@ -1,0 +1,333 @@
+{#<!-- templates/index.html -->#}
+<!DOCTYPE html>
+<html lang="en" class="busyCursor">
+<head>
+    <title>ResearchParsa - {{ domain_config.domain_name }}</title>    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {#<!-- Inject Dynamic Theme Overrides -->#}
+    {% if domain_config.theme_css %}
+    <style>
+    {{ domain_config.theme_css | safe }}
+    </style>
+    {% endif %}
+    
+    <script src="{{ url_for('static', filename='libs/chart.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='libs/chartjs-plugin-datalabels.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='libs/d3.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='libs/d3-cloud.min.js') }}"></script>
+        
+    <script>
+        window.APP_CONFIG = {{ domain_config | tojson | safe }};
+    </script>
+    <script>
+        window.FOCUS_PAPER_ID = {{ focus_paper | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/stats/stats_core.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/stats/stats_generic.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/stats/stats_charts.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/stats/stats_domain.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/stats/stats_latex.js') }}" defer></script> 
+
+    <!-- Replace the single comms.js line with: -->
+    <script src="{{ url_for('static', filename='js/comms/comms_rendering.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_views.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_save.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_batch.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/comms/comms_files.js') }}" defer></script>
+
+    <script src="{{ url_for('static', filename='js/filtering/filtering_state.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_engine.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_actions.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/filtering/filtering_init.js') }}" defer></script>
+    
+</head>
+<body>
+<input type="file" id="bibtex-file-input" accept=".bib,.csv" style="display: none;">
+<div class="table-container" id="papers-table-container">
+    <table id="papersTable" style="table-layout: fixed;">
+
+        {% set ns = namespace(total_dynamic=0) %}
+        {% for group in domain_config.groups %}
+            {% if group.filter_type == 'tri_state' %}
+                {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+            {% elif group.filter_type in ['inclusion', 'none'] %}
+                {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+            {% endif %}
+        {% endfor %}
+        {% set inferred_colspan = 2 + ns.total_dynamic %}
+        {% set total_cols = 6 + inferred_colspan + 9 %}
+
+        <colgroup>
+            {#<!-- 1. LEADING FIXED (6) -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- PDF -->#}
+            <col style="width: 66%"> {#<!-- Title -->#}
+            <col style="width: 40px; min-width: 40px; max-width:40px;"> {#<!-- Year -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Pages -->#}
+            <col style="width: 34%"> {#<!-- Journal -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Type -->#}
+            
+            {#<!-- 2. UNIVERSAL INFERRED (2) -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Off-topic -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Relevance -->#}
+
+            {#<!-- 3. DYNAMIC DOMAIN-SPECIFIC -->#}
+            {% for group in domain_config.groups %}
+                {% if group.filter_type == 'tri_state' %}
+                    <col style="width: 27px; min-width: 27px; max-width: 27px;">
+                {% elif group.filter_type in ['inclusion', 'none'] %}
+                    {% for field_def in group.fields %}
+                        <col style="width: 27px; min-width: 27px; max-width: 27px;">
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+
+            {#<!-- 4. TRAILING FIXED (9) -->#}
+            <col style="width: 56px; min-width: 56px; max-width: 56px;"> {#<!-- Last Changed -->#}
+            <col style="width: 40px; min-width: 40px; max-width: 40px;"> {#<!-- Changed By -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Verified -->#}
+            <col style="width: 32px; min-width: 32px; max-width: 32px;"> {#<!-- Accr. Score -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Verified By -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- User Changes -->#}
+            <col style="width: 27px; min-width: 27px; max-width: 27px;"> {#<!-- Commented -->#}
+            <col style="width: 44px; min-width: 44px; max-width: 44px;"> {#<!-- History -->#}
+            <col style="width: 44px; min-width: 44px; max-width: 44px;"> {#<!-- Details -->#}
+
+            {#<!-- 5. HIDDEN METADATA (5) -->#}
+            <col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none"><col style="display:none">
+        </colgroup>
+
+        <thead>
+            {#<!-- ROW 1: Main Header Wrapper -->#}
+            <tr>
+                <th id="main-header-wrapper" colspan="{{ total_cols }}">
+                    <div class="main-header">
+                        <div class="header-controls">
+                            <button class="action-btn" id="import-btn" style="display:none">Import / Restore</button>
+                            <button class="action-btn" id="import-bibtex-btn" title="Supported: Scopus, ACM, Zotero BibTeX, IEEE Xplore CSV">Import <strong>BibTeX / CSV</strong></button>
+                        </div>
+                        <div class="header-controls">
+                            <button class="action-btn" id="export-btn"><strong>Export</strong> & Backup</button>
+                        </div>
+                        <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parsa</span> - <span style="font-size: 0.667em;">{{ domain_config.domain_name }}</span></div>
+                        <div class="header-controls">
+                            <button class="action-btn" id="parça-tools-btn" ><strong>Batch</strong> Tools</button>
+                        </div>
+                        <div class="header-controls">
+                            <button class="action-btn" id="stats-btn">View <strong>Statistics</strong> <span style="color:#fff8">(F4)</span></button>
+                        </div>
+                        <div class="header-controls">
+                            <button class="action-btn" id="about-btn" title="(F1) About / Help" ><span>?</span></button>
+                        </div>
+                    </div>
+                </th>
+                <th style="display:none" colspan="5"></th>
+            </tr>
+
+            {#<!-- ROW 2: Server Filters | Inferred Data Wrapper | Search -->#}
+            <tr>
+                <th class="ontop-header" colspan="6" rowspan="2">
+                    <div class="header-filters">
+                        <div class="filter-item">
+                            <label for="min-page-count">Min. page count ≥</label>
+                            <input type="number" id="min-page-count" value="{{ min_page_count_value }}" min="0" max="9">
+                        </div>
+                        <div class="filter-item">
+{#<!-- This should be updated to become dynamically limited according to existing data in the current DB: -->#}
+                            <label for="year-from">Year:</label>
+                            <input type="number" id="year-from" value="{{ year_from_value }}" min="1800" max="2038">
+                            <label for="year-to">to</label>
+                            <input type="number" id="year-to" value="{{ year_to_value }}" min="1800" max="2038">
+                        </div>
+                        <button class="action-btn" id="apply-serverside-filters" style="opacity:0; pointer-events: none;"><span>Apply ↵</span></button>
+                    </div>
+                </th>
+                
+                <th class="inferred-header" id="inferred-header-title" colspan="{{ inferred_colspan }}">
+                    <div>
+                        <span>Inferred data </span>
+                        <div style="margin:0; padding:0">
+                            <!-- Potential misclassifications: -->
+                            <input type="checkbox" title="Enable to only show papers marked as misclassified by the verifier" id="hide-approved-checkbox" style="margin: 0 0 0 8px;">
+                        </div>
+                    </div>
+                </th>
+
+                <th class="ontop-header" colspan="9" rowspan="2" >
+                    <div class="search-container">
+                        <input type="search" id="search-input" placeholder="(F3) Type to search all fields..." value="{{ search_query_value }}">
+                        <button type="button" id="clear-search-btn" class="clear-btn" title="Clear search">&times;</button>
+                    </div>
+                </th>
+                <th style="display:none" colspan="5"></th>
+            </tr>
+
+            {#<!-- ROW 3: Group Headers & Filter Checkboxes -->#}
+            <tr>
+                {#<!-- Universal Inferred Checkboxes -->#}
+                <th class="inferred-header ontop-header" colspan="1">
+                    <div>
+                        <input type="checkbox" title="Enable to Hide Offtopic papers" id="hide-offtopic-checkbox" {% if hide_offtopic == true %}checked{% endif %}>
+                    </div>
+                </th>
+                <th class="inferred-header ontop-header" colspan="1"></th> {#<!-- Empty space above Relevance -->#}
+
+                {#<!-- Dynamic Domain-Specific Group Headers -->#}
+                {% for group in domain_config.groups %}
+                    {% if group.filter_type == 'tri_state' %}
+                    <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="1">
+                        <div>
+                            {% if group.friendly_name %}<span>{{ group.friendly_name }}</span>{% endif %}
+                            <input type="checkbox" class="tri-state-checkbox" data-filter-group="{{ group.name }}" title="Enable to only show {{ group.label }}">
+                        </div>
+                    </th>
+                    {% elif group.filter_type == 'inclusion' %}
+                    <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
+                        <div>
+                            <span>{{ group.friendly_name }}</span>
+                            {#<!-- FIX: Restored original descriptive tooltip logic -->#}
+                            <input type="checkbox" class="inclusion-checkbox" data-filter-group="{{ group.name }}" title="Enable to include (or limit to if it's the only checkbox enabled) papers about {{ group.friendly_name | default('other', true) | lower }}">
+                        </div>
+                    </th>
+                    {% elif group.filter_type == 'none' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} ontop-header" colspan="{{ group.fields|length }}">
+                            {{ group.friendly_name }}
+                        </th>
+                    {% endif %}
+                {% endfor %}
+                
+                <th style="display:none" colspan="5"></th>
+            </tr>
+
+            {#<!-- ROW 4: Actual Column Headers (Sortable) -->#}
+            <tr>
+                {#<!-- 1. Leading Fixed -->#}
+                <th class="rotate-header status-header editable-header" data-sort="pdf-link"><div><span>PDF</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="title">Title (Click for article) <span class="sort-indicator"></span> </th>
+                <th data-sort="year">Year <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="page_count" ><div><span>Pages</span></div> <span class="sort-indicator"></span></th>
+                <th data-sort="journal">Journal/Conf <span class="sort-indicator"></span></th>
+                <th class="rotate-header status-header editable-header" data-sort="type"><div><span>Type</span></div> <span class="sort-indicator"></span></th>
+
+                {#<!-- 2. Universal Inferred -->#}
+                <th class="inferred-header rotate-header status-header editable-header" data-sort="is_offtopic"><span class="sort-indicator"></span><div><span>Off-topic</span></div></th>
+                <th class="inferred-header rotate-header status-header" data-sort="relevance"><span class="sort-indicator"></span><div><span>Relevance</span></div></th>
+
+                {#<!-- 3. Dynamic Domain-Specific -->#}
+                {% for group in domain_config.groups %}
+                    {% if group.filter_type == 'tri_state' %}
+                        <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}">
+                            <span class="sort-indicator"></span><div><span>{{ group.label }}</span></div>
+                        </th>
+                    {% elif group.filter_type in ['inclusion', 'none'] %}
+                        {% for field_def in group.fields %}
+                            <th class="inferred-header {{ group.header_class | default('') }} rotate-header status-header editable-header" data-sort="{{ group.json_path }}.{{ field_def.key }}">
+                                <span class="sort-indicator"></span><div><span>{{ field_def.label }}</span></div>
+                            </th>
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+
+                {#<!-- 4. Trailing Fixed -->#}
+                <th data-sort="changed">Last Changed <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="changed_by"><div><span>Changed By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified"><div><span>Verified</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="estimated_score"><div><span>Accr. Score</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="verified_by"><div><span>Verified By</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header" data-sort="user_override_count"><div><span>User Changes</span></div> <span class="sort-indicator"></span></th>
+                <th class="rotate-header status-header" data-sort="user_comment_state"><span class="sort-indicator"></span><div><span>Commented</span></div></th>
+                <th class="rotate-header"><div>History</div></th>
+                <th class="rotate-header"><div>Details</div></th>
+
+                {#<!-- 5. Hidden Metadata -->#}
+                <th style="display:none" colspan="5"></th>
+            </tr>
+        </thead>
+
+            {#<!-- tbody and tfoot come from the papers_table template-->#}
+            {{ papers_table_content | safe }}        
+            
+            {% include 'shared/papers_table_tfoot.html' %}
+            {#<!-- Use the rendered table content passed from the server -->#} 
+    </table>
+</div>
+
+<div id="batchModal" class="modal">
+    <div id="batch-actions">
+        <div>
+            <button class="action-btn" id="classify-consensus-btn">Automated Classify <strong>Until Consensus</strong></button>
+        </div>
+        <div>
+            <button class="action-btn" id="classify-remaining-btn">Classify <strong>Remaining</strong> </button>
+            {#<!--<!-- <button class="action-btn" id="classify-impl-btn" disabled>Re-Classify <strong>Primary</strong></button>
+        </div>
+        <div>
+            <button class="action-btn" id="classify-misclassified-btn" disabled>Re-Classify <strong>Suspects</strong> </button> -->-->#}
+            <button class="action-btn" id="classify-all-btn">Re-Classify <strong>All</strong></button>
+        </div>
+        <span class="menu-message">Batch classifications also run corresponding verifications automatically. Run the tasks below if you still need just verification (e.g., if an earlier run was aborted after classification)</span>
+        <div>
+            <button class="action-btn" id="verify-remaining-btn">Verify <strong>Remaining</strong></button>
+            <button class="action-btn" id="verify-all-btn">Re-Verify <strong>All</strong></button>
+        </div>
+        <span class="menu-message" id="batch-status-message">These tools stay running in background after being called. Reload the webpage after a while to see updated results.
+            <br><br> For actions on single papers, user the buttons in the corresponding paper's detail pane instead.
+            <br><br> You may check the agreement report below after the complete dataset is classified to consensus to assess the classification consistency and surface possible problems.
+        </span> 
+        <div style="width: 100%; text-align: center;">
+            <a id="agreement-report-btn" href="/agreement_report" target="_blank"
+            title="Open the whole-dataset 3-run agreement report in a new tab">
+                📊 3-Run <strong>Agreement Report</strong> 
+            </a>
+            <a id="queue-logs-btn" href="/queue_logs" target="_blank"
+            title="Open the queue manager log viewer in a new tab">
+                📜 Queue Manager <strong>Log Viewer</strong> 
+            </a>
+        </div>
+    </div>
+</div>
+
+<div id="importModal" class="modal">
+    <div id="import-actions">
+        {#<!-- unused, kept if a menu is desired here later (animations, etc. already done) -->#}
+    </div>
+</div>
+
+<div id="exportModal" class="modal">
+    <div id="export-actions">
+        <div>
+            <button class="action-btn" id="export-html-btn">Export <strong>HTML</strong></button>
+            <button class="action-btn" id="export-xlsx-btn">Export <strong>XLSX</strong></button>            
+
+            <label style="font-size: 10pt; padding: 12px 0 0 6px; display: inline-block;">
+                <input type="checkbox" id="lite-export-checkbox" checked>
+                <span style="padding: 0 0 0 8px">Lite export (no thinking traces)</span>
+            </label>
+        </div>        
+        <div>
+            <button class="action-btn" id="backup-btn" > <strong>Create </strong>Backup</button>
+            <button class="action-btn" id="restore-btn" > <strong>Restore </strong>Backup</button>
+        </div>
+        <span class="menu-message" id="backup-status-message">Backups include the database, original and annotated PDFs, HTML export and a XLSX spreadsheet.
+            <br><br>Restoring from a backup overwrites all existing data!
+        </span>
+    </div>
+</div>
+
+<div id="statsModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        {% include 'shared/stats_modal_content.html' %}
+    </div>
+</div>
+
+<div id="aboutModal" class="modal">
+    <div class="modal-small-content">
+        <span class="close">&times;</span>      
+        {% include 'shared/about_modal_content.html' %}
+    </div>
+</div>
+</body>
+</html>

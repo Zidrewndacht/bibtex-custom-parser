@@ -1,0 +1,210 @@
+{#<!-- templates/stats_modal_content.html -->#}
+{#<!-- <p> Data in <strong>all lists</strong> below is dynamically calculated based on <strong>currently visible</strong> papers:</p> -->#}
+<div class="stats-lists">
+    <div class="stats-section">
+        <h3>Repeating <strong>Journals</strong> <span style="font-size:0.75em">{#<!-- — Scroll down on each list for more-->#} ↓</span></h3>
+        <ul id="journalStatsList" class="stats-list-multicolumn-2"></ul>
+    </div>
+    <div class="stats-section">
+        <h3>Repeating <strong>Conferences</strong> <span style="font-size:0.75em">↓</span>
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+                <button type="button" class="tabularx-btn" id="journalconf-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+            </span> 
+        </h3>
+        <ul id="conferenceStatsList" class="stats-list-multicolumn-2"></ul> 
+    </div>
+    <div class="stats-section" style="grid-column: 1/3;">
+        <h3>Repeating <strong>Keywords</strong> <span style="font-size:0.75em">↓</span>
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 20px;top: 11px;">
+                <label style="margin-left:10px;">
+                    Cloud <input checked="" type="checkbox" id="cloudToggle" style="transform: scale(2) translate(5px,-0px);">
+                </label>
+            </span> 
+        </h3>
+        <ul id="keywordStatsList" class="stats-list-multicolumn-short"></ul>     
+        <div id="keywordCloudCanvas"
+            style="display: block; margin: auto; width: 100%; height: 285px;box-sizing: border-box;">
+            {#<!-- <canvas width="640" height="280"></canvas> -->#}
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3>Repeating <strong>Authors</strong> <span style="font-size:0.75em">↓</span>
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+                <button type="button" class="tabularx-btn" id="authors-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+            </span> 
+        </h3>
+        <ul id="authorStatsList" class="stats-list-multicolumn-2"></ul>
+    </div>
+    <div class="stats-section" style="display: none;">
+        <h3>Repeating <strong>Research Areas</strong> <span style="font-size:0.75em">↓</span></h3>
+        <ul id="researchAreaStatsList" class="stats-list-multicolumn-2"></ul>
+    </div>
+
+    
+{% set ns = namespace(slot1=null, slot2=null, count=0) %}
+{% for field in domain_config.editable_fields %}
+    {% if field.stats_list %}
+        {% if ns.count == 0 %}
+            {% set ns.slot1 = field %}
+            {% set ns.count = 1 %}
+        {% elif ns.count == 1 %}
+            {% set ns.slot2 = field %}
+            {% set ns.count = 2 %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{#<!-- ... (Keep Journals, Conferences, Keywords, Authors, Research Areas, and Other Metrics exactly as they are) ... -->#}
+
+{#<!-- SLOT 1 -->#}
+<div class="stats-section">
+    <h3>Mentioned <strong>{{ ns.slot1.label if ns.slot1 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
+        {% if ns.slot1 %}
+        <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+            <button type="button" class="tabularx-btn" id="slot1-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+        </span>
+        {% endif %}
+    </h3>
+    <ul id="slot1StatsList" class="stats-list-multicolumn-2"></ul>
+</div>
+
+{#<!-- SLOT 2 -->#}
+<div class="stats-section">
+    <h3>Mentioned <strong>{{ ns.slot2.label if ns.slot2 else '(Unconfigured)' }}</strong> <span style="font-size:0.75em">↓</span>
+        {% if ns.slot2 %}
+        <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+            <button type="button" class="tabularx-btn" id="slot2-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+        </span>
+        {% endif %}
+    </h3>
+    <ul id="slot2StatsList" class="stats-list-multicolumn-2"></ul>
+</div>
+
+
+    
+    <div class="stats-section">
+        <h3><strong>Other</strong> Metrics
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 1px;top: 5px;">
+                <button type="button" class="tabularx-btn" id="metrics-tabularx-btn" title="Click to copy a LaTeX table with this data to the clipboard"><em>\tabularx</em></button>
+            </span> 
+        </h3>
+        <table id="metricsTableStatsList" class="stats-table"></table>
+    </div>
+</div>
+        
+<div class="stats-charts">
+    
+    <div class="stats-section">
+        <h3><strong>Publ. Type</strong> 
+
+        </h3>
+        <div class="chart-container" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="publTypePieChart"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>Survey</strong> vs <strong>Primary</strong></h3>
+        <div class="chart-container" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="surveyVsImplPieChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="stats-section">
+        <h3><strong>Techniques</strong> Distribution 
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 6px;top: 11px; 
+            display: inline;">
+                <label style="padding: 10px;margin: 10px;">
+                    Pie<input type="checkbox" id="pieToggle" style="transform: scale(2) translate(5px,-0px);">
+                </label>
+            </span>
+        </h3>
+        <div class="chart-container" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="techniquesPieChart"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>Features</strong> Distribution
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute; right: 6px;top: 11px; 
+            display: inline;">
+                <label style="padding: 10px;margin: 10px;">
+                    Group<input type="checkbox" id="featureGroupToggle" style="transform: scale(2) translate(5px,-0px);">
+                </label>
+            </span>
+        </h3>
+        <div class="chart-container" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="featuresPieChart"></canvas>
+        </div>
+    </div>
+
+
+    <div class="stats-section">                
+        <h3><strong>Publication Types</strong> per Year
+
+        </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="pubTypesPerYearLineChart"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>Survey</strong> vs <strong>Primary</strong> Papers per Year  
+
+        </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px);  margin: auto; overflow: hidden;">
+            <canvas id="surveyVsImplLineChart"></canvas>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h3><strong>Techniques</strong> per Year             
+            <span style="font-size:0.75em;padding-left: 30px;position: absolute;right: 40px;top: 11px;
+            display: inline;">
+                <label>
+                    Cumulative<input type="checkbox" id="cumulativeToggle" style="transform: scale(2) translate(5px,-0px);">
+                </label>
+                <label style="padding: 0 20px;margin: 10px;">
+                    Stacked<input type="checkbox" id="stackingToggle" style="transform: scale(2) translate(5px,-0px);">
+                </label>
+            </span>
+            <span style="font-size:0.75em;
+            display: inline;"> — Click on a label to show/hide its data and reflow the chart </span>
+        </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="techniquesPerYearLineChart"></canvas>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h3><strong>Features</strong> per Year         
+            <span style="font-size:0.75em;
+            display: inline;"> — Data in this page is dynamically calculated based on <strong>currently visible</strong> papers.</span>
+        </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="featuresPerYearLineChart"></canvas>
+        </div>
+    </div>
+
+    <div class="stats-section">
+        <h3><strong>Relevance Score</strong> Histogram </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="RelevanceHistogram"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>Verifier Score</strong> Histogram </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="estScoreHistogram"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>SMT</strong> vs <strong>THT</strong> </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="SMTvsTHTPieChart"></canvas>
+        </div>
+    </div>
+    <div class="stats-section">
+        <h3><strong>Dataset</strong> Scope </h3>
+        <div class="chart-container-fullwidth" style="height:calc(100% - 34px); margin: auto; overflow: hidden;">
+            <canvas id="OffTopicPieChart"></canvas>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,151 @@
+{#<!-- templates/static_export/papers_table_static_export.html -->#}
+{% from 'shared/paper_cells.html' import render_domain_cells %}
+{% from 'shared/detail_form.html' import render_detail_form %}
+{% from 'shared/history_table.html' import render_history_tab %}
+
+{% block papers_table_static_export %}
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+    {% if group.filter_type == 'tri_state' %}
+        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+    {% elif group.filter_type in ['inclusion', 'none'] %}
+        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+    {% endif %}
+{% endfor %}
+{% set inferred_colspan = 2 + ns.total_dynamic %}
+{% set total_cols = 6 + inferred_colspan + 9 %}
+{#<!-- 378px is the width of the fixed contents -->#}
+{% set history_table_width = 378 + ns.total_dynamic * 27 %}
+
+<tbody style="position: relative;">
+    <tr>
+        <td style="padding:0;" colspan="{{ total_cols }}">
+            <div class="loading-overlay">
+                <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: hsl(188, 31%, 29%);">Parsa</span></div>
+                <div class="loading-spinner"></div>
+                <div>Reprocessing table. Wait patiently.</div>
+            </div>
+        </td>
+        <td style="display:none" colspan="5"></td>
+    </tr>
+    {% for paper in papers %}
+    {% set c = paper.classification %}
+    {% set certainty = paper.main_certainty %}
+    <tr data-paper-id="{{ paper.id }}">
+      {#<!-- 1. LEADING FIXED — PDF column uses direct file paths (export-specific) -->#}
+      <td class="status-cell pdf-status emoji-column">
+        {% if paper.pdf_filename %}
+          {% if paper.pdf_state == 'annotated' %}
+            <a href="data/pdf_annotated/{{ paper.pdf_filename }}" target="_blank" class="pdf-link" title="Open PDF">{{ pdf_emojis.get(paper.pdf_state) }}</a>
+          {% else %}
+            <a href="data/pdf/{{ paper.pdf_filename }}" target="_blank" class="pdf-link" title="Open PDF">{{ pdf_emojis.get(paper.pdf_state) }}</a>
+          {% endif %}
+        {% elif paper.pdf_state == 'paywalled' %}
+          <span title="This paper is paywalled">{{ pdf_emojis.get(paper.pdf_state) }}</span>
+        {% endif %}
+      </td>
+      <td class="title-cell">{% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>{% else %}<span style="font-weight: 300;">{{ paper.title }}</span>{% endif %}</td>
+      <td class="secondary-text-cell number-cell">{{ paper.year or '' }}</td>
+      <td class="secondary-text-cell number-cell" data-field="page_count">{{ paper.page_count or '' }}</td>
+      <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>
+      <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
+
+      {#<!-- 2. UNIVERSAL INFERRED — no editable-status class -->#}
+      <td class="status-cell certainty-{{ certainty.get('is_offtopic', 'solid') }}" data-field="is_offtopic">
+        {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+        {% else %}<span class="emoji-content">{{ c.get('is_offtopic') | render_status }}</span>{% endif %}
+      </td>
+      <td class="secondary-text-cell number-cell" data-field="relevance">{{ (c.get('relevance')|round(1)|string).rstrip('0').rstrip('.') if c.get('relevance') else '' }}</td>
+
+      {#<!-- 3. DYNAMIC DOMAIN-SPECIFIC — same macro, editable=false -->#}
+      {{ render_domain_cells(c, certainty, domain_config, editable=false) }}
+
+      {#<!-- 4. TRAILING FIXED — same as main -->#}
+      <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td>
+      <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>
+      <td class="status-cell certainty-{{ certainty.get('verified', 'solid') }}" data-field="verified">
+        {% if certainty.get('verified') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+        {% else %}<span class="emoji-content">{{ paper.verified | render_status }}</span>{% endif %}
+      </td>
+      <td class="secondary-text-cell number-cell" data-field="estimated_score">{{ paper.estimated_score or '' }}</td>
+      <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>
+      <td class="secondary-text-cell number-cell" data-field="user_override_count">{{ paper.user_override_count or '0' }}</td>
+      <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td>
+      <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+      <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+      {#<!-- Hidden cells — same as main -->#}
+      <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
+      <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
+      <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
+      <td class="hidden-data-cell" data-field="user_trace" style="display: none;">{{ paper.user_trace or '' }}</td>
+      {% for field in domain_config.editable_fields %}
+        <td class="hidden-data-cell" data-field="{{ field.json_path | replace('.', '_') }}" style="display: none;">{{ paper.classification | get_json_path(field.json_path) or '' }}</td>
+      {% endfor %}
+    </tr>
+
+    {#<!-- DETAIL ROW — inlined, uses shared form macro with editable=false -->#}
+    <tr class="detail-row">
+      <td colspan="{{ total_cols }}">
+        <div class="detail-flex-container">
+          <div class="detail-content detail-abstract">
+            <div class="id-section">
+              <strong>ID:</strong> {{ paper.id }}
+              <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')"><em>\cite</em></button>
+              <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')"><em>\citeN</em></button>
+              <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')">Copy</button>
+            </div>
+            <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+          </div>
+          <div class="detail-content detail-metadata">
+            <div class="bibtex-section">
+              <strong>BibTeX Citation:</strong>
+              <button type="button" class="bibtex-copy-btn" onclick="copyBibtex(`{{ paper | bibtex }}`, this)">Copy</button>
+              <pre class="bibtex-pre">{{ paper | bibtex }}</pre>
+            </div>
+            <div class="searchable-section">
+              <span style="font-size:0.8em; color: var(--light-colored-btn-text);">Click on any keyword or author below to <strong>search</strong> for it:</span>
+              <p><strong>Keywords:</strong>
+                <span class="clickable-keywords">
+                  {% if paper.keywords %}{% for kw in paper.keywords.split(';') %}{% if kw.strip() %}<span class="clickable-item" data-search-field="keywords" data-search-term="{{ kw.strip() }}">{{ kw.strip() }};</span>{% endif %}{% endfor %}{% endif %}
+                </span>
+              </p>
+              <p><strong>Authors:</strong>
+                <span class="clickable-authors">
+                  {% if paper.authors %}{% for auth in paper.authors.split(';') %}{% if auth.strip() %}<span class="clickable-item" data-search-field="authors" data-search-term="{{ auth.strip() }}">{{ auth.strip() }};</span>{% endif %}{% endfor %}{% endif %}
+                </span>
+              </p>
+            </div>
+            <p><strong>DOI:</strong> {% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>{% endif %}<br>
+            <strong>ISSN:</strong> {{ paper.issn or 'None' }} <strong>— Page Range/Start:</strong> {{ paper.pages }}</p>
+          </div>
+          <div class="edit-section detail-edit">
+            {{ render_detail_form(paper, domain_config, editable=false) }}
+          </div>
+        </div>
+      </td>
+      <td style="display:none" colspan="5"></td>
+    </tr>
+
+    {#<!-- HISTORY ROW — inlined, uses shared tab macro with is_lite_export -->#}
+    <tr class="history-row">
+      <td colspan="{{ total_cols }}">
+        <div class="history-flex-container" style="--history-table-width: {{ history_table_width }}px;">
+          <div class="history-tabs-nav">
+            <button class="history-tab-btn active" data-tab="main" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Main <span class="arrow">▼</span></span></button>
+            <button class="history-tab-btn" data-tab="set1" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Set 1 <span class="arrow">▼</span></span></button>
+            <button class="history-tab-btn" data-tab="set2" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Set 2 <span class="arrow">▼</span></span></button>
+            <button class="history-tab-btn" data-tab="set3" data-paper-id="{{ paper.id }}" onclick="switchHistoryTab(this)"><span>Set 3 <span class="arrow">▼</span></span></button>
+          </div>
+          <div class="history-tabs-content">
+            {{ render_history_tab(paper, none, 'main', domain_config, show_certainty=true, show_actions=false, is_lite_export=is_lite_export) }}
+            {{ render_history_tab(paper, 1, 'set1', domain_config, show_certainty=false, show_actions=false, is_lite_export=is_lite_export) }}
+            {{ render_history_tab(paper, 2, 'set2', domain_config, show_certainty=false, show_actions=false, is_lite_export=is_lite_export) }}
+            {{ render_history_tab(paper, 3, 'set3', domain_config, show_certainty=false, show_actions=false, is_lite_export=is_lite_export) }}
+          </div>
+        </div>
+      </td>
+      <td style="display:none" colspan="5"></td>
+    </tr>
+  {% endfor %}
+</tbody>
+{% endblock %}

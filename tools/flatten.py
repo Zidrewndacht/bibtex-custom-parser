@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Flatten a source code folder into a single markdown/txt file with syntax highlighting.
 Useful for NotebookLM import
@@ -309,42 +308,91 @@ def flatten_files(file_list, output_file, max_file_size=MAX_FILE_SIZE):
 
 def main():
     # Predefined list of files to include in the flattened output
-    # You can modify this list to include your specific files
+    # Updated to reflect the new folder structure (modules, web/static, web/templates, etc.)
     FILE_LIST = [
-        "globals.py",
+        # # Root files
         "browse_db.py",
-        "import_bibtex.py",
-        "automate_classification.py",
-        "verify_classification.py",
-        "prompt_template.txt",
-        "verifier_template.txt",
-        "reclassify_template.txt",
-        "requirements.txt",
-        "static/comms.js",
-        "static/filtering.js",
-        "static/stats.js",
-        "static/ghpages.js",
-        "static/fonts.css",
-        "static/style.css",
-        "static/pdfjs/web/autosave.js",
-        "static/pdfjs/web/viewer.html",
-        "static/pdfjs/web/viewer_mods.css",
-        "static/pdfjs/LICENSE",
-        "templates/index.html",
-        "templates/papers_table.html",
-        "templates/papers_table_tfoot.html",
-        "templates/detail_row.html",
-        "templates/history_row.html",
-        "templates/stats_modal_content.html",
-        "templates/about_modal_content.html",
-        "templates/index_static_export.html",
-        "templates/papers_table_static_export.html",
-        "templates/loader.html",
-        "inference_engine_examples/llama-cpp.bat",
-        "inference_engine_examples/vLLM-WSL-docker.bat",
-        "inference_engine_examples/TabbyAPI.config.yml",
-        "TODO.txt",
-        "README.md"
+        "queue_manager.py",
+        "README.md",
+        "LICENSE",
+        
+        # # # Prompt templates
+        "prompt_templates/classify_template.txt",
+        "prompt_templates/reclassify_template.txt",
+        "prompt_templates/verify_template.txt",
+        
+        # # # Queue manager module
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
+
+        # Meta module
+        # "meta/agreement_core.py",
+        # "meta/agreement_human_cli_v1.4.py",
+        # "meta/agreement_3sets_cli_v1.4.py",
+        # "meta/time_power_charts_v1.4.py",
+        
+        # Shared module
+        "shared/__init__.py",
+        "shared/config.py",
+        "shared/db.py",
+        
+        # Web module
+        "web/__init__.py",
+        "web/export_logic.py",
+        "web/filters.py",
+        "web/importer.py",
+        "web/routes_data.py",
+        "web/routes_files.py",
+        "web/routes_ui.py",
+        "web/routes_agreement.py",
+        # "web/LICENSE",
+        
+        # Web static files
+        "web/static/js/agreement_report.js",
+        "web/static/js/comms/comms_batch.js",
+        "web/static/js/comms/comms_files.js",
+        "web/static/js/comms/comms_rendering.js",
+        "web/static/js/comms/comms_save.js",
+        "web/static/js/comms/comms_views.js",
+        "web/static/js/filtering/filtering_actions.js",
+        "web/static/js/filtering/filtering_engine.js",
+        "web/static/js/filtering/filtering_init.js",
+        "web/static/js/filtering/filtering_state.js",
+        # "web/static/js/ghpages.js",
+        # "web/static/js/stats/stats_core.js",
+        # "web/static/js/stats/stats_generic.js",
+        # "web/static/js/stats/stats_domain.js",
+        # "web/static/js/stats/stats_charts.js",
+        # "web/static/js/stats/stats_latex.js",
+
+        "web/static/css/style.css",
+        # "web/static/css/agreement_report.css",
+        # "web/static/css/fonts.css",
+        
+        # Web static pdfjs files (kept as previously specified)
+        # "web/static/pdfjs/web/autosave.js",
+        # "web/static/pdfjs/web/viewer.html",
+        # "web/static/pdfjs/web/viewer_mods.css",
+        
+        # Web templates
+        # "web/templates/agreement_report.html",
+        "web/templates/detail_row.html",
+        "web/templates/history_row.html",
+        "web/templates/index.html",
+        "web/templates/papers_table.html",
+        "web/templates/shared/about_modal_content.html",
+        "web/templates/shared/detail_form.html",
+        "web/templates/shared/history_table.html",
+        "web/templates/shared/paper_cells.html",
+        "web/templates/shared/papers_table_tfoot.html",
+        "web/templates/shared/stats_modal_content.html",
+        "web/templates/shared/table_colgroup.html",
+        "web/templates/static_export/loader.html",
+        "web/templates/static_export/index_static_export.html",
+        "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list
@@ -356,7 +404,7 @@ def main():
         sys.exit(1)
     
     # Default output file name
-    output_file = "flattened_code.txt"
+    output_file = "flattened_code.md"
     
     # Parse command line arguments for optional custom output file
     if len(sys.argv) > 1:

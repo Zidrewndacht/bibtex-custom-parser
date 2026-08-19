@@ -1,0 +1,258 @@
+# ==============================================================================
+# DOMAIN CONFIGURATION FILE
+# ==============================================================================
+# This file defines the domain-specific schema, UI layout, and LLM prompts for 
+# ResearchParsa. It tells the application what columns to render in the main 
+# table, what text fields to show in the detail pane, and how to interact with 
+# the LLM for automated classification.
+#
+# Changes to this file require a restart of the web and queue manager services 
+# to take full effect, as configurations are loaded into memory at startup.
+# ==============================================================================
+
+# The display name of your research domain. 
+# This appears in the browser tab title, the main UI header, and HTML exports.
+domain_name: "PCB AOI"
+
+# ------------------------------------------------------------------------------
+# EDITABLE TEXT FIELDS (Detail Row)
+# ------------------------------------------------------------------------------
+# These fields appear as text input boxes in the expanded "Detail Row" of the UI.
+# They allow human users to manually type or override data.
+# Note: Universal fields like "Page Count", "Relevance", and "User Comments" are 
+# hardcoded in the UI and do not need to be defined here.
+# ------------------------------------------------------------------------------
+editable_fields:
+  - label: "Research Area"          # The UI label displayed above the text box.
+    json_path: "research_area"      # The exact dot-notation path in the paper's JSON blob where this data is saved.
+    
+  - label: "Model Name"
+    json_path: "technique.model"
+    stats_list: true     # <--- Maps to Slot 1. See note below.
+    
+  - label: "Other Defects"
+    json_path: "features.other"
+    stats_list: true     # <--- Maps to Slot 2. See note below.
+
+# NOTE ON `stats_list`:
+# The Statistics Modal has two dedicated "Slots" for counting and listing unique 
+# text values (e.g., counting how many times each "Model Name" or "Research Area" 
+# appears across all visible papers). 
+# The application assigns the FIRST field with `stats_list: true` to Slot 1, 
+# and the SECOND field with `stats_list: true` to Slot 2. Any subsequent fields 
+# with this flag will be ignored by the statistics engine.
+
+# ------------------------------------------------------------------------------
+# TABLE COLUMNS & FILTER GROUPS
+# ------------------------------------------------------------------------------
+# This section defines the inferred data columns in the main papers table.
+# Columns are organized into "groups". Groups dictate how columns are visually 
+# clustered in the header and how the UI's client-side filtering behaves.
+#
+# There are three types of groups (`filter_type`):
+#
+# 1. `tri_state`: 
+#    - A single column representing a True / False / Null (Unknown) value.
+#    - Renders as a clickable emoji (✔️ / ❌ / ❔). Clicking cycles the state 
+#      and instantly saves the override to the database.
+#    - The header includes a tri-state checkbox where the checked represents "show only ✔️" ,
+#      the indeterminate (-) state represents "show only ❌" and the unchecked represents "show all".
+#
+# 2. `inclusion`: 
+#    - A cluster of related boolean columns grouped under a single header.
+#    - Renders as clickable emojis.
+#    - The header includes a checkbox. Checking it applies an "OR" filter: 
+#      When at least one 'inclusion' checkbox is enabled, the table will show papers that have a 
+#      True (✔️) value in AT LEAST ONE of the child columns within this group.
+#      When all 'inclusion' checkboxes are disabled, this filter has no effect (shows all papers).
+#
+# 3. `none`: 
+#    - A cluster of related columns grouped visually under a header, but with 
+#      NO filter checkbox in the header.
+#    - Used purely for visual organization of data that doesn't make sense to 
+#      filter by (e.g., mutually exclusive algorithm types).
+# ------------------------------------------------------------------------------
+groups:
+  # ============================================================================
+  # SINGLE-FIELD TRI-STATE FILTERS
+  # ============================================================================
+  # These are standalone boolean flags. Because they are single columns, they 
+  # don't need a grouped "friendly_name" (the group name is left empty).
+  
+  - name: "survey"                  # Internal ID for the group.
+    friendly_name: ""               # Left empty for single-column groups so no sub-header text is rendered.
+    filter_type: tri_state          # Renders as a single clickable emoji with a strict True/False filter checkbox.
+    json_path: "is_survey"          # Direct path to the boolean value in the JSON blob.
+    label: "Survey"                 # The text displayed in the rotated column header.
+    header_class: "inferred-header" # CSS class for header styling (defined in style.css).
+                                    # There are three by default: inferred-header, inferred-header-2 and inferred-header-3,
+                                    # where 2 and 3 are subtly tinted to be used as visual grouping.
+
+  - name: "tht"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "is_through_hole"
+    label: "THT" 
+    header_class: "inferred-header"
+
+  - name: "smt"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "is_smt"
+    label: "SMT" 
+    header_class: "inferred-header"
+
+  - name: "xray"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "is_x_ray"
+    label: "X-Ray"
+    header_class: "inferred-header"
+
+  # ============================================================================
+  # MULTI-FIELD INCLUSION GROUPS
+  # ============================================================================
+  # In this example domain, these groups represent categories of defects. 
+  # Because a single paper might address multiple defect types simultaneously, they are grouped under an 
+  # `inclusion` filter. If a user checks the "PCB" header checkbox, the table will show any paper that has 
+  # AT LEAST ONE bare-PCB defect marked as True.
+  
+  - name: "pcb"
+    friendly_name: "PCB"            # The text displayed in the grouped column header.
+    filter_type: inclusion          # Header checkbox acts as an "OR" filter across all child fields.
+    json_path: "features"           # The parent JSON object. Child `key`s are appended to this (e.g., features.tracks).
+    header_class: "inferred-header-2"   # subtly tinted header
+    fields:
+      - key: "tracks"               # The specific JSON key inside the `features` object.
+        label: "Tracks"             # The text displayed in the rotated column header.
+        highlight: true             # Adds a subtle background tint to the entire column for visual emphasis.
+      - key: "holes"
+        label: "Holes / Vias"
+        highlight: true
+      - key: "bare_pcb_other"
+        label: "(Bare) PCB Other"
+        highlight: true
+
+  - name: "solder"
+    friendly_name: "Solder"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    fields:
+      - key: "solder_insufficient"
+        label: "Insufficient"
+      - key: "solder_excess"
+        label: "Excessive"
+      - key: "solder_void"
+        label: "Void / Hole"
+      - key: "solder_crack"
+        label: "Crack / Cold"
+      - key: "solder_other"
+        label: "Solder (Other)"
+
+  - name: "pcba"
+    friendly_name: "PCBA"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    fields:
+      - key: "missing_component"
+        label: "Missing Comp"
+        highlight: true
+      - key: "wrong_component"
+        label: "Wrong Comp"
+        highlight: true
+      - key: "orientation"
+        label: "Orientation"
+        highlight: true
+      - key: "component_other"
+        label: "Comp (Other)"
+        highlight: true
+      - key: "cosmetic"
+        label: "Cosmetic"
+        highlight: true
+
+  - name: "other_features"
+    friendly_name: "" # no group name because there's no space or reason for it in a single cell.
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    fields:
+      - key: "other"                # features.other ends up as the same field as the one used above for stats and detail row. This is by design.
+        label: "Other"
+        render_type: text_presence  # SPECIAL RENDER: Instead of True/False, checks if the JSON string is non-empty.
+                                    # Renders ✔️ if text exists, ❌ if empty/null. Used for "catch-all" text fields.
+                                    # This makes a field that's visually identical to the other tri-state ones, but it's
+                                    # NOT editable via clicking (to edit it, open detail row and change the corresponding text field)
+        highlight: true
+
+  # ============================================================================
+  # VISUAL-ONLY GROUPS
+  # ============================================================================
+  # This group uses `filter_type: none`. The columns are visually grouped under 
+  # the "Techniques" header, but there is NO master checkbox in the header.
+  
+  - name: "techniques"
+    friendly_name: "Techniques"
+    filter_type: none               # No header checkbox. Purely for visual grouping.
+    json_path: "technique"
+    header_class: "inferred-header-3"   # slightly more tinted header than inferred-header-2
+    fields:
+      - key: "classic_cv_based"
+        label: "Classic CV"
+      - key: "ml_traditional"
+        label: "Traditional ML"
+      - key: "dl_cnn_classifier"
+        label: "CNN Classifier"
+      - key: "dl_cnn_detector"
+        label: "CNN Detector"
+      - key: "dl_rcnn_detector"
+        label: "R-CNN Detector"
+      - key: "dl_transformer"
+        label: "Transformer"
+      - key: "dl_other"
+        label: "Other DL"
+      - key: "hybrid"
+        label: "Hybrid"
+
+  # ============================================================================
+  # DATASET AVAILABILITY (Tri-State)
+  # ============================================================================
+  - name: "dataset"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "technique.available_dataset"
+    label: "Datasets"
+    header_class: "inferred-header-3"
+
+
+# ------------------------------------------------------------------------------
+# LLM PROMPT TEMPLATES
+# ------------------------------------------------------------------------------
+# Paths to the text files containing the system prompts for the Queue Manager.
+# These paths are relative to the project root directory.
+# The Queue Manager reads these files, injects the paper's metadata (Title, 
+# Abstract, etc.), and sends the final prompt to your configured LLM server.
+# ------------------------------------------------------------------------------
+prompts:
+  classify_instructions: prompt_templates/configurable_classify_instructions.txt
+  classify_output_template: prompt_templates/configurable_classify_output_template.txt
+  few_shot_examples: prompt_templates/configurable_few_shot_examples.txt
+
+
+# ------------------------------------------------------------------------------
+# THEME / CSS OVERRIDES
+# ------------------------------------------------------------------------------
+# The application uses CSS variables for its color palette. You can override 
+# the default light/dark theme colors here without needing to edit the core 
+# `style.css` file. The application will inject these directly into the HTML.
+# Values must be valid CSS color strings (hex, rgb, hsl, or var()).
+# ------------------------------------------------------------------------------
+theme:
+  primary_ui_color: "hsl(188, 31%, 29%)"                 # Main brand color (headers, primary buttons).
+  primary_ui_color_darker: "hsl(188, 34%, 27%)"          # Darker shade for gradients and hover states.
+  inferred_ui_color: "hsl(154.6, 35.8%, 32.4%)"         # Color for the "Inferred Data" column headers.
+  inferred_gradient_end_color: "rgb(57, 106, 53)"       # End color for the inferred header gradient.
+  stats_primary_ui_color: "var(--primary-ui-color)"     # Base color for the Statistics modal.
+  detail_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)" # Show/Hide buttons.
+  history_button_background: "linear-gradient(180deg, hsl(210, 24%, 87%) 0%, hsl(210, 32%, 93%) 60%)"

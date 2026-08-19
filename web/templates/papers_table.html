@@ -1,0 +1,91 @@
+{#<!-- templates/papers_table.html -->#}
+{% from 'shared/paper_cells.html' import render_domain_cells %}
+{% set ns = namespace(total_dynamic=0) %}
+{% for group in domain_config.groups %}
+    {% if group.filter_type == 'tri_state' %}
+        {% set ns.total_dynamic = ns.total_dynamic + 1 %}
+    {% elif group.filter_type in ['inclusion', 'none'] %}
+        {% set ns.total_dynamic = ns.total_dynamic + (group.fields | length) %}
+    {% endif %}
+{% endfor %}
+{% set total_cols = 6 + 2 + ns.total_dynamic + 9 %}
+
+<tbody>
+    <tr>
+        <td style="padding:0;" colspan="{{ total_cols }}">
+            <div class="loading-overlay">
+                <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: var(--primary-ui-color);">Parsa</span></div>
+                <div class="loading-spinner"></div>
+                <div>Reprocessing table. Wait patiently. </div>
+            </div>
+        </td>
+        <td style="display:none" colspan="5"></td>
+    </tr>
+
+  {% for paper in papers %}
+    {% set c = paper.classification %}
+    {% set certainty = paper.main_certainty %}
+    <tr data-paper-id="{{ paper.id }}">
+      {#<!-- 1. LEADING FIXED (6) — unchanged -->#}
+      <td class="status-cell pdf-status emoji-column">
+        {% if paper.pdf_filename %}
+          <a href="{{ url_for('static', filename='pdfjs/web/viewer.html') }}?file={{ url_for('files.serve_pdf', paper_id=paper.id) | urlencode }}" target="_blank" class="pdf-link"
+             title="{% if paper.pdf_state == 'annotated' %}Open this annotated PDF in the Annotator{% else %}Open this PDF in the Annotator{% endif %}">
+            {{ pdf_emojis.get(paper.pdf_state) }}
+          </a>
+        {% else %}
+          <a href="#" class="pdf-upload-link" data-paper-id="{{ paper.id }}"
+             title="{% if paper.pdf_state == 'paywalled' %}Article is paywalled. Click to upload if a copy is available{% else %}No PDF stored yet. Click to upload PDF{% endif %}">
+            {{ pdf_emojis.get(paper.pdf_state) }}
+          </a>
+        {% endif %}
+      </td>
+      <td class="title-cell">
+        {% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.title }}</a>
+        {% else %}<span style="font-weight: 300;">{{ paper.title }}</span>{% endif %}
+      </td>
+      <td class="secondary-text-cell number-cell">{{ paper.year or '' }}</td>
+      <td class="secondary-text-cell number-cell" data-field="page_count">{{ paper.page_count or '' }}</td>
+      <td class="secondary-text-cell">{{ paper.deannualized_conference or paper.journal }}</td>
+      <td class="status-cell emoji-column" title="{{ paper.type }}">{{ type_emojis.get(paper.type, default_type_emoji) }}</td>
+
+      {#<!-- 2. UNIVERSAL INFERRED (2) -->#}
+      <td class="status-cell editable-status certainty-{{ certainty.get('is_offtopic', 'solid') }}" data-field="is_offtopic">
+        {% if certainty.get('is_offtopic') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+        {% else %}<span class="emoji-content">{{ c.get('is_offtopic') | render_status }}</span>{% endif %}
+      </td>
+      <td class="secondary-text-cell number-cell" data-field="relevance">{{ (c.get('relevance')|round(1)|string).rstrip('0').rstrip('.') if c.get('relevance') else '' }}</td>
+
+      {#<!-- 3. DYNAMIC DOMAIN-SPECIFIC — now a single macro call -->#}
+      {{ render_domain_cells(c, certainty, domain_config, editable=true) }}
+
+      {#<!-- 4. TRAILING FIXED (9) — unchanged -->#}
+      <td class="secondary-text-cell changed-cell highlight-status">{{ paper.changed_formatted }}</td>
+      <td class="status-cell changed-by-cell highlight-status" data-field="changed_by">{{ paper.changed_by | render_changed_by }}</td>
+      <td class="status-cell editable-status certainty-{{ certainty.get('verified', 'solid') }}" data-field="verified">
+        {% if certainty.get('verified') == 'conflict' %}<span class="conflict-warning">⚠️</span>
+        {% else %}<span class="emoji-content">{{ paper.verified | render_status }}</span>{% endif %}
+      </td>
+      <td class="secondary-text-cell number-cell" data-field="estimated_score">{{ paper.estimated_score or '' }}</td>
+      <td class="status-cell editable-verify" data-field="verified_by">{{ paper.verified_by | render_verified_by }}</td>
+      <td class="secondary-text-cell number-cell" data-field="user_override_count">{{ paper.user_override_count or '0' }}</td>
+      <td class="status-cell" data-field="user_comment_state">{{ '✔️' if paper.user_trace and (paper.user_trace|string).strip() else '❌' }}</td>
+      <td class="toggle-btn history-btn" onclick="toggleHistory(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+      <td class="toggle-btn" onclick="toggleDetails(this)"><span>Show</span><br><span class="arrow">▼</span></td>
+
+      {#<!-- Hidden data cells — unchanged -->#}
+      <td class="hidden-data-cell" data-field="abstract" style="display: none;">{{ paper.abstract }}</td>
+      <td class="hidden-data-cell" data-field="keywords" style="display: none;">{{ paper.keywords }}</td>
+      <td class="hidden-data-cell" data-field="authors" style="display: none;">{{ paper.authors }}</td>
+      <td class="hidden-data-cell" data-field="user_trace" style="display: none;">{{ paper.user_trace or '' }}</td>
+      {% for field in domain_config.editable_fields %}
+        <td class="hidden-data-cell" data-field="{{ field.json_path | replace('.', '_') }}" style="display: none;">
+          {{ paper.classification | get_json_path(field.json_path) or '' }}
+        </td>
+      {% endfor %}
+    </tr>
+    {#<!-- Detail + History placeholder rows — unchanged -->#}
+    <tr class="detail-row"><td colspan="{{ total_cols }}" class="detail-content-placeholder"></td><td style="display:none" colspan="5"></td></tr>
+    <tr class="history-row"><td colspan="{{ total_cols }}" class="detail-content-placeholder"></td><td style="display:none" colspan="5"></td></tr>
+  {% endfor %}
+</tbody>

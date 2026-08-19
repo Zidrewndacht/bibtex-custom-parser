@@ -1,0 +1,54 @@
+{#<!-- templates/detail_row.html -->#}
+{% from 'shared/detail_form.html' import render_detail_form %}
+
+{% block detail_row_content %}
+<div class="detail-flex-container">
+  <div class="detail-content detail-abstract">
+    <div class="id-section">
+      <strong>ID:</strong> {{ paper.id }}
+      <button type="button" class="id-cite-btn" onclick="copyPaperId('{{ paper.id }}', this, 'cite')" title="Copy as \cite{}"><em>\cite</em></button>
+      <button type="button" class="id-citen-btn" onclick="copyPaperId('{{ paper.id }}', this, 'citen')" title="Copy as \citeN{}"><em>\citeN</em></button>
+      <button type="button" class="id-copy-btn" onclick="copyPaperId('{{ paper.id }}', this, 'raw')" title="Copy as plain text">Copy</button>
+    </div>
+    <p><strong>Abstract:</strong> {{ paper.abstract }}</p>
+  </div>
+
+  <div class="detail-content detail-metadata">
+    <div class="bibtex-section">
+      <strong>BibTeX Citation:</strong>
+      <button type="button" class="bibtex-copy-btn" onclick="copyBibtex(`{{ paper | bibtex }}`, this)">Copy</button>
+      <pre class="bibtex-pre">{{ paper | bibtex }}</pre>
+    </div>
+    <div class="searchable-section">
+      <span style="font-size:0.8em; color: var(--light-colored-btn-text);">Click on any keyword or author below to <strong>search</strong> for it:</span>
+      <p><strong>Keywords:</strong>
+        <span class="clickable-keywords">
+          {% if paper.keywords %}
+            {% for keyword in paper.keywords.split(';') %}
+              {% if keyword.strip() %}<span class="clickable-item" data-search-field="keywords" data-search-term="{{ keyword.strip() }}">{{ keyword.strip() }};</span>{% endif %}
+            {% endfor %}
+          {% endif %}
+        </span>
+      </p>
+      <p><strong>Authors:</strong>
+        <span class="clickable-authors">
+          {% if paper.authors %}
+            {% for author in paper.authors.split(';') %}
+              {% if author.strip() %}<span class="clickable-item" data-search-field="authors" data-search-term="{{ author.strip() }}">{{ author.strip() }};</span>{% endif %}
+            {% endfor %}
+          {% endif %}
+        </span>
+      </p>
+    </div>
+    <p>
+      <strong>DOI:</strong> {% if paper.doi %}<a href="https://doi.org/{{ paper.doi }}" target="_blank">{{ paper.doi }}</a>{% endif %}<br>
+      <strong>ISSN:</strong> {{ paper.issn or 'None' }}
+      <strong> — Page Range/Start:</strong> {{ paper.pages }}
+    </p>
+  </div>
+
+  <div class="edit-section detail-edit">
+    {{ render_detail_form(paper, domain_config, editable=true) }}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>3-Run Agreement Report — {{ domain_config.domain_name }}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/fonts.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/agreement_report.css') }}">
+    {#<!-- Inject Dynamic Theme Overrides -->#}
+    {% if domain_config.theme_css %}
+    <style>{{ domain_config.theme_css | safe }}</style>
+    {% endif %}
+    <script src="{{ url_for('static', filename='libs/chart.min.js') }}"></script>
+    <script>
+        window.REPORT_DATA = {{ report_data | tojson }};
+        window.LATEX_TABLES = {{ latex_map | tojson }};
+        window.CONSENSUS_PROGRESS = {{ consensus_progress | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/agreement_report.js') }}" defer></script>
+</head>
+<body id="agreement-report">
+<!-- ================= HEADER (full-width "title" card, outside the masonry columns) ================= -->
+
+<div class="report-titlebar">
+    <a class="titlebar-btn" href="/" title="Back to the main ResearchParsa window">← <strong>Main</strong> window</a>
+    <div class="titlebar-branding">
+        <span>Research</span><span class="branding-strong">Parsa</span>
+        <span class="branding-suffix">— 3-Run Agreement Report — {{ domain_config.domain_name }}</span>
+    </div>
+    <div class="titlebar-actions">
+        <button type="button" class="titlebar-btn" id="collapse-all-btn"
+                title="Collapse or expand all collapsible sections"><strong>Collapse</strong> all</button>
+        <button type="button" class="titlebar-btn" id="copy-all-latex-btn" style="width:120px"
+                title="Copy all LaTeX tables to the clipboard">Copy <strong>LaTeX</strong></button>
+        <!-- <button type="button" class="titlebar-btn" id="refresh-report-btn"
+                title="Reload the report with fresh data">↻ Refresh</button> -->
+    </div>
+</div>
+
+<div class="section-body">
+    <div class="meta-chips">
+        <span class="chip">Generated: <strong>{{ generated_at }}</strong></span>
+        <span class="chip">Papers in database: <strong>{{ meta_summary.total_papers }}</strong></span>
+        <span class="chip">On-topic: <strong>{{ meta_summary.on_topic }}</strong></span>
+        <span class="chip">Off-topic: <strong>{{ meta_summary.off_topic }}</strong></span>
+        <span class="chip">Excluded (undetermined off-topic): <strong>{{ meta_summary.undetermined }}</strong></span>
+        <span class="chip">Fields analyzed: <strong>{{ meta_summary.n_fields }}</strong></span>
+    </div>
+</div>
+
+<p class="note"> This report only refers to AI classifications. It does <strong>not</strong> evaluate any user-set data.<br>
+This report always covers the <strong>entire database</strong>, regardless of any filters active in the main window.<br>
+    Papers participate only when their 3-run off-topic vote is decisive (≥2 “Yes” or ≥2 “No”);
+    papers still awaiting classification are excluded and counted above.
+</p>
+<div class="report-wrapper">
+
+    <div class="report-container">
+        <!-- ================= OVERVIEW + RAW DISTRIBUTION ================= -->
+        <div class="report-section">
+            <h3>Agreement Overview &amp; Uncertainty Breakdown
+                <span class="h3-right">
+                    <button type="button" class="tabularx-btn latex-copy-btn" data-latex-key="Overview and Uncertainty"
+                            title="Copy the LaTeX table for this section to the clipboard"><em>\tabularx</em></button>
+                </span>
+            </h3>
+            <div class="section-body duo">
+                <div>
+                    <div class="chart-box"><canvas id="overviewChart"></canvas></div>
+                    <p class="note">Segments sum to 100%. Hover for counts and Wilson 95% CIs.</p>
+                </div>
+                <div>
+                    <div class="chart-box"><canvas id="rawDistChart"></canvas></div>
+                    <p class="note">Raw per-run responses, on-topic papers.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= CONTRADICTIONS ================= -->
+        <div class="report-section">
+            <h3>Contradiction Types Breakdown
+                <span class="h3-right">
+                    <button type="button" class="tabularx-btn latex-copy-btn" data-latex-key="Contradictions"
+                            title="Copy the LaTeX table for this section to the clipboard"><em>\tabularx</em></button>
+                </span>
+            </h3>
+            <div class="section-body">
+                <div class="chart-box contradiction-chart"><canvas id="contradictionChartOnTopic"></canvas></div>
+                <div class="chart-box contradiction-chart"><canvas id="contradictionChartOffTopic"></canvas></div>
+                <div class="chart-box contradiction-chart"><canvas id="contradictionChartAll"></canvas></div>
+            </div>
+        </div>
+        <!-- ================= RELEVANCE ================= -->
+        <div class="report-section">
+            <h3>Agreement by Relevance Score (On-Topic)</h3>
+            <div class="section-body">
+                <div class="chart-box short"><canvas id="relevanceChart"></canvas></div>
+                <div class="insight" id="relevance-insight">Evaluating relevance correlation…</div>
+            </div>
+        </div>
+
+        <!-- ================= BY CATEGORY ================= -->
+        {% if category_summaries %}
+        <div class="report-section collapsible">
+            <h3>Agreement by Category (On-Topic)
+                <span class="h3-right">
+                    <button type="button" class="tabularx-btn latex-copy-btn" data-latex-key="By Category"
+                            title="Copy the LaTeX table for this section to the clipboard"><em>\tabularx</em></button>
+                    <span class="collapse-chevron">▼</span>
+                </span>
+            </h3>
+            <div class="section-body">
+                <table class="plain">
+                    <thead>
+                        <tr><th>Category</th><th>Perfect</th><th>Uncertain</th><th>Contradiction</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for cat in category_summaries %}
+                        <tr class="cat-header-row">
+                            <td colspan="4">{{ cat.name }} — {{ cat.n_fields }} fields, {{ '{:,}'.format(cat.n_observations) }} samples</td>
+                        </tr>
+                        <tr>
+                            <td>Overall</td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(cat.perfect) }} <span class="count-sub">({{ '%.2f'|format(cat.perfect_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(cat.perfect_ci[0]) }} – {{ '%.2f'|format(cat.perfect_ci[1]) }}]</div>
+                            </td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(cat.uncertain) }} <span class="count-sub">({{ '%.2f'|format(cat.uncertain_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(cat.uncertain_ci[0]) }} – {{ '%.2f'|format(cat.uncertain_ci[1]) }}]</div>
+                            </td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(cat.contradiction) }} <span class="count-sub">({{ '%.2f'|format(cat.contradiction_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(cat.contradiction_ci[0]) }} – {{ '%.2f'|format(cat.contradiction_ci[1]) }}]</div>
+                            </td>
+                        </tr>
+                        {% set mc = cat.most_contradictory %}
+                        <tr>
+                            <td>Most contradictory: <em>{{ mc.field_formatted }}</em></td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(mc.perfect) }} <span class="count-sub">({{ '%.2f'|format(mc.perfect_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(mc.perfect_ci[0]) }} – {{ '%.2f'|format(mc.perfect_ci[1]) }}]</div>
+                            </td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(mc.uncertain) }} <span class="count-sub">({{ '%.2f'|format(mc.uncertain_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(mc.uncertain_ci[0]) }} – {{ '%.2f'|format(mc.uncertain_ci[1]) }}]</div>
+                            </td>
+                            <td>
+                                <div class="primary-val">{{ '{:,}'.format(mc.contradiction) }} <span class="count-sub">({{ '%.2f'|format(mc.contradiction_pct) }}%)</span></div>
+                                <div class="ci-sub">[{{ '%.2f'|format(mc.contradiction_ci[0]) }} – {{ '%.2f'|format(mc.contradiction_ci[1]) }}]</div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ================= FIELD TABLES: one card per category ================= -->
+        {% for cat_name, rows in fields_by_category %}
+        <div class="report-section collapsible">
+            <h3>Fields by Agreement — {{ cat_name }}
+                <span class="h3-right"><span class="collapse-chevron">▼</span></span>
+            </h3>
+            <div class="section-body">
+                <table class="plain field-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 150px">Field</th>
+                            <th class="sortable-col sorted" data-sort-key="perfect"
+                                title="Sort by perfect agreement">Perfect (95% CI) <span class="sort-arrow">▼</span></th>
+                            <th class="sortable-col" data-sort-key="contradiction" style="width: 130px"
+                                title="Sort by contradiction rate">Contradiction (95% CI) <span class="sort-arrow">▼</span></th>
+                            <th style="width: 140px">Raw Y / N / U</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr data-perfect="{{ row.perfect_pct }}" data-contradiction="{{ row.contradiction_pct }}">
+                            <td>{{ row.field_formatted }}</td>
+                            <td>
+                                <div class="primary-val">{{ '%.2f'|format(row.perfect_pct) }}% <span class="count-sub">({{ '{:,}'.format(row.perfect) }})</span></div>
+                                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: {{ row.perfect_pct|round(1) }}%"></span></span>
+                                <div class="ci-sub">[{{ '%.2f'|format(row.perfect_ci_lower) }} – {{ '%.2f'|format(row.perfect_ci_upper) }}]</div>
+                            </td>
+                            <td>
+                                <div class="primary-val">
+                                    {% if row.contradiction_pct < 1 %}✅{% elif row.contradiction_pct < 5 %}⚠️{% else %}❌{% endif %}
+                                    {{ '%.2f'|format(row.contradiction_pct) }}% <span class="count-sub">({{ '{:,}'.format(row.contradiction) }})</span>
+                                </div>
+                                <div class="ci-sub">[{{ '%.2f'|format(row.contradiction_ci_lower) }} – {{ '%.2f'|format(row.contradiction_ci_upper) }}]</div>
+                            </td>
+                            <td class="raw-cell">
+                                {{ '%.1f'|format(row.raw_yes_pct) }}% /
+                                {{ '%.1f'|format(row.raw_no_pct) }}% /
+                                {{ '%.1f'|format(row.raw_unknown_pct) }}%
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- ================= CONTRADICTION OUTLIERS ================= -->
+        {% if top_contradictory %}
+        <div class="report-section collapsible collapsed">
+            <h3>Contradiction Outliers
+                <span class="h3-right"><span class="collapse-chevron">▼</span></span>
+            </h3>
+            <div class="section-body">
+                <table class="plain">
+                    <thead>
+                        <tr><th style="width:220px">Paper</th><th style="width:50px">Relevance</th><th style="width:110px">Contradictions</th><th>Fields</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for top in top_contradictory %}
+                        <tr>
+                            <td>
+                                <a class="outlier-link" href="{{ top.focus_url }}" target="_blank"
+                                title="Open this paper in a new tab (year-filtered, ID searched)">🔎 {{ top.paper_id }}</a>
+                            </td>
+                            <td class="raw-cell">{% if top.relevance is not none %}{{ '%.1f'|format(top.relevance) }}{% else %}–{% endif %}</td>
+                            <td class="centered-td">{{ top.contradictions }}</td>
+                            <td class="centered-td">
+                                {% for f in top.fields[:8] %}<span class="field-chip">{{ f }}</span>{% endfor %}
+                                {% if top.fields|length > 8 %}<span class="field-chip">+{{ top.fields|length - 8 }} more</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <p class="note">
+                    On-topic papers with the most Yes↔No conflicts across the 3 runs.
+                    Clicking a paper opens it in a new tab, pre-filtered to its publication year with its ID in the search box.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ================= CONSENSUS ATTEMPT OUTLIERS ================= -->
+        {% if consensus_stats and (consensus_stats.top_runs_total or consensus_stats.top_runs_per_set) %}
+        <div class="report-section collapsible collapsed">
+            <h3>Consensus Attempt Outliers
+                <span class="h3-right"><span class="collapse-chevron">▼</span></span>
+            </h3>
+            <div class="section-body">
+                
+                {% if consensus_stats.top_runs_total %}
+                <table class="plain">
+                    <thead>
+                        <tr>
+                            <th>Papers with most attempts (summed across all three sets):</th>
+                            <th style="width:50px">Relevance</th>
+                            <th style="width:60px" class="centered-td">Total</th>
+                            <th style="width:50px">Set 1</th><th style="width:50px">Set 2</th><th style="width:50px">Set 3</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for top in consensus_stats.top_runs_total %}
+                        <tr>
+                            <td>
+                                <a class="outlier-link" href="{{ top.focus_url }}" target="_blank"
+                                title="Open this paper in a new tab (year-filtered, ID searched)">🔎 {{ top.paper_id }}</a>
+                            </td>
+                            <td class="raw-cell">{% if top.relevance is not none %}{{ '%.1f'|format(top.relevance) }}{% else %}–{% endif %}</td>
+                            <td class="centered-td"><strong>{{ top.total_runs }}</strong></td>
+                            <td class="centered-td">{{ top.per_set.get(1, 0) }}</td>
+                            <td class="centered-td">{{ top.per_set.get(2, 0) }}</td>
+                            <td class="centered-td">{{ top.per_set.get(3, 0) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+
+                {% if consensus_stats.top_runs_per_set %}
+                <table class="plain">
+                    <thead>
+                        <tr><th>Papers with most attempts in an individual set:</th><th style="width:50px">Relevance</th>
+                            <th style="width:90px">Attempts</th><th style="width:50px">Set</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for set_num in [1, 2, 3] %}
+                        {% for top in consensus_stats.top_runs_per_set.get(set_num, []) %}
+                        <tr>
+                            <td>
+                                <a class="outlier-link" href="{{ top.focus_url }}" target="_blank"
+                                title="Open this paper in a new tab (year-filtered, ID searched)">🔎 {{ top.paper_id }}</a>
+                            </td>
+                            <td class="raw-cell">{% if top.relevance is not none %}{{ '%.1f'|format(top.relevance) }}{% else %}–{% endif %}</td>
+                            <td class="centered-td"><strong>{{ top.runs }}</strong></td>
+                            <td class="centered-td">{{ set_num }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <p class="note">
+                    A high count concentrated in one set usually points to a single buggy set;
+                    a high total spread across sets may indicate a genuinely ambiguous/hard-to-classify paper.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ================= PIPELINE HEALTH ================= -->
+        <div class="report-section collapsible">
+            <h3>Classification Pipeline Health (All Papers)
+                <span class="h3-right"><span class="collapse-chevron">▼</span></span>
+            </h3>
+            <div class="section-body">
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="value">{{ '{:,}'.format(log_stats.get('total_entries', 0)) }}</div>
+                        <div class="label">Total log entries</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">{{ '{:,}'.format(log_stats.get('invalid_entries', 0)) }}
+                            ({{ '%.2f'|format(log_stats.get('invalid_pct', 0)) }}%)</div>
+                        <div class="label">Invalid entries (valid=false)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">{{ '{:,}'.format(consensus_stats.get('total_classify_runs', 0)) }}</div>
+                        <div class="label">Classification attempts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">{{ '%.2f'|format(consensus_stats.get('avg_runs', 0)) }}</div>
+                        <div class="label">Avg attempts per set</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value">{{ consensus_stats.get('max_runs', 0) }}</div>
+                        <div class="label">Max attempts for a single set</div>
+                    </div>
+                </div>
+                {% if per_set %}
+                <table class="plain">
+                    <thead>
+                        <tr><th>Set</th><th>Total entries</th><th>Invalid</th><th>Invalid %</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for s in per_set %}
+                        <tr>
+                            <td class="centered-td">{{ s.set }}</td>
+                            <td class="centered-td">{{ '{:,}'.format(s.total) }}</td>
+                            <td class="centered-td">{{ '{:,}'.format(s.invalid) }}</td>
+                            <td class="centered-td">{{ '%.2f'|format(s.invalid_pct) }}%</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+                {% if log_stats.papers_with_invalid %}
+                <p class="note">Papers with invalid LLM log entries (most first):</p>
+                <div class="invalid-papers-list">
+                    {% for item in log_stats.papers_with_invalid %}
+                    <a class="outlier-link" href="{{ item.focus_url }}" target="_blank"
+                    title="{{ item.invalid_count }} invalid entr{{ 'y' if item.invalid_count == 1 else 'ies' }} — open in a new tab">🔎 {{ item.paper_id }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ================= CONSENSUS PROGRESS ================= -->
+        <div class="report-section">
+            <h3>Consensus Progress over Time</h3>
+            <div class="section-body">
+                {% if consensus_progress %}
+                <div class="chart-box"><canvas id="progressChart"></canvas></div>
+                <p class="note">
+                    Shows the number of papers remaining to reach their latest consensus state over time. 
+                    Total: {{ consensus_progress.total }} papers, Duration: {{ '%.1f'|format(consensus_progress.duration_minutes) }} min.
+                </p>
+                {% else %}
+                <p class="note" style="margin: 24px 16px; text-align: center; color: #888; font-style: italic;">
+                    No classification progress data found yet. Run batch classifications to populate this chart.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ================= INTERPRETATION GUIDE ================= -->
+        <div class="report-section collapsible">
+            <h3>Interpretation Guide
+                <span class="h3-right"><span class="collapse-chevron">▼</span></span>
+            </h3>
+            <div class="section-body guide">
+                {% set ot = on_topic_summary %}
+                {% if ot.n_observations >= min_n_for_ci %}
+                <p><strong>On-Topic Results (n={{ '{:,}'.format(ot.n_observations) }} observations):</strong></p>
+                <ul>
+                    <li>Contradiction rate: <strong>{{ '%.2f'|format(ot.contradiction_pct) }}%</strong>,
+                        95% CI [{{ '%.2f'|format(ot.contradiction_ci[0]) }}%, {{ '%.2f'|format(ot.contradiction_ci[1]) }}%]
+                        → {{ '{:,}'.format(ot.contradiction) }} definitive errors requiring review.</li>
+                    <li>Perfect agreement: <strong>{{ '%.2f'|format(ot.perfect_pct) }}%</strong>,
+                        95% CI [{{ '%.2f'|format(ot.perfect_ci[0]) }}%, {{ '%.2f'|format(ot.perfect_ci[1]) }}%]
+                        → classifications you can likely trust.</li>
+                    <li>Acceptable uncertainty: {{ '%.2f'|format(ot.uncertain_pct) }}%
+                        ({{ '{:,}'.format(ot.uncertain) }} obs) → model hedging, not necessarily wrong.</li>
+                </ul>
+                {% else %}
+                <p><strong>On-Topic Results (n={{ '{:,}'.format(ot.n_observations) }} observations — CIs suppressed, sample &lt; {{ min_n_for_ci }}):</strong></p>
+                <ul>
+                    <li>Contradiction rate: {{ '%.2f'|format(ot.contradiction_pct) }}%
+                        ({{ '{:,}'.format(ot.contradiction) }}/{{ '{:,}'.format(ot.n_observations) }})</li>
+                    <li>Perfect agreement: {{ '%.2f'|format(ot.perfect_pct) }}%
+                        ({{ '{:,}'.format(ot.perfect) }}/{{ '{:,}'.format(ot.n_observations) }})</li>
+                </ul>
+                {% endif %}
+                <p><strong>Relevance correlation check:</strong></p>
+                <ul>
+                    <li>Contradiction % rising as relevance ↓ → the prompt may need relevance-aware tuning.</li>
+                    <li>Unknown % rising as relevance ↓ → the model correctly hedges on ambiguous papers. ✓</li>
+                    <li>Flat contradiction % across bins → the issue is prompt-wide, not relevance-specific.</li>
+                </ul>
+            </div>
+        </div>
+     </div>
+</div>
+</body>
+</html>

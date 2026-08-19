@@ -1,0 +1,411 @@
+
+Title: “Self-Supervised Representation Learning for Electronic Board Inspection”
+Abstract: “We introduce a masked-image modeling framework pre-trained on unlabeled industrial PCB imagery. The learned CNN backbone significantly improves downstream detection accuracy when fine-tuned on standard automated optical inspection benchmarks. Our approach reduces reliance on large labeled datasets while maintaining robustness across varying board layouts and lighting conditions.”
+Keywords: self-supervised learning, PCB inspection, computer vision, automated optical inspection, representation learning
+{{
+  "research_area": "computer sciences",
+  "is_offtopic": false,
+  "relevance": 5,
+  "is_survey": false,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": null,
+    "holes": null,
+    "bare_pcb_other": null,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": null,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "component_other": null,
+    "cosmetic": null,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": null,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "in-house",
+    "available_dataset": null
+  }}
+}}
+
+Justification: Mentions PCB defect detection generally but lists zero specific defect types, so all feature fields are null per the insufficient-information rule. dl_cnn_classifier is set to true based on "learned backbone" and "fine-tuned", but relevance stays at 5 due to lack of specific defect features or clear optical implementation details.
+
+---
+
+Title: “Optical Quality Control Challenges in High-Density PCBA Assembly”
+Abstract: “As component densities increase, traditional automated optical inspection faces new hurdles. This study catalogues common failure modes observed in high-volume production, focusing on insufficient solder paste, solder bridging, tombstoning, and misplaced 0402 capacitors. We also address less frequent issues like pad oxidation and lifted leads.”
+Keywords: AOI, PCBA, SMT, solder bridging, insufficient paste, tombstoning, quality control
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 4,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": false,
+    "solder_crack": false,
+    "solder_other": false,
+    "orientation": true,
+    "wrong_component": true,
+    "missing_component": false,
+    "component_other": true,
+    "cosmetic": false,
+    "other": "tombstoning, pad oxidation, lifted leads"
+  }},
+  "technique": {{
+    "classic_cv_based": null,
+    "ml_traditional": null,
+    "dl_cnn_classifier": null,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": null,
+    "dl_other": null,
+    "hybrid": null,
+    "model": null,
+    "available_dataset": null
+  }}
+}}
+
+Justification: Explicitly lists solder and PCBA defects, so corresponding feature fields are true, others false, with extra defects captured in other. Provides zero algorithmic or methodological details, forcing all technique fields to null. Relevance 4 matches the "general PCB/AOI context but lacks implementation details/techniques" bin.
+
+---
+
+Title: “Automated visual inspection of populated circuit boards with convolutional networks”  
+Abstract: “…We train a CNN to detect missing components on assembled PCBs… Experimental images come from a commercial SMT line…”  
+Keywords: missing component, CNN, SMT, PCBA
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 7,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": false,
+    "solder_excess": false,
+    "solder_void": false,
+    "solder_crack": false,
+    "solder_other": false,
+    "orientation": false,
+    "wrong_component": false,
+    "missing_component": true,
+    "component_other": false,
+    "cosmetic": false,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_classifier": false,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "in-house",
+    "available_dataset": null
+  }}
+}}
+
+Justification: “missing component” is explicitly mentioned as the only feature; CNN detector means it may be either dl_cnn_detector or dl_rcnn_detector, both left null as it's unclear which one is correct. Everything else stays false as the abstract leaves no doubt that it's out of scope. Relevance 7 because the paper is narrow but clearly inside the target domain.
+
+---
+
+Title: “Automated optical inspection of solder-paste deposits on fine-pitch pads”  
+Abstract: “…We measure paste volume and flag insufficient or excessive deposits before component placement…”  
+Keywords: solder paste, AOI, fine-pitch, stencil printing
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 8,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": false,
+    "solder_crack": false,
+    "solder_other": false,
+    "orientation": false,
+    "wrong_component": false,
+    "missing_component": false,
+    "component_other": false,
+    "cosmetic": false,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": false,
+    "dl_cnn_classifier": false,
+    "dl_cnn_detector": false,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "in-house",
+    "available_dataset": null
+  }}
+}}
+
+Justification: the phrase “before component placement” and “fine-pitch pads” strongly implies SMT even though the acronym is absent; hence **is_smt** = true. Solder-insufficient/excess are explicit.
+
+---
+
+Title: “Twenty years of automatic PCB inspection: a comprehensive review”  
+Abstract: “…We cover bare-board, solder and assembly defects … including tracks, lifted pads, mouse-bites, cold solder joints, tombstoned components, …”  
+Keywords: PCB inspection, survey, defect review
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 8,
+  "is_survey": true,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": true,
+    "holes": null,
+    "bare_pcb_other": true,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": true,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "component_other": true,
+    "cosmetic": null,
+    "other": "lifted pads, mouse-bites, cold solder joints, tombstoned components"
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": true,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": true,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": true,
+    "model": null,
+    "available_dataset": null
+  }}
+}}
+
+Justification: broad survey ⇒ bare PCB, solder and component mentioned but most not specified; "including..." means the contents has other features not explicitly mentioned; possible but unspecified fields left null. The string field captures the extra specified defect names.
+
+---
+
+Title: “Real-time SMT defect detection with YOLOv5”  
+Abstract: “A YOLOv5 network is trained to recognise solder bridges, insufficient solder and missing components on surface-mounted PCB assemblies. 2 500 colour images acquired from a 12 MP industrial camera on an SMT line are used; the dataset is released publicly.”  
+Keywords: YOLOv5, SMT, solder bridge, missing component, dataset
+
+{{
+  "research_area": "electrical engineering",
+  "is_offtopic": false,
+  "relevance": 7,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": false,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": true,
+    "solder_excess": true,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": false,
+    "orientation": false,
+    "wrong_component": false,
+    "missing_component": true,
+    "component_other": false,
+    "cosmetic": false,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_classifier": false,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "YOLOv5",
+    "available_dataset": true
+  }}
+}}
+
+Justification: paper about solder and component defects, explicitly lists every defect that is set to true; solder bridges are a subset of solder_excess per prompt. No mention of bare PCB defects while everything else is explicit, so can be safely assumed false; optical imaging ⇒ is_x_ray = false; dataset released ⇒ available_dataset = true; SMT as explicit keyword ⇒ is_through_hole = false.
+
+---
+
+Title: “Deep-learning methods for PCB defect inspection: a comprehensive survey”  
+Abstract: “We review CNN-based classifiers and detectors (AlexNet, VGG, ResNet, R-CNN) applied to tracks, holes, solder joints (bridges, voids, cracks) and component errors. Earlier classic-CV and traditional-ML works are also summarised. Range 2000-2016”  
+Keywords: PCB inspection, deep learning, survey, SSD, R-CNN, solder defects
+
+{{
+  "research_area": "computer sciences",
+  "is_offtopic": false,
+  "relevance": 9,
+  "is_survey": true,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": true,
+    "holes": true,
+    "bare_pcb_other": false,
+    "solder_insufficient": false,
+    "solder_excess": true,
+    "solder_void": true,
+    "solder_crack": true,
+    "solder_other": false,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "component_other": true,
+    "cosmetic": null,
+    "other": "via misalignment, pad lifting"
+  }},
+  "technique": {{
+    "classic_cv_based": true,
+    "ml_traditional": true,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": true,
+    "dl_rcnn_detector": true,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": null,
+    "model": "AlexNet, VGG, ResNet, Faster R-CNN",
+    "available_dataset": null
+  }}
+}}
+
+Justification: broad survey specifying solder features exactly, mentioning components but not specifying them; imaging modality not specified ⇒ null; SSD  ⇒ CNN detector; no Transformer coverage (given no Transformer papers existed in 2000-2016 range) ⇒ dl_transformer = false.
+
+---
+
+Title: “X-ray void detection in BGA solder joints using a ResNet-50 classifier”  
+Abstract: “2-D X-ray images of BGA joints are classified by ResNet-50 into ‘void’ or ‘acceptable’. The method is validated using a private dataset”  
+Keywords: X-ray, BGA, void, ResNet-50
+
+{{
+  "research_area": "electronics manufacturing",
+  "is_offtopic": false,
+  "relevance": 4,
+  "is_survey": false,
+  "is_through_hole": false,
+  "is_smt": true,
+  "is_x_ray": true,
+  "features": {{
+    "tracks": false,
+    "holes": false,
+    "bare_pcb_other": false,
+    "solder_insufficient": null,
+    "solder_excess": false,
+    "solder_void": true,
+    "solder_crack": null,
+    "solder_other": false,
+    "orientation": false,
+    "wrong_component": false,
+    "missing_component": false,
+    "component_other": false,
+    "cosmetic": false,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": false,
+    "ml_traditional": false,
+    "dl_cnn_classifier": true,
+    "dl_cnn_detector": false,
+    "dl_rcnn_detector": false,
+    "dl_transformer": false,
+    "dl_other": false,
+    "hybrid": false,
+    "model": "ResNet-50",
+    "available_dataset": false
+  }}
+}}
+
+Justification: only void detection is mentioned; exclusive BGA implies SMT (and no THT); plain classifier ⇒ dl_cnn_classifier = true, remaining DL flags false; explicit private dataset ⇒ available_dataset = false.
+
+---
+
+Title: “Computer-vision defect detection in woven fabrics”  
+Abstract: “A CNN-based system detects broken threads and colour stains on cotton textiles. Images are captured by a line-scan camera above the loom.”  
+Keywords: fabric inspection, textile, CNN, defect detection
+
+{{
+  "research_area": "materials engineering",
+  "is_offtopic": true,
+  "relevance": 1,
+  "is_survey": null,
+  "is_through_hole": null,
+  "is_smt": null,
+  "is_x_ray": null,
+  "features": {{
+    "tracks": null,
+    "holes": null,
+    "bare_pcb_other": null,
+    "solder_insufficient": null,
+    "solder_excess": null,
+    "solder_void": null,
+    "solder_crack": null,
+    "solder_other": null,
+    "orientation": null,
+    "wrong_component": null,
+    "missing_component": null,
+    "component_other": null,
+    "cosmetic": null,
+    "other": ""
+  }},
+  "technique": {{
+    "classic_cv_based": null,
+    "ml_traditional": null,
+    "dl_cnn_classifier": null,
+    "dl_cnn_detector": null,
+    "dl_rcnn_detector": null,
+    "dl_transformer": null,
+    "dl_other": null,
+    "hybrid": null,
+    "model": null,
+    "available_dataset": null
+  }}
+}}
+
+Justification: no electronics, no PCBs ⇒ offtopic; relevance 1 because “defect detection” vocabulary is shared; all downstream fields nulled per rule.

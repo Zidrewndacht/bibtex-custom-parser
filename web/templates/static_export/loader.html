@@ -1,0 +1,74 @@
+<!-- templates/loader.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loading ResearchParsa...</title>    
+    <link href="data:image/x-icon;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQEAYAAABPYyMiAAAABmJLR0T///////8JWPfcAAAACXBIWXMAAABIAAAASABGyWs+AAAAF0lEQVRIx2NgGAWjYBSMglEwCkbBSAcACBAAAeaR9cIAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
+
+    <style>
+        /* Minimal styling for the loading indicator */
+        body { font-family: sans-serif; display: flex; flex-direction: column; gap: 40px; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f5f5f5; }
+        .loading, #previewMessage { text-align: center; }
+        /* .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px; } */    
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 12px solid hsl(188, 36%, 30%);
+            border-top: 12px solid transparent;
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+            margin: 0 auto 30px; 
+        }
+        .header-branding{
+            font-size: 48pt;
+            justify-self: center;
+            font-family: "Arial Narrow";
+            font-weight: 400;
+            color: #3f8d82;
+            text-shadow: 1px 0 5px #fff6;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <!-- Inline the Pako library for Gzip decompression -->
+    <script>
+    {{ pako_js_content | safe }} 
+    </script>
+</head>
+<body>
+    <div class="header-branding"><span>Research</span><span style="font-weight: 600; color: hsl(188, 31%, 29%);">Parsa</span></div>
+    <div class="loading" id="splash-spinner">
+        <div class="spinner"></div>
+        <p>Trying to decompress and load HTML static export...</p>
+        <p>This file requires JavaScript to decompress and load its content.<br>
+        Download and open it in a full (computer) web browser to view.</p>
+        <!-- Warning apparently not needed anymore in latest Edge/Chromium -->
+        <!-- <p><strong>This application has known performance issues in<br>
+            Google Chrome / MS Edge.</strong>
+        <p>Please use Mozilla Firefox for the best experience. -->
+        </p>
+    </div>
+    <script>
+        const compressedDataBase64 = "{{ compressed_html_data | safe }}"; // The compressed HTML data passed from Flask
+
+        function loadContent() {
+            try {
+                const compressedBytes = Uint8Array.from(atob(compressedDataBase64), c => c.charCodeAt(0));  // 1. Decode Base64 to get compressed bytes (as Uint8Array)
+                const decompressedBytes = pako.inflate(compressedBytes);                                    // 2. Decompress using Pako (inflate)                
+                const decompressedHtmlString = new TextDecoder("utf-8").decode(decompressedBytes);          // 3. Decode bytes back to string (assuming UTF-8)
+
+                // 4. Write the full HTML content to the document, replacing this loader
+                // Using document.write after the page loads replaces the entire document
+                document.open();
+                document.write(decompressedHtmlString);
+                document.close();
+            } catch (error) {
+                console.error("Failed to decompress or load content:", error);
+                document.body.innerHTML = "<p style='color:red;'>Error loading data. Please check the console for details.</p>";
+            }
+        }
+
+        // Start loading when the window loads
+        window.addEventListener('load', loadContent);
+    </script>
+</body>
+</html>
