@@ -10,15 +10,121 @@ from flask import Blueprint, request, jsonify, send_from_directory, send_file, R
 from shared import db
 from shared import config
 from . import export_logic
+import json
+import yaml
 
 files_bp = Blueprint('files', __name__)
+
+def _prompt_arcname(prompt_path: str, key: str) -> str:
+    """
+    Returns a safe tar member name for a user prompt file.
+
+    If the file lives inside BASE_DIR, preserve its relative path.
+    Otherwise, store it under prompt_templates/ with a key-prefixed filename.
+    """
+    try:
+        rel = os.path.relpath(prompt_path, config.BASE_DIR).replace(os.sep, "/")
+        if rel.startswith(".."):
+            raise ValueError("Prompt path is outside BASE_DIR")
+        return rel
+    except ValueError:
+        return f"prompt_templates/{key}_{os.path.basename(prompt_path)}"
+
+
+def _add_user_prompt_templates_to_tar(tar):
+    """
+    Adds user-editable prompt fragments to a tar archive.
+
+    Base templates are intentionally NOT included.
+    """
+    manifest = []
+
+    for key, prompt_path in config.get_user_prompt_template_paths().items():
+        if not os.path.isfile(prompt_path):
+            print(f"[Backup] Warning: user prompt file missing, skipping: {prompt_path}")
+            continue
+
+        arcname = _prompt_arcname(prompt_path, key)
+        tar.add(prompt_path, arcname=arcname)
+        manifest.append({
+            "key": key,
+            "arcname": arcname,
+        })
+
+    if manifest:
+        manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+        info = tarfile.TarInfo(name="prompt_manifest.json")
+        info.size = len(manifest_bytes)
+        tar.addfile(info, io.BytesIO(manifest_bytes))
+
+
+def _restore_user_prompt_templates(temp_dir: str, extracted_domain_config_path: str):
+    """
+    Restores user-editable prompt fragments from the extracted backup.
+
+    This must run BEFORE config.reload_domain_config(), so the reloaded
+    domain config can assemble prompts from the restored files.
+    """
+    manifest_path = os.path.join(temp_dir, "prompt_manifest.json")
+    manifest = []
+
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f) or []
+        except Exception:
+            manifest = []
+
+    manifest_by_key = {
+        entry.get("key"): entry.get("arcname")
+        for entry in manifest
+        if isinstance(entry, dict) and entry.get("key")
+    }
+
+    # Determine prompt target paths from the domain_config being restored,
+    # not from the currently running config.
+    restored_cfg = {}
+    if os.path.exists(extracted_domain_config_path):
+        try:
+            with open(extracted_domain_config_path, "r", encoding="utf-8") as f:
+                restored_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            restored_cfg = {}
+
+    for key, target_path in config.get_user_prompt_template_paths(restored_cfg).items():
+        arcname = manifest_by_key.get(key)
+
+        if arcname:
+            source_path = os.path.join(temp_dir, arcname)
+        else:
+            # Backward-compatible fallback for backups made before the manifest existed.
+            try:
+                rel_target = os.path.relpath(target_path, config.BASE_DIR).replace(os.sep, "/")
+                if rel_target.startswith(".."):
+                    raise ValueError("Prompt path is outside BASE_DIR")
+                source_path = os.path.join(temp_dir, rel_target)
+            except ValueError:
+                source_path = os.path.join(
+                    temp_dir,
+                    "prompt_templates",
+                    f"{key}_{os.path.basename(target_path)}",
+                )
+
+        if os.path.isfile(source_path):
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+            if os.path.exists(target_path):
+                os.remove(target_path)
+
+            shutil.move(source_path, target_path)
+            print(f"[Restore] Restored user prompt file: {target_path}")
 
 @files_bp.route('/backup', methods=['GET'])
 def backup_database():
     """Creates a backup of the database and related files."""
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_filename = f"{timestamp}.parça.zst"
+        backup_filename = f"{timestamp}.parsa.tzst"
         
         # Create temporary directory for exports
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -28,13 +134,11 @@ def backup_database():
             html_path = os.path.join(temp_dir, 'export.html')
             with open(html_path, 'w', encoding='utf-8') as f: f.write(html_content)
 
-            # disabling deprecated version of XLSX exports for now
-
             # Generate XLSX export
-            # xlsx_content = generate_xlsx_export_content(papers)
-            # xlsx_path = os.path.join(temp_dir, 'export.xlsx')
-            # with open(xlsx_path, 'wb') as f:
-            #     f.write(xlsx_content)
+            xlsx_content = export_logic.generate_xlsx_export_content(papers)
+            xlsx_path = os.path.join(temp_dir, 'export.xlsx')
+            with open(xlsx_path, 'wb') as f:
+                f.write(xlsx_content)
 
             # Create in-memory buffer for the backup
             buffer = io.BytesIO()
@@ -45,17 +149,21 @@ def backup_database():
             with tarfile.open(fileobj=buffer, mode='w') as tar:
                 tar.add(config.DATABASE_FILE, arcname='data/new.sqlite')
 
-                # Add PDF storage directory
+                # Add PDF storage directories
                 if os.path.exists(config.PDF_STORAGE_DIR):
                     tar.add(config.PDF_STORAGE_DIR, arcname='data/pdf')
-                
-                # Add annotated PDF storage directory
                 if os.path.exists(config.ANNOTATED_PDF_STORAGE_DIR):
                     tar.add(config.ANNOTATED_PDF_STORAGE_DIR, arcname='data/pdf_annotated')
                 
                 # Add export files
                 tar.add(html_path, arcname='export.html')
-                # tar.add(xlsx_path, arcname='export.xlsx') #disabling deprecated version of XLSX exports for now
+                tar.add(xlsx_path, arcname='export.xlsx') 
+
+                # Add domain config
+                tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
+
+                # Add user-editable prompt templates, but not base templates
+                _add_user_prompt_templates_to_tar(tar)
             
             # Get the uncompressed tar data
             tar_data = buffer.getvalue()
@@ -90,13 +198,13 @@ def restore_database():
         if 'backup_file' not in request.files: return jsonify({'status': 'error', 'message': 'No backup file provided'}), 400
         file = request.files['backup_file']
         if file.filename == '': return jsonify({'status': 'error', 'message': 'No file selected'}), 400
-        if not file.filename.endswith('.parça.zst'): return jsonify({'status': 'error', 'message': 'Invalid backup file format. Expected .parça.zst'}), 400
+        if not file.filename.endswith('.parsa.tzst'): return jsonify({'status': 'error', 'message': 'Invalid backup file format. Expected .parsa.tzst'}), 400
             
 
         # Create temporary directory for extraction
         with tempfile.TemporaryDirectory() as temp_dir:
             # Save uploaded file temporarily
-            temp_backup_path = os.path.join(temp_dir, 'backup.parça.zst')
+            temp_backup_path = os.path.join(temp_dir, 'backup.parsa.tzst')
             file.save(temp_backup_path)
 
             # Decompress and extract
@@ -110,13 +218,14 @@ def restore_database():
             extracted_db_path = os.path.join(temp_dir, 'data', 'new.sqlite')
             extracted_pdf_dir = os.path.join(temp_dir, 'data', 'pdf')
             extracted_annotated_pdf_dir = os.path.join(temp_dir, 'data', 'pdf_annotated')
+            extracted_domain_config_path = os.path.join(temp_dir, 'domain_config.yaml')
 
             # Verify required files exist
             if not os.path.exists(extracted_db_path):
                 return jsonify({'status': 'error', 'message': 'Backup does not contain required database file'}), 500
 
             # Backup current data before restoring (single file name, overwrites previous)
-            backup_current = "backup_before_restore.parça.zst"
+            backup_current = "backup_before_restore.parsa.tzst"
             backup_current_path = os.path.join(os.getcwd(), backup_current)
             cctx = zstd.ZstdCompressor(level=1)
             with cctx.stream_writer(open(backup_current_path, 'wb')) as compressor:
@@ -124,6 +233,9 @@ def restore_database():
                     if os.path.exists(config.DATABASE_FILE): tar.add(config.DATABASE_FILE, arcname='data/new.sqlite')
                     if os.path.exists(config.PDF_STORAGE_DIR): tar.add(config.PDF_STORAGE_DIR, arcname='data/pdf')
                     if os.path.exists(config.ANNOTATED_PDF_STORAGE_DIR): tar.add(config.ANNOTATED_PDF_STORAGE_DIR, arcname='data/pdf_annotated')
+                    if os.path.exists(config.DOMAIN_CONFIG_PATH): tar.add(config.DOMAIN_CONFIG_PATH, arcname='domain_config.yaml')
+                    # Also preserve current user prompt files before overwriting them
+                    _add_user_prompt_templates_to_tar(tar)
 
             # Perform restoration
             # 1. Replace database
@@ -135,7 +247,8 @@ def restore_database():
                 os.makedirs(os.path.dirname(config.PDF_STORAGE_DIR), exist_ok=True)
                 if os.path.exists(config.PDF_STORAGE_DIR): shutil.rmtree(config.PDF_STORAGE_DIR)
                 shutil.move(extracted_pdf_dir, config.PDF_STORAGE_DIR)
-            else: os.makedirs(config.PDF_STORAGE_DIR, exist_ok=True)
+            else: # Create empty annotated PDF directory if not in backup
+                os.makedirs(config.PDF_STORAGE_DIR, exist_ok=True)
                 
             if os.path.exists(extracted_annotated_pdf_dir):
                 # Create parent directory if it doesn't exist
@@ -147,7 +260,29 @@ def restore_database():
             else: # Create empty annotated PDF directory if not in backup
                 os.makedirs(config.ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)                
 
-            return jsonify({'status': 'success', 'message': f'Restored successfully from backup. Previous data backed up as {backup_current}'})
+            # 3. Restore user prompt templates before reloading the domain config.
+            _restore_user_prompt_templates(temp_dir, extracted_domain_config_path)
+
+            # 4. Restore domain config
+            if os.path.exists(extracted_domain_config_path):
+                if os.path.exists(config.DOMAIN_CONFIG_PATH):
+                    os.remove(config.DOMAIN_CONFIG_PATH)
+                shutil.move(extracted_domain_config_path, config.DOMAIN_CONFIG_PATH)
+
+            config.reload_domain_config()  # Hot-reload the web app's memory
+            
+            # Notify the queue manager process to hot-reload its memory
+            try:
+                import requests
+                requests.post(f"{config.QUEUE_MANAGER_URL}/reload_config", timeout=2)
+            except Exception:
+                pass # Queue manager might not be running, which is fine
+                
+            return jsonify({
+                'status': 'success', 
+                'message': f'Restored successfully from backup. Previous data backed up as {backup_current}. Domain configuration automatically reloaded.'
+            })
+        
     except Exception as e:
         print(f"Restore error: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -308,7 +443,7 @@ def static_export():
 
     # --- Create a filename based on filters ---
     extra_suffix = "lite" if is_lite_export else ""
-    filename = export_logic.generate_filename("ResearchParça", year_from_value, year_to_value, min_page_count_value, hide_offtopic, extra_suffix) + ".html"
+    filename = export_logic.generate_filename("ResearchParsa", year_from_value, year_to_value, min_page_count_value, hide_offtopic, extra_suffix) + ".html"
 
     # --- Prepare Response Headers ---
     response_headers = {"Content-Type": "text/html"}
@@ -351,7 +486,7 @@ def export_excel():
     excel_bytes = export_logic.generate_xlsx_export_content(papers)
 
     # --- Create a filename based on filters ---
-    filename = export_logic.generate_filename("ResearchParça", year_from_value, year_to_value, min_page_count_value, hide_offtopic) + ".xlsx"
+    filename = export_logic.generate_filename("ResearchParsa", year_from_value, year_to_value, min_page_count_value, hide_offtopic) + ".xlsx"
 
     # --- Return as a downloadable attachment ---
     return Response(

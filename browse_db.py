@@ -1,12 +1,11 @@
+# browse_db.py
 import os
 import sys
 import argparse
 import threading
 import webbrowser
 import time
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from shared import config, db
 from web import create_web_app
 
@@ -15,35 +14,27 @@ def open_browser(port):
     webbrowser.open(f'http://localhost:{port}')
 
 def main():
-    parser = argparse.ArgumentParser(description="Research Parça - Web UI")
+    parser = argparse.ArgumentParser(description="ResearchParsa - Web UI")
     parser.add_argument('--db', default=config.DATABASE_FILE, help='Path to SQLite database')
     args = parser.parse_args()
-
+    
     db_path = os.path.abspath(args.db)
     config.DATABASE_FILE = db_path
-
-    if not os.path.exists(db_path):
-        fallback = os.path.join(os.path.dirname(db_path), 'fallback.sqlite')
-        if os.path.exists(fallback):
-            import shutil
-            print(f"[Init] Database not found. Copying fallback to {db_path}")
-            shutil.copy2(fallback, db_path)
-
     db.init_db(db_path)
+    
     print(f"[Init] Database ready: {db_path}")
-
-    web_port = 5000
+    
+    # Use the configured frontend port
+    web_port = config.FRONTEND_PORT 
     print(f"[Web] Starting Web UI on http://localhost:{web_port}")
     
-    # Standard Werkzeug reloader check to prevent double browser opens
+    # # Standard Werkzeug reloader check to prevent double browser opens - this doesn't seem to be working, still opens twice.
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
     elif not os.environ.get('WERKZEUG_RUN_MAIN'):
-        # If debug=False, WERKZEUG_RUN_MAIN is not set, so we still open it
         threading.Thread(target=open_browser, args=(web_port,), daemon=True).start()
-
+        
     app = create_web_app(db_path)
-    # debug=True is now perfectly safe since this is a standalone script
     app.run(host='0.0.0.0', port=web_port, debug=True, threaded=True)
 
 if __name__ == '__main__':

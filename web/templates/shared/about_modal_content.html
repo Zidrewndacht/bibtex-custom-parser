@@ -1,0 +1,131 @@
+<!-- templates/about_modal_content.html -->
+<div class="modal-small-section">
+    <h3><strong>Quick Help</strong> Guide</h3>
+    <p style="margin-bottom: 0"><strong>Understanding the Symbols:</strong></p>
+    <ul style="list-style-type: none;  padding-left: 0;  margin: 0; column-count: 3; gap: 0">
+        <li><p style="margin: 0"><strong class="about-emoji-table" style="opacity:0.33">✔️</strong>: 1/3 sets agree on "Yes";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table" style="opacity:0.66">✔️</strong>: 2/3 sets agree on "Yes";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">✔️</strong>: Full agreement on "Yes";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">❔</strong>: Unknown / Not Classified / Not Applicable;</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">⚠️</strong>: <strong>Conflict</strong> (sets disagree Yes/No);</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table" style="opacity:0.33">❌</strong>: 1/3 sets agree on "No";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table" style="opacity:0.66">❌</strong>: 2/3 sets agree on "No";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">❌</strong>: Full agreement on "No";</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">👤</strong>: Last changed or verified by the user;</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">🖥️</strong>: Last changed or verified by AI Model;</p></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">📕</strong>: A PDF is attached to this paper;</li></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">📗</strong>: An <strong>annotated</strong> PDF is attached to this paper;</li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">💰</strong>: The PDF for this paper is <strong>paywalled</strong></li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">📄</strong>: This is a <strong>Journal</strong> paper</li>
+        <li><p style="margin: 0"><strong class="about-emoji-table">📚</strong>: This is a <strong>Conference</strong> paper</li>
+    </ul>
+    <p><strong>How to Use:</strong></p>
+    <div id="help-text">
+        <p><strong>Filter Papers:</strong> Use the year range, minimum page count, and the search bar at the top. Press
+            "Apply" (appears on change) for server-side filters.</p>
+        <p><strong>Checkbox filters:</strong> Use checkboxes like "Hide Offtopic", "Hide X-Ray", or "Only Survey" for quick
+            client-side filtering. As the checkboxes have no permanent labels, hover each checkbox to identify the purpose
+            for each. Survey, THT, SMT, and Dataset checkboxes cycle through three states (All → Only Yes → Only No) using
+            standard checked, unchecked, and indeterminate visuals.</p>
+        <p><strong>Certainty Indicators:</strong> Classification results are averaged across three independent runs. Emojis
+            with partial translucency indicate partial agreement (33% or 66% opacity). A <strong
+                class="about-emoji-text">⚠️</strong> warning icon appears when runs directly conflict (e.g., two "Yes" vs
+            one "No"). Fully solid emojis mean all three runs agree completely.</p>
+        <p><strong>Classify/Verify:</strong> Click the "Classify this paper" or "Verify this paper" button in the detail row
+            to run LLM-based classification on a single paper. Use the top buttons in the "Batch Actions" menu to classify
+            or verify<em>remaining</em> or <em>all</em> papers.</p>
+        <p><strong>Edit Data:</strong> Click on any <strong class="about-emoji-text">✔️ ❌ ❔</strong> symbol in the main
+            table to cycle its value (this is automatically saved on change). Click 'show' in the details column to edit
+            text fields (like "Model Name" or "Other Defects").
+            These have to be saved manually by clicking on "Save Changes". A paper can be marked as paywalled by including "paywalled" in the user comment <em>Unavailable inside HTML exports.</em></p>
+        <p><strong>Tracking User Edits:</strong> The "User Changes" column displays a count of fields you have manually
+            overridden compared to the last LLM classification, helping you quickly identify papers that may need
+            re-evaluation.</p>
+        <p><strong>Search:</strong> Type on the search bar for instant search on all relevant fields. User comments are
+            searchable. Classifier/Verifier traces are not (to avoid false-positives/noise)</p>
+        <p><strong>View Statistics:</strong> Click the "View Statistics" button to see charts and lists of repeating
+            journals, authors, keywords, and mentioned features/models as well as relevant charts.
+            The stats are calculated based on currently visible filtered data.</p>
+        <p><strong>History & Classification Sets:</strong> Opening a paper's history reveals four vertical tabs. The
+            <strong>Main</strong> tab shows the averaged consensus, certainty overlays, and user edits. The <strong>Set
+                1</strong>, <strong>Set 2</strong>, and <strong>Set 3</strong> tabs display the raw, individual logs for
+            each of the three parallel classification runs, allowing you to inspect exactly where disagreements occurred.
+        </p>
+        <p><strong>Export and Backup:</strong> Use the "Export HTML" or "Export XLSX" buttons inside the "Export & Backup"
+            menu to download the currently filtered dataset,
+            or use the backup / restore buttons to work woith full <em>*.parsa.tzst</em> backups.
+            Backups include the database, original and annotated PDFs, HTML export and a XLSX spreadsheet. <em>Unavailable
+                inside HTML exports.</em>
+        </p>
+        <p><strong>Import Data:</strong> Use the "Import BibTeX" button to add new papers to the database from a .bib file.
+            <em>Unavailable inside HTML exports.</em></p>
+        <p><strong>Attach PDF:</strong> Click on the <strong class="about-emoji-text">❔</strong> in the PDF column of a
+            paper to upload a PDF to it. <em>Unavailable inside HTML exports.</em></p>
+        <p><strong>Read/Annotate PDF:</strong> Click on the <strong class="about-emoji-text">📕</strong> or <strong
+                class="about-emoji-text">📗</strong> of an existing PDF to open the integrated PDF.js annotator.
+            All annotations are autosaved after 5 seconds. The annotated status only changes from <strong
+                class="about-emoji-text">📕</strong> to <strong class="about-emoji-text">📗</strong> after a page reload.
+            This doesn't affect annotation saving.
+            For the HTML export, the PDF is loaded directly (read-only) on the user's default reader instead. This requires
+            the PDF to be in the correct folder structure, as obtained from a full backup.</p>
+        <p><strong>State Preservation:</strong> Your active filters, sorting preferences, and which detail or history rows
+            are expanded are automatically preserved in the browser's URL. This allows you to bookmark or share a specific
+            view of the table, which will restore exactly as you left it upon reload.</p>
+        <p><strong>Tip:</strong> The table is pre-sorted to show papers with user comments first. You can click any column
+            header to sort by that field.</p>
+    </div>
+</div>
+<div class="modal-small-section" style="background: var(--detail-button-background);">
+    <h3><strong>About</strong></h3>
+    <div class="header-branding" style="padding: 10px 0 0;  text-align: center;"><span>Research</span><span
+            style="font-weight: 600; color: var(--primary-ui-color);">Parsa</span></div>
+    <p><strong><a href="https://github.com/Zidrewndacht/bibtex-custom-parser" target="_blank"
+                rel="noopener">ReseachParsa</a> - PCB Inspection Papers Database Browser.</a></strong></p>
+    <p>Developed by <a href="https://zidrewndacht.github.io/" target="_blank" rel="noopener"><strong>Luis Alfredo da
+                Silva</strong></a>,
+        to assist his own Master's degree research at <strong><a href="https://www.udesc.br/cct" target="_blank"
+                rel="noopener">Universidade do Estado de Santa Catarina <strong>(UDESC)</strong></a></strong>. </p>
+    <p>The following open source libraries, and its dependencies, are leveraged by this software:</p>
+    <p><strong>Backend:</strong>
+        <a href="https://www.python.org/" target="_blank" rel="noopener">Python</a>,
+        <a href="https://flask.palletsprojects.com/" target="_blank" rel="noopener">Flask</a>,
+        <a href="https://www.sqlite.org/" target="_blank" rel="noopener">SQLite3</a>
+    </p>
+    <p><strong>Frontend:</strong>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/HTML5" target="_blank"
+            rel="noopener">HTML5</a>,
+        <a href="https://developer.mozilla.org/en-US/docs/Web/CSS" target="_blank" rel="noopener">CSS3</a>,
+        <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank" rel="noopener">Vanilla JS</a>
+    </p>
+    <p><strong>Data Visualization:</strong>
+        <a href="https://www.chartjs.org/" target="_blank" rel="noopener">Chart.js</a>
+    </p>
+    <p><strong>PDF View/Annotation/Autosave:</strong>
+        <a href="https://mozilla.github.io/pdf.js/getting_started/" target="_blank" rel="noopener">PDF.js</a>
+    </p>
+    <p><strong>Utilities:</strong>
+        <a href="https://opensource.perlig.de/rcssmin/" target="_blank" rel="noopener">rcssmin</a>,
+        <a href="https://opensource.perlig.de/rjsmin/" target="_blank" rel="noopener">rjsmin</a> (minification),
+        <a href="https://openpyxl.readthedocs.io/" target="_blank" rel="noopener">openpyxl</a> (Excel export),
+        <a href="https://nodeca.github.io/pako/" target="_blank" rel="noopener">pako</a> (compressed HTML export),
+        <a href="https://github.com/facebook/zstd" target="_blank" rel="noopener">Zstandard</a> (backup/restore).
+    </p>
+    <p>Classification and verification was inferenced by Unsloth's Dynamic quants of <strong><a
+                href="https://huggingface.co/unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF" target="_blank"
+                rel="noopener">Qwen3-30B-A3B-Thinking-2507</a></strong> model from <strong><a
+                href="https://www.alibabacloud.com/en/solutions/generative-ai/qwen?_p_lc=1" target="_blank"
+                rel="noopener">Qwen/Alibaba Cloud</a>.</strong></p>
+    <p><strong>Local Inference engine:</strong> <a href="https://hub.docker.com/r/vllm/vllm-openai/" target="_blank"
+            rel="noopener">vLLM</a>.</p>
+    <p>Original papers data (BibTeX) was sourced from
+        <a href="https://www.scopus.com/" target="_blank" rel="noopener">Scopus</a>,
+        <a href="https://ieeexplore.ieee.org/" target="_blank" rel="noopener">IEEE Xplore</a> (some) and
+        <a href="https://dl.acm.org/" target="_blank" rel="noopener">ACM Digital Library</a>
+    </p>
+    <p><strong>Original search query (Scopus format):</strong>
+        <span style="font-size:0.75em">TITLE-ABS-KEY(( "printed circuit*" OR "Circuit board*" OR pcb OR pcba ) AND (
+            inspection OR manufactur* OR assembly OR defect* OR solder* OR weld* OR "Automat* optical" )) AND PUBYEAR >
+            1973 AND PUBYEAR < 2027 AND ( LIMIT-TO ( DOCTYPE,"ar" ) OR LIMIT-TO ( DOCTYPE,"cp" ) OR LIMIT-TO (
+                DOCTYPE,"re" ) ) AND ( LIMIT-TO ( PUBSTAGE,"final" ) ) </span>
+    </p>
+</div>

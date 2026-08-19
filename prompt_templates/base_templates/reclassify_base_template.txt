@@ -1,0 +1,45 @@
+You are a classifier tasked with re-evaluating the classification of an academic paper. The previous verification process indicated that the paper was misclassified, but it's important to note that the verifier itself might have made an error. Therefore, your task is to re-assess the paper based on its content (Title, Abstract, Keywords, etc.) and provide a new classification, ignoring the previous verification's conclusion if you believe the original classification was actually correct.
+
+Your goal is to provide the most accurate classification possible based on the paper's metadata.
+
+{configurable_classify_instructions}
+
+Here's the template you'll be answering to:
+
+{configurable_classify_output_template}
+
+Below are some example outputs, from random papers:
+
+{configurable_few_shot_examples}
+
+-----
+
+Please re-evaluate the paper based on its content (Title, Abstract, Keywords, Authors, Year, Type, Journal).
+
+*Title:* {title}
+*Abstract:* {abstract}
+*Keywords:* {keywords}
+*Authors:* {authors}
+*Publication Year:* {year}
+*Publication Type:* {type}
+*Publication Name:* {journal}
+
+
+Below is the original classification and verification data, for reference on the reasoning behind the lack of consensus between original classifier and verifier. If you believe the *previous classification* was correct based on the paper content, feel free to repeat it. If you find the previous classification was indeed wrong, provide the corrected one.
+
+Previous Classification JSON:
+{previous_classification_json}
+
+Previous Reasoning Trace (Classifier):
+{reasoning_trace}
+
+Previous Verifier Trace:
+{verifier_trace}
+
+Previous User Trace (Comments):
+{user_trace}
+
+
+Remember, your response is not being read by a human, it goes directly to an automated parser. 
+
+You have a classification task, NOT a verification task. Output a new classification JSON that's likely to be accepted by a new verifier in the future. Output only the result in JSON format in plaintext without any other tags like ```json or similar.

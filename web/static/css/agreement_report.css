@@ -1,0 +1,267 @@
+/* ==========================================================================
+   agreement_report.css
+   Report-specific layout for /agreement_report. Loaded AFTER style.css so it
+   complements/overrides the main app stylesheet.
+
+   Layout model:
+   - Full-width header ("title") card, then a masonry block of single-width
+     cards in up to 3 independent columns (CSS multi-column). Cards stack one
+     below the other within each column and never align across columns.
+   - Card bodies have NO padding: tables fill cards edge-to-edge. Non-table
+     elements carry their own margins.
+   - CRITICAL override: the main app's `table { min-width: var(--min-width) }`
+     (~1590px, sized for the 20-column paper table) is reset for report tables.
+   ========================================================================== */
+
+#agreement-report { margin: 8px; min-width: 900px;}
+
+/* ---- Full-width wrapper; the header card sits above the masonry block --- */
+#agreement-report .report-wrapper {
+    max-width: 2400px;
+    margin: 0 auto;
+}
+
+/* ---- Masonry container: independent columns of single-width cards ------- */
+#agreement-report .report-container {
+    columns: 3;
+    column-gap: 21px;
+}
+@media (max-width: 1900px) {
+    #agreement-report .report-container { columns: 2; }
+}
+@media (max-width: 1200px) {
+    #agreement-report .report-container { columns: 1; }
+    #agreement-report .report-wrapper { max-width: 800px; }
+}
+
+/* ---- Section cards ------------------------------------------------------- */
+.report-section {
+    background: #fff;
+/*! border: 1px solid var(--primary-ui-color); */
+    border-radius: 8px;
+    box-shadow: 0 2px 16px -6px rgba(0, 0, 0, .25);
+    overflow: hidden;
+    break-inside: avoid;      /* never split a card across columns */
+    margin: 0 0 24px;
+}
+
+/* Uniform header height regardless of whether the header carries buttons
+   (fixes the "fatter titlebar when a tabularx button is present" issue). */
+#agreement-report .report-section h3 {
+    position: static;
+    width: auto;
+    height: 38px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 0 8px 0 12px;
+}
+#agreement-report .h3-right { display: flex; align-items: center; gap: 8px; }
+
+/* Card body: NO padding. Tables fill the card; everything else below
+   defines its own spacing. */
+#agreement-report .section-body { padding: 0; /*! margin: auto; */}
+
+/* ---- Collapsible sections ----------------------------------------------- */
+#agreement-report .report-section.collapsible > h3 { cursor: pointer; }
+#agreement-report .collapse-chevron {
+    display: inline-block; margin-left: 4px;
+    transition: transform .25s ease; font-size: 9pt; opacity: .7;
+}
+#agreement-report .report-section.collapsed .collapse-chevron { transform: rotate(-90deg); }
+#agreement-report .report-section.collapsed .section-body { display: none; }
+
+/* ---- Header meta chips --------------------------------------------------- */
+#agreement-report .meta-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px 4px; align-content: center;justify-content: center;}
+#agreement-report .chip {
+    background: white; border: 1px solid var(--detail-border-color);
+    border-radius: 6px; padding: 6px 10px; font-size: 10pt;
+    box-shadow: 0 2px 16px -4px rgba(0, 0, 0, .25);
+}
+#agreement-report .chip strong { color: var(--primary-ui-color); }
+
+/* ---- Titlebar: matches the main app's .main-header grammar -------------- */
+#agreement-report .report-titlebar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 4px;
+    height: 48px;
+    padding: 0px 5px;
+    background: var(--detail-button-background);
+    border: 1px solid var(--primary-ui-color);
+    border-radius: 8px;
+    --menuitem-height: calc(var(--toolbar-height) - 6px);
+    width: calc(100% - 20px);
+    box-shadow: 0 4px 8px 1px #0004;
+}
+#agreement-report .titlebar-branding {
+    font-size: 18pt;
+    justify-self: center;
+    font-family: "Arial Narrow";
+    font-weight: 400;
+    color: #3f8d82;
+    text-shadow: var(--light-shadow);
+    white-space: nowrap;
+}
+#agreement-report .titlebar-branding .branding-strong {
+    font-weight: 600;
+    color: var(--primary-ui-color);
+}
+#agreement-report .titlebar-branding .branding-suffix {
+    font-size: 0.8em;
+}
+#agreement-report .titlebar-actions { display: flex; align-items: center; gap: 8px; }
+#agreement-report .titlebar-btn {
+    display: inline-block;
+    padding: 10px 14px;
+    /*! white-space: nowrap; */
+    /*! margin: 0 2px; */
+    background-color: var(--primary-ui-color);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11pt;
+    transition: all .33s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,.15);
+    /*! min-width: 160px; */
+    /*! height: 40px; */
+    text-shadow: var(--dark-shadow);
+    border: 1px solid #0002;
+    font-family: "Tahoma";
+}
+#agreement-report .titlebar-btn:hover { filter: saturate(200%) contrast(110%); }
+#agreement-report .titlebar-btn:active {
+    transform: translateY(1px);
+    filter: contrast(1.2) brightness(.8);
+    transition: all .1s ease;
+}
+@media (max-width: 1200px) {
+    #agreement-report .titlebar-branding { font-size: 16pt; }
+}
+
+
+/* ---- Charts --------------------------------------------------------------
+   Chart boxes carry their own margins; fixed height + overflow hidden stops
+   the Chart.js grow-on-resize feedback loop. */
+#agreement-report .chart-box {
+    position: relative; height: 300px; overflow: hidden;
+    margin: 14px 16px 4px;
+}
+#agreement-report .chart-box.short { height: 260px; }
+#agreement-report .chart-box.contradiction-chart { height: 190px; margin-top: 10px; }
+#agreement-report .chart-box canvas { max-width: 100%; }
+/* Overview card keeps two charts side by side inside its single-width card */
+#agreement-report .duo { display: grid; grid-template-columns: 3fr 2fr; gap: 0 16px; padding: 0 16px; }
+#agreement-report .duo .chart-box { margin: 14px 0 4px; }
+#agreement-report .duo .note { margin: 6px 0 14px; }
+
+/* ---- Tables --------------------------------------------------------------
+   Flush with card edges; the main app's min-width is reset so tables size
+   to their card instead of ~1590px. */
+#agreement-report table.plain {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    font-size: 10pt;
+    border-radius: 0;
+    table-layout: auto;
+}
+#agreement-report table.plain th { position: static; font-size: 9pt; }
+#agreement-report table.plain td { padding: 7px 9px; /*! word-break: break-word; */ }
+#agreement-report table.plain td.centered{
+    text-align: center;
+}
+#agreement-report table.plain tbody tr { border-bottom: 1px solid var(--detail-border-color); }
+/* #agreement-report table.plain tbody tr:last-child { border-bottom: none; } */
+#agreement-report table.plain tbody tr:nth-child(even):not(.cat-header-row) > td {
+    background-color: var(--table-row-even);
+}
+#agreement-report .cat-header-row td { background: #eef2f6; font-weight: 600; }
+
+/* Score + CI: CI sits under the main value, muted and smaller. */
+#agreement-report .primary-val { font-weight: 600; white-space: nowrap; }
+#agreement-report .count-sub { font-weight: 400; color: #666; font-size: 9pt; }
+#agreement-report .ci-sub { font-size: 8pt; color: #999; font-weight: 400; margin-top: 1px; white-space: nowrap; }
+#agreement-report .raw-cell { color: #555; white-space: nowrap; text-align: center;}
+
+/* Mini agreement bar (rendered inside the Perfect cell). */
+#agreement-report .mini-bar-track {
+    display: block; width: 100%; /*! max-width: 140px; */ height: 8px;
+    background: #e6e9ed; border-radius: 4px; overflow: hidden; margin: 3px 0;
+}
+#agreement-report .mini-bar-fill {
+    display: block; height: 100%;
+    background: linear-gradient(90deg, hsl(96, 66%, 49%), hsl(147, 48%, 42%));
+}
+
+/* ---- Elements with their own margins (no card padding anymore) ---------- */
+#agreement-report .note { font-size: 9.5pt; color: #666; text-align: center; margin: 16px 8px;}
+#agreement-report .insight {
+    background: #fffbe8; border: 1px solid #e6d98a; border-radius: 0 0 6px 6px;
+    padding: 8px 10px; font-size: 10pt; /*! margin: 8px 16px 14px; */
+}
+#agreement-report .stat-cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px; }
+#agreement-report .stat-card {
+    flex: 1 1 170px; background: #f8f9fb; border: 1px solid var(--detail-border-color);
+    border-radius: 6px; padding: 10px;
+}
+#agreement-report .stat-card .value { font-size: 16pt; font-weight: 600; color: var(--primary-ui-color); }
+#agreement-report .stat-card .label { font-size: 9pt; color: #666; }
+#agreement-report .guide { font-size: 10pt; line-height: 1.5; margin: 8px 16px 14px; }
+
+/* ---- Outlier links & field chips ----------------------------------------- */
+#agreement-report .outlier-link {
+    display: inline-block; background: var(--light-colored-btn-color);
+    color: var(--light-colored-btn-text); border: 1px solid #0002; border-radius: 4px;
+    padding: 3px 8px; font-size: 9.5pt; cursor: pointer; text-shadow: var(--light-shadow);
+    transition: all .33s ease;
+}
+#agreement-report .outlier-link:hover { filter: saturate(200%) contrast(110%); }
+#agreement-report .field-chip {
+    display: inline-block; background: #f0f2f5; border-radius: 4px;
+    padding: 2px 6px; margin: 1px; font-size: 8.5pt; color: #555;
+}
+
+/* ---- Sortable "Fields by Agreement" column headers ---------------------- */
+#agreement-report table.field-table th.sortable-col {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+#agreement-report table.field-table th.sortable-col:hover {
+    filter: brightness(1.2);
+}
+#agreement-report table.field-table th.sortable-col.sorted .sort-arrow {
+    display: inline;
+}
+
+#agreement-report table.field-table th.sortable-col .sort-arrow {
+    visibility: hidden;             /* space always reserved, so widths never shift */
+    font-size: 8pt;
+    margin-left: 2px;
+    opacity: .8;
+}
+#agreement-report table.field-table th.sortable-col.sorted .sort-arrow {
+    visibility: visible;
+}
+
+#agreement-report .invalid-papers-list {
+    margin: 4px 8px 10px;
+    line-height: 1.5;
+}
+#agreement-report .invalid-papers-list .outlier-link {
+    margin: 3px 3px;
+}
+li{
+    display: list-item;
+}
+td.centered-td{
+    text-align: center;
+}
+
+th{
+    text-align: center;
+}

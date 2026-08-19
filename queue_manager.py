@@ -13,19 +13,12 @@ from queue_manager.dispatcher import dispatcher_loop
 from queue_manager.logging_utils import log, Colors, _color_prefix, _log_to_file
 
 def main():
-    parser = argparse.ArgumentParser(description="Research Parça - Queue Manager")
+    parser = argparse.ArgumentParser(description="ResearchParsa - Queue Manager")
     parser.add_argument('--db', default=config.DATABASE_FILE, help='Path to SQLite database')
     args = parser.parse_args()
 
     db_path = os.path.abspath(args.db)
     config.DATABASE_FILE = db_path
-
-    if not os.path.exists(db_path):
-        fallback = os.path.join(os.path.dirname(db_path), 'fallback.sqlite')
-        if os.path.exists(fallback):
-            import shutil
-            print(f"[Init] Database not found. Copying fallback to {db_path}")
-            shutil.copy2(fallback, db_path)
 
     def signal_handler(sig, frame):
         _log_to_file('dispatcher.log', event='shutdown', signal=sig)
@@ -40,7 +33,7 @@ def main():
     _log_to_file('dispatcher.log', event='startup', llm_server=config.LLM_SERVER_URL, http_api=f"{config.QUEUE_MANAGER_HOST}:{config.QUEUE_MANAGER_PORT}")
     
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
-    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParça Queue Manager Starting")
+    log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParsa Queue Manager Starting")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"vLLM Server: {config.LLM_SERVER_URL}")
     log(f"HTTP API: http://{config.QUEUE_MANAGER_HOST}:{config.QUEUE_MANAGER_PORT}")

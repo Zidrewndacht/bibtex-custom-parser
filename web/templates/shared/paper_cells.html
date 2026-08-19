@@ -1,0 +1,28 @@
+{#<!-- shared/paper_cells.html -->#}
+{% macro render_domain_cells(c, certainty, domain_config, editable=true) %}
+{% for group in domain_config.groups %}
+  {% if group.filter_type == 'tri_state' %}
+    {% set path = group.json_path %}
+    <td class="status-cell {{ 'editable-status' if editable }} certainty-{{ certainty.get(path, 'solid') }}" data-field="{{ path }}">
+      {% if certainty.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
+      {% else %}<span class="emoji-content">{{ c | get_json_path(path) | render_status }}</span>{% endif %}
+    </td>
+  {% elif group.filter_type in ['inclusion', 'none'] %}
+    {% for field_def in group.fields %}
+      {% set path = group.json_path + '.' + field_def.key %}
+      {% set highlight_class = 'highlight-status' if field_def.get('highlight') else '' %}
+      {% if field_def.get('render_type') == 'text_presence' %}
+        <td class="status-cell {{ highlight_class }} certainty-{{ certainty.get(path, 'solid') }}" data-field="{{ path }}">
+          {% set text_val = c | get_json_path(path) %}
+          <span class="emoji-content">{{ '✔️' if text_val and (text_val|string).strip() else '❌' }}</span>
+        </td>
+      {% else %}
+        <td class="status-cell {{ 'editable-status' if editable }} {{ highlight_class }} certainty-{{ certainty.get(path, 'solid') }}" data-field="{{ path }}">
+          {% if certainty.get(path) == 'conflict' %}<span class="conflict-warning">⚠️</span>
+          {% else %}<span class="emoji-content">{{ c | get_json_path(path) | render_status }}</span>{% endif %}
+        </td>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% endmacro %}

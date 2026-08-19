@@ -173,3 +173,14 @@ def generate_bibtex_string(paper):
 def bibtex_filter(paper):
     """Jinja2 filter to generate a BibTeX string for a paper dictionary."""
     return generate_bibtex_string(paper)
+
+def get_json_path_filter(d, path):
+    """Traverses a nested dictionary using a dot-notation path string."""
+    if not d or not path: return None
+    keys = path.split('.')
+    for k in keys:
+        if isinstance(d, dict) and k in d:
+            d = d[k]
+        else:
+            return None
+    return d

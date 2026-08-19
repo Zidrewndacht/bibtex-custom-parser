@@ -125,10 +125,15 @@ class ClassificationStateMachine:
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when this single set classification completes."""
         if success and llm_data:
-            db.update_set_cache(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
-            db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Classify_Set{set_num}")
+            is_valid, invalid_reason = config.validate_llm_output(llm_data, 'classify')
+            if is_valid:
+                db.update_set_cache(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+                db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Classify_Set{set_num}")
+            else:
+                log(f"{_color_prefix('INVALID:', Colors.ERROR)} paper={self.paper_id} set={set_num} reason={invalid_reason}")
+                db.update_set_log_only(self.paper_id, set_num, "classifier", model_name, reasoning_trace, json_result, valid=False, invalid_reason=invalid_reason)
         else:
-            db.update_set_log_only(self.paper_id, set_num, "classifier", model_name, reasoning_trace, json_result, valid=False)
+            db.update_set_log_only(self.paper_id, set_num, "classifier", model_name, reasoning_trace, json_result, valid=False, invalid_reason="LLM call failed or returned non-JSON")
             
         if self.completion_callback:
             self.completion_callback(self.paper_id, set_num, success)
@@ -145,60 +150,48 @@ class VerificationStateMachine:
         self.lock = threading.Lock()
 
     def get_prompts(self):
-        """Generate exactly 1 verification task for this specific paper/set."""
         paper = db.get_paper_by_id(self.paper_id)
-        if not paper:
-            return []
-            
-        prefix = f'set_{self.set_num}_last_llm_'
+        if not paper: return []
+        
+        # Load the EXACT raw LLM output from the cached DB blob
+        raw_llm_data = paper.get(f'set_{self.set_num}_llm')
+        try:
+            prev_class = json.loads(raw_llm_data) if raw_llm_data else {}
+        except Exception:
+            prev_class = {}
+
         format_data = {
-            'title': paper.get('title', ''),
-            'abstract': paper.get('abstract', ''),
-            'keywords': paper.get('keywords', ''),
-            'authors': paper.get('authors', ''),
-            'year': paper.get('year', ''),
-            'type': paper.get('type', ''),
-            'journal': paper.get('journal', ''),
-            'relevance': paper.get(f'{prefix}relevance'),
-            'research_area': paper.get('research_area', ''),
+            'title': paper.get('title', ''), 'abstract': paper.get('abstract', ''),
+            'keywords': paper.get('keywords', ''), 'authors': paper.get('authors', ''),
+            'year': paper.get('year', ''), 'type': paper.get('type', ''), 'journal': paper.get('journal', ''),
+            # Pass the ENTIRE raw dictionary as a formatted JSON string
+            'previous_classification_json': json.dumps(prev_class, indent=2)
         }
-        for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
-            db_val = paper.get(f'{prefix}{field}')
-            format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
-            
-        features_str = paper.get(f'{prefix}features')
-        technique_str = paper.get(f'{prefix}technique')
-        try:
-            format_data['features'] = json.loads(features_str) if features_str else {}
-        except:
-            format_data['features'] = {}
-        try:
-            format_data['technique'] = json.loads(technique_str) if technique_str else {}
-        except:
-            format_data['technique'] = {}
-            
+        
         task = {
             'task_type': TASK_VERIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_verify",
-            'paper_id': self.paper_id,
-            'set_num': self.set_num,
-            'model_alias': self.model_alias,
-            'prompt': self.prompt_template.format(**format_data),
-            'state_machine': self
+            'paper_id': self.paper_id, 'set_num': self.set_num, 'model_alias': self.model_alias,
+            'prompt': self.prompt_template.format(**format_data), 'state_machine': self
         }
         return [task]
+
 
     def on_set_complete(self, set_num, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when this single set verification completes."""
         if success and llm_data:
-            db.update_set_verifier(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
-            db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Verify_Set{set_num}")
+            is_valid, invalid_reason = config.validate_llm_output(llm_data, 'verify')
+            if is_valid:
+                db.update_set_verifier(self.paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+                db.recalculate_main_set(self.paper_id, changed_by=f"LLM_Verify_Set{set_num}")
+            else:
+                log(f"{_color_prefix('INVALID:', Colors.ERROR)} paper={self.paper_id} set={set_num} reason={invalid_reason}")
+                db.update_set_log_only(self.paper_id, set_num, "verifier", model_name, reasoning_trace, json_result, valid=False, invalid_reason=invalid_reason)
         else:
-            db.update_set_log_only(self.paper_id, set_num, "verifier", model_name, reasoning_trace, json_result, valid=False)
+            db.update_set_log_only(self.paper_id, set_num, "verifier", model_name, reasoning_trace, json_result, valid=False, invalid_reason="LLM call failed or returned non-JSON")
             
         if self.completion_callback:
             self.completion_callback(self.paper_id, set_num, success)
-
 
 class ConsensusStateMachine:
     """State machine for classify-until-consensus on a single paper/set."""
@@ -219,23 +212,29 @@ class ConsensusStateMachine:
     def get_next_task(self):
         """Determine next task based on current paper state."""
         paper = db.get_paper_by_id(self.paper_id)
-        if not paper:
-            return None
-            
-        if self.iteration >= self.max_iterations:
-            return None
-            
-        prefix = f'set_{self.set_num}_last_llm_'
-        verified = paper.get(f'{prefix}verified')
-        score = paper.get(f'{prefix}estimated_score')
+        if not paper: return None
+        if self.iteration >= self.max_iterations: return None
         
-        if paper.get(f'{prefix}is_offtopic') is None:
+        # 1. Load the raw LLM blob
+        raw_llm_data = paper.get(f'set_{self.set_num}_llm')
+        try:
+            prev_class = json.loads(raw_llm_data) if raw_llm_data else {}
+        except Exception:
+            prev_class = {}
+
+        # 2. Read UNIVERSAL audit fields to drive the state machine logic
+        # (These exist in every domain by design)
+        is_offtopic = prev_class.get('is_offtopic')
+        verified = prev_class.get('verified')
+        score = prev_class.get('estimated_score')
+
+        if is_offtopic is None:
             self.current_task_type = TASK_CLASSIFY
             return self._create_classify_task(paper)
         elif verified is None:
             self.current_task_type = TASK_VERIFY
             return self._create_verify_task(paper)
-        elif verified == 0 or (score is not None and score <= 7):
+        elif verified == False or verified == 0 or (score is not None and score <= 7):
             self.iteration += 1
             if self.iteration == self.fresh_fallback:
                 self.current_task_type = TASK_CLASSIFY
@@ -254,89 +253,49 @@ class ConsensusStateMachine:
             'set_num': self.set_num,
             'model_alias': self.model_alias,
             'prompt': self.classify_template.format(
-                title=paper.get('title', ''),
-                abstract=paper.get('abstract', ''),
-                keywords=paper.get('keywords', ''),
-                authors=paper.get('authors', ''),
-                year=paper.get('year', ''),
-                type=paper.get('type', ''),
-                journal=paper.get('journal', '')
+                title=paper.get('title', ''), abstract=paper.get('abstract', ''),
+                keywords=paper.get('keywords', ''), authors=paper.get('authors', ''),
+                year=paper.get('year', ''), type=paper.get('type', ''), journal=paper.get('journal', '')
             ),
             'state_machine': self
         }
 
     def _create_verify_task(self, paper):
         """Create verification task for consensus state machine."""
-        prefix = f'set_{self.set_num}_last_llm_'
+        raw_llm_data = paper.get(f'set_{self.set_num}_llm')
+        try:
+            prev_class = json.loads(raw_llm_data) if raw_llm_data else {}
+        except Exception:
+            prev_class = {}
+
         format_data = {
-            'title': paper.get('title', ''),
-            'abstract': paper.get('abstract', ''),
-            'keywords': paper.get('keywords', ''),
-            'authors': paper.get('authors', ''),
-            'year': paper.get('year', ''),
-            'type': paper.get('type', ''),
-            'journal': paper.get('journal', ''),
-            'relevance': paper.get(f'{prefix}relevance'),
-            'research_area': paper.get('research_area', ''),
+            'title': paper.get('title', ''), 'abstract': paper.get('abstract', ''),
+            'keywords': paper.get('keywords', ''), 'authors': paper.get('authors', ''),
+            'year': paper.get('year', ''), 'type': paper.get('type', ''), 'journal': paper.get('journal', ''),
+            # Pass the ENTIRE raw dictionary as a formatted JSON string
+            'previous_classification_json': json.dumps(prev_class, indent=2)
         }
-        for field in ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']:
-            db_val = paper.get(f'{prefix}{field}')
-            format_data[field] = True if db_val == 1 else (False if db_val == 0 else None)
-            
-        features_str = paper.get(f'{prefix}features')
-        technique_str = paper.get(f'{prefix}technique')
-        try:
-            format_data['features'] = json.loads(features_str) if features_str else {}
-        except:
-            format_data['features'] = {}
-        try:
-            format_data['technique'] = json.loads(technique_str) if technique_str else {}
-        except:
-            format_data['technique'] = {}
-            
         return {
             'task_type': TASK_VERIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_consensus_verify_{self.iteration}",
-            'paper_id': self.paper_id,
-            'set_num': self.set_num,
-            'model_alias': self.model_alias,
-            'prompt': self.verify_template.format(**format_data),
-            'state_machine': self
+            'paper_id': self.paper_id, 'set_num': self.set_num, 'model_alias': self.model_alias,
+            'prompt': self.verify_template.format(**format_data), 'state_machine': self
         }
 
     def _create_reclassify_task(self, paper):
         """Create reclassification task for consensus state machine."""
-        prefix = f'set_{self.set_num}_last_llm_'
-        classification_data = {}
-        bool_fields = ['is_offtopic', 'is_survey', 'is_through_hole', 'is_smt', 'is_x_ray']
-        for field in bool_fields:
-            db_val = paper.get(f'{prefix}{field}')
-            if db_val == 1:
-                classification_data[field] = True
-            elif db_val == 0:
-                classification_data[field] = False
-            else:
-                classification_data[field] = None
-                
-        classification_data['research_area'] = paper.get('research_area')
-        classification_data['relevance'] = paper.get(f'{prefix}relevance')
-        
-        features_str = paper.get(f'{prefix}features')
-        technique_str = paper.get(f'{prefix}technique')
+        # 1. Load the EXACT raw LLM output from the cached DB blob
+        raw_llm_data = paper.get(f'set_{self.set_num}_llm')
         try:
-            classification_data['features'] = json.loads(features_str) if features_str else {}
-        except:
-            classification_data['features'] = {}
-        try:
-            classification_data['technique'] = json.loads(technique_str) if technique_str else {}
-        except:
-            classification_data['technique'] = {}
-            
+            prev_class = json.loads(raw_llm_data) if raw_llm_data else {}
+        except Exception:
+            prev_class = {}
+
+        # 2. Extract traces dynamically from the main log
         latest_classifier_trace = ''
         latest_verifier_trace = ''
         try:
-            llm_log_str = paper.get('llm_log', '[]')
-            llm_log = json.loads(llm_log_str) if llm_log_str else []
+            llm_log = json.loads(paper.get('llm_log', '[]') or '[]')
             for entry in reversed(llm_log):
                 if entry.get('type') in ['classifier', 'consensus', 'averaged_llm'] and entry.get('valid'):
                     latest_classifier_trace = entry.get('trace', '')
@@ -345,51 +304,59 @@ class ConsensusStateMachine:
                 if entry.get('type') == 'verifier' and entry.get('valid'):
                     latest_verifier_trace = entry.get('trace', '')
                     break
-        except:
-            pass
-            
+        except Exception: pass
+
+        # 3. Map directly to your validated reclassify_template.txt variables
         format_data = {
-            'title': paper.get('title', ''),
-            'abstract': paper.get('abstract', ''),
-            'keywords': paper.get('keywords', ''),
-            'authors': paper.get('authors', ''),
-            'year': paper.get('year', ''),
-            'type': paper.get('type', ''),
-            'journal': paper.get('journal', ''),
-            'previous_classification_json': json.dumps(classification_data, indent=2),
+            'title': paper.get('title', ''), 'abstract': paper.get('abstract', ''),
+            'keywords': paper.get('keywords', ''), 'authors': paper.get('authors', ''),
+            'year': paper.get('year', ''), 'type': paper.get('type', ''), 'journal': paper.get('journal', ''),
+            
+            # Pass the EXACT raw LLM output as the JSON string. 
+            # No manual reconstruction needed! The LLM sees exactly what it spit out last time.
+            'previous_classification_json': json.dumps(prev_class, indent=2),
+            
             'reasoning_trace': latest_classifier_trace,
             'verifier_trace': latest_verifier_trace,
-            'estimated_score': paper.get(f'{prefix}estimated_score', ''),
             'user_trace': paper.get('user_trace', '') or '',
-            'research_area': paper.get('research_area', ''),
         }
         
         return {
             'task_type': TASK_RECLASSIFY,
             'task_id': f"{self.paper_id}_set{self.set_num}_consensus_reclassify_{self.iteration}",
-            'paper_id': self.paper_id,
-            'set_num': self.set_num,
-            'model_alias': self.model_alias,
-            'prompt': self.reclassify_template.format(**format_data),
-            'state_machine': self
+            'paper_id': self.paper_id, 'set_num': self.set_num, 'model_alias': self.model_alias,
+            'prompt': self.reclassify_template.format(**format_data), 'state_machine': self
         }
 
     def on_task_complete(self, success, llm_data, model_name, reasoning_trace, json_result):
         """Callback when a consensus task completes."""
         if success and llm_data:
             if self.current_task_type == TASK_CLASSIFY or self.current_task_type == TASK_RECLASSIFY:
+                is_valid, invalid_reason = config.validate_llm_output(llm_data, 'classify')
                 log_type = "consensus" if self.current_task_type == TASK_RECLASSIFY else "classifier"
-                db.update_set_cache(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True, log_type=log_type, reset_verification=True)
-                db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Classify_{self.iteration}")
+                
+                if is_valid:
+                    db.update_set_cache(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True, log_type=log_type, reset_verification=True)
+                    db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Classify_{self.iteration}")
+                else:
+                    log(f"{_color_prefix('INVALID:', Colors.ERROR)} paper={self.paper_id} set={self.set_num} reason={invalid_reason}")
+                    db.update_set_log_only(self.paper_id, self.set_num, log_type, model_name, reasoning_trace, json_result, valid=False, invalid_reason=invalid_reason)
+                    
             elif self.current_task_type == TASK_VERIFY:
-                db.update_set_verifier(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
-                db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Verify_{self.iteration}")
+                is_valid, invalid_reason = config.validate_llm_output(llm_data, 'verify')
+                if is_valid:
+                    db.update_set_verifier(self.paper_id, self.set_num, llm_data, model_name, reasoning_trace, json_result, valid=True)
+                    db.recalculate_main_set(self.paper_id, changed_by=f"Consensus_Verify_{self.iteration}")
+                else:
+                    log(f"{_color_prefix('INVALID:', Colors.ERROR)} paper={self.paper_id} set={self.set_num} reason={invalid_reason}")
+                    db.update_set_log_only(self.paper_id, self.set_num, "verifier", model_name, reasoning_trace, json_result, valid=False, invalid_reason=invalid_reason)
         else:
+            # LLM call failed or returned non-JSON
             log_type = "error"
             if self.current_task_type == TASK_VERIFY: log_type = "verifier"
             elif self.current_task_type == TASK_RECLASSIFY: log_type = "consensus"
             else: log_type = "classifier"
-            db.update_set_log_only(self.paper_id, self.set_num, log_type, model_name, reasoning_trace, json_result, valid=False)
+            db.update_set_log_only(self.paper_id, self.set_num, log_type, model_name, reasoning_trace, json_result, valid=False, invalid_reason="LLM call failed or returned non-JSON")
             
         next_task = self.get_next_task()
         if next_task:

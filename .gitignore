@@ -1,6 +1,9 @@
 # 1. Virtual Environment
 .venv/
 
+# temporarily skipped for release:
+.vscode/
+
 # 2. Python Cache (Present in almost all your app folders: shared, tools, web)
 __pycache__/
 
@@ -9,10 +12,12 @@ data/
 
 # 4. Runtime Logs
 logs/
+debug_tools/
 
 # 5. Generated Outputs (Charts and CSV exports)
 meta/charts/
 meta/csv/
+meta/v1.2_obsolete
 
 # 7. Raw Imports (Optional: uncomment if you don't want to track downloaded IEEE bibtex files)
 bibtex-imports/
@@ -23,6 +28,12 @@ consensus_logic.png
 *.csv
 *.tex
 *.lnk
+backup_before_restore.parsa.tzst
 
 flattened_code.txt
-# .vscode # not ignored to save VScode theme (quiet light teal-tinted)
+flattened_code.md
+
+config.yaml
+domain_config.yaml
+meta/agreement_3sets_cli_v1.4.py
+TODO

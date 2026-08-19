@@ -233,8 +233,7 @@ OK              Getting rid of server-side stats and search already reduced it a
                         'sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread. The object was created in thread id 34640 and this is thread id 16976.'
                 Moving helpers away is fine, but there aren't many.
 
-        Refactor comms.js
-                Works fine, just need some better mantainability. Low priority.
+OK      Refactor comms.js. Works fine, just need some better mantainability. Low priority.
 
 OK      Add agentic classification: Re-classify misclassifications (score <=6 starting from empty/worst) automatically until consensus. Agent prompt template should include full classification, classifier trace, verifier trace, user trace and should explains an imperfect verifier verified the imperfect classification (so it's not guaranteed that the verifier is correct in saying it was misclassified to start with).
 OK              ThreadPool all misclassifications through this same prompt, them after everything completes, run a new, "normal" verify remaining step (which will take all just re-classified papers), and a new re-classify misclassifications with whatever is still left as misclassified, until there's full consensus or user abort.
@@ -247,28 +246,12 @@ OK?             Change the server-side API for changes: every change from user o
 OK?             Classifier changes update the main fields (which are logged) and the last-LLM fields (which are not) and zero the count of user-changed fields.
 OK?             User changes update the main fields (which are logged) and update the count of user-changed fields by comparing with latest LLM fields (can go up or down - like if user changes set something back to what LLM had decided)
 
-        Add further 'agentic' functionality:
-                Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
-                        check existing conference names before creating to ensure no two names for the same conference;
-                        Also look at the existing model names and research areas, etc. when inferring a new one?
-                        Access DB for "memory" of existing conferences so it doesn't deannualize the same conference in different ways somehow.
-                Automatic group together synonym keywords
-                Potential tools: 
-                        PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
-                                ...?
-
         Better onboarding for both main and Lite:
  OK             Automatic delete placeholder ID 1 when first importing
 
         Import papers from exactly 2000 (somehow missing?)
         Import new papers from 2026
 
-        Isolate most domain-specific logic where possible -- long term, complicated refactor with little usefulness for now:
-                separate fixed from domain-specific HTML templates;
-                add a python file exclusive for the domain-specific details (DB schema, JSON schemas, etc) and change existing scripts to use it accordingly;
-                separate JS for logic that access the domain-specific HTML parts from generic JS
-                See docs.md for info on some domain-specific scattered code.
-                
 OK      Implement ResearchParça Lite, a standalone non-domain-specific PDF organizer/annotator instead, so at least the annotator can be used for other research.
 
         Add multiuser capability (naming users, user-selectable DB) -- good for offline "sneakernet" collaboration;
@@ -280,14 +263,66 @@ OK?             Update commented&other field displays on save.
 
 OK      Hide history row when a parent is filtered out
 
-        Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
+OK      Automatic add/remove paywalled icon to papers based on user trace containing 'paywalled' string?
 
-        convert "conference" to "inproceedings" on import, fix such existing offline entries from Scopus.
+OK      convert "conference" to "inproceedings" on import, fix such existing offline entries from Scopus.
 
-        Implement average-of-3 full runs:
+OK      Implement average-of-3 full runs:
                 record 3 full sets of fields(last_llm)+history logs
                 When asked to classify, classify all three runs in parallel (not sequentially, of course) - same when asking to verify
                 Add automatic classify until consensus for this paper (does consensus for all 3 runs - at least 6 inference requests, more if consensus isn't reached for all of then in first verification)
                 Change the main set to be the average result of the 3 sets:
                         For display, make it proportionally translucent when it's a mix like YYU, NNU, YUU, NUU; show a solid warning sign instead if it's YYN, YNN, YUN
                         Change history row to have 4 tabs: main (for final averaged/warnings results and user results), set 1, set 2, set 3.
+
+OK      Isolate most domain-specific logic where possible -- long term, complicated refactor with little usefulness for now:
+skipped         separate fixed from domain-specific HTML templates;
+skipped         add a python file exclusive for the domain-specific details (DB schema, JSON schemas, etc) and change existing scripts to use it accordingly;
+stats-only      separate JS for logic that access the domain-specific HTML parts from generic JS
+OK              Actual implementation uses configurable YAML instead, probably much better than original proposal
+                
+
+OK      Re-enable CSS minification
+OK      Verify inference of text fields: zero inferred "other defects" and "model names" is suspicious, might be a regression: not be parsing/transferring correctly.
+OK      Prevent changing verification during comments and fix correpsonding XHR updates
+OK      Fix broken history layout when amount of inferred colums change.
+OK      Automatic CSS width according to domain_config column counts
+OK      Convert HTML comments to Jinja2 server-side comments
+
+
+        Add further 'agentic' functionality:
+                Automatic de-annualize conferences on import onto a separate DB field (to be used for more reliable stats generation) 
+                        check existing conference names before creating to ensure no two names for the same conference;
+                        Also look at the existing model names and research areas, etc. when inferring a new one?
+                        Access DB for "memory" of existing conferences so it doesn't deannualize the same conference in different ways somehow.
+                Automatic group together synonym keywords
+                Potential tools: 
+                        PDF parsing (when available), tool collects PDF intro and conclusions to be added to classification/verification
+                                might as well just go for PDF full text at this point nowadays instead.
+                                ...?
+
+OK      Update prompt templates: fixed base + dynamic domain-specific parts.
+
+OK      Add a viewer for queue manager logs
+
+OK      Add a viewer for meta-stats (3run stats)
+OK              Essentially include the corresponding meta scripts in the frontend + LaTeX generators, but how/where?
+                      Human compare wouldn't make much sense as it needs 2 separate DBs.
+
+        Add sequential onboarding with LLM usage for prompted domain_config creation?
+                Use a complete separate Flask app -- avoids unnecessary changes to perfectly working webapp for something used rarely.
+                Start with PCB AOI defaults for manual edit/setup if no LLM available.
+                Show the default domain_config.yaml to be edited (except color scheme, set separately) and direct config for LLM server url and API key
+                Apply LLM config. If not configured or unavailable, let settings be set manually
+                If LLM is available and working:
+                        propose 5 color schemes (default + 4 generated ones) and 3 domain_config.yaml column sets, user edits/approves one, then:
+                        propose 3 classify_instructions, 3 classify_outputs, 3 sets of few-shot examples, all at once based on the built domain_config;      
+                Apply (autostarts main process, which itself finds DB is missing, creates it and shows the table with the placeholder article and import buttons)
+                Maybe use a curated list of color schemes instead of generated ones?
+
+        Add optional stats page layout with no domain-specific fields (RP-Lite based?) + enable/disable option in domain_config.yaml
+
+        Add a button in history for agent trace review report: reads the complete log stream (from oldest to newest per set) from all sets and reports issues/explains conflicts across sets, etc.
+                Adds a colored entry in the main log with the report but does NOT recalculates main set.
+
+        Add multilingual UI support

@@ -1,58 +1,49 @@
-# ResearchParça
+# ResearchParsa
 
-Live Demo (read-only HTML export): [ResearchParça](https://zidrewndacht.github.io/bibtex-custom-parser).  
-**Also check ResearchParça Lite (Minimal, generic PDF organizer/annotator):** [ResearchParça-Lite](https://github.com/Zidrewndacht/ResearchParsa-lite)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21816041.svg)](https://doi.org/10.5281/zenodo.21816041)
 
-*The frontend was mostly tested with Mozilla Firefox and works well. The HTML export has known performance issues in Chromium‑based browsers. If the page lags or stops responding on reasonably modern hardware, please use Firefox instead.*
+Live Demo (read-only HTML export): [ResearchParsa](https://zidrewndacht.github.io/bibtex-custom-parser).  
 
-ResearchParça is a tool for managing and analysing a bibliographic database of academic papers, specifically tailored for **Printed Circuit Board (PCB) inspection**. It imports BibTeX files into an SQLite database and provides a rich web interface for browsing, filtering, editing, and performing **LLM‑driven classification and verification** of papers.
+*The frontend was mostly tested with Mozilla Firefox and works well. The HTML export had known performance issues in Chromium‑based browsers in 2025 and wasn't extensively performance-tested since. If the page lags or stops responding on reasonably modern hardware, please use Firefox instead.*
 
-The system is designed to streamline literature reviews by offering advanced search, statistical analysis, and traceable AI‑enriched metadata.
+ResearchParsa is a domain-agnostic tool for managing, classifying, and analyzing bibliographic databases of academic papers. It imports BibTeX/CSV files into an SQLite database and provides a rich, dynamically generated web interface for browsing, filtering, editing, and performing **LLM‑driven classification and verification**.
+
+By defining your domain's taxonomy, filters, and prompt templates in a YAML configuration file, the system adapts its data model, UI columns, and statistical dashboards to any specific research field. It is designed to streamline systematic literature reviews by offering advanced search, traceable AI‑enriched metadata, and automated LaTeX table generation.
+
+*Note: [ResearchParsa-Lite](https://github.com/Zidrewndacht/ResearchParsa-lite), minimal, generic PDF organizer/annotator is now deprecated as full ResearchParsa is now fit for any generic research domain.*
 
 ## Features
 
-- **BibTeX / CSV Import**  
-  Import `.bib` files or IEEE Xplore CSV exports directly from the web interface. Duplicate detection prevents re‑import (based on DOI and title/year matching).
-
-- **Web Interface**  
-  A Flask‑based web application (`browse_db.py`) with an interactive table. Sort, filter and edit paper metadata.
+- **Domain-Agnostic Configuration**  
+  Define your research domain's taxonomy, custom fields, filter types (tri-state, inclusion), and LLM prompt templates via `domain_config.yaml`. The UI, database JSON blobs, and statistics engine adapt dynamically to your schema.
 
 - **LLM‑Powered Classification & Verification**  
   A separate **queue manager** (`queue_manager.py`) coordinates communication with an **OpenAI‑compatible LLM server** (mostly tested with vLLM, which allows for high concurrency which the task is exceedingly friendly for).  
-  - Each paper is classified **three times independently** using a detailed prompt template.  
-  - Results (including the model’s reasoning trace) are stored per set.  
-  - A **verifier** LLM later scores the classification accuracy.  
-  - An advanced **“Consensus” mode** iteratively re‑classifies misclassified papers until the verifier agrees (or a limit is reached).  
+  - Each paper is classified **three times independently** to calculate certainty and detect conflicts.  
+  - A **verifier** LLM scores the classification accuracy and provides reasoning traces.  
+  - An advanced **“Consensus” mode** iteratively re-classifies disputed papers until the verifier agrees or a limit is reached.  
+
+- **Traceability & History**  
+  Every AI classification, verification, and user edit is strictly logged. The “History” view provides per-set and averaged logs, LLM reasoning traces, change highlighting, and certainty indicators (translucent emojis for partial agreement; ⚠️ for conflicts).
 
 - **Advanced Filtering & Search**  
-  Server‑side filters for year range and minimum page count; client‑side filtering for dozens of classification fields, including quick toggles for “Survey only”, “SMT only”, “Dataset available”, and custom tri‑state filters. The search bar indexes all relevant fields (title, abstract, authors, keywords, user comments).
+  Server-side filters (year, page count) and dynamic client-side filtering based on your domain's configuration. The global search bar indexes all metadata, abstracts, keywords, and user comments.
 
-- **Comprehensive Statistics & Visualisations**  
-  A dedicated “View Statistics” modal (triggered by the **Stats** button) presents dynamic charts and lists based on the **currently visible** papers:
-  - Repeating journals, conferences, keywords, authors, research areas, and mentioned models.
-  - Keyword cloud.
-  - Distribution charts for publication types, survey vs. primary papers, techniques, and features (with cumulative/stacked toggles).
-  - Histograms of relevance and verifier scores.
-  - Metrics: off‑topic ratio, SMT vs. THT, PDF presence, etc.
+- **Statistics & LaTeX Export**  
+  A dedicated “Statistics” modal presents dynamic charts and lists based on the **currently visible** papers. Includes one-click generation of LaTeX `\tabularx` and `\longtable` code for journals, authors, and custom metrics, ready to paste into your manuscript.
 
-- **Data Editing**  
-  Click any status symbol (✔️ / ❌ / ❔) to cycle its value – changes are saved instantly. In the expanded detail row, edit text fields (Research Area, Model Name, Other Defects, Page Count, Relevance, User Comments) and save manually.
+- **PDF Management & Annotation**  
+  Upload, store, and view PDFs. An integrated **PDF.js** annotator lets you highlight and add notes, which are **auto‑saved** to the server. Includes automated paywall tracking based on user comments.
 
-- **PDF Management**  
-  Upload, store, and view PDFs. An integrated, branded **PDF.js** annotator lets you highlight, draw, and add text notes – annotations are **auto‑saved** to the server after 5 seconds of inactivity. The PDF icon changes to indicate annotated versions.
+- **Data Export & Archiving**  
+  - **Static HTML Export**: A self-contained, compressed HTML file with full offline filtering, sorting, and charting capabilities – ideal for sharing or archiving.  
+  - **XLSX Export**: Formatted Excel spreadsheets with conditional formatting and multi-sheet audit logs.
+  - **Backup & Restore**: Complete Zstandard-compressed archives (`.parsa.tzst`) containing the database and all original/annotated PDFs.
 
-- **Data Export**  
-  - **Static HTML Export**: A self‑contained, compressed HTML file with full filtering, sorting, and charting capabilities – ideal for sharing or archiving.  
-  - **XLSX Export**: (Currently outdated/disabled; may be re‑enabled in future releases) – originally offered formatted Excel spreadsheets.
+- **Interactive Web Interface**  
+  A Flask-based application with an interactive table. Click status symbols to cycle values, edit text fields in expanded detail rows, and preserve your exact filter/sort state in the URL for bookmarking.
 
-- **Backup & Restore**  
-  Create a complete backup (`.parça.zst` file) containing the SQLite database, all original and annotated PDFs, and the HTML export. Restore seamlessly from a previous backup – the current data is automatically backed up before overwriting.
-
-- **History & Traceability**  
-  Every classification, verification, and user edit is logged. The “History” button opens a detailed view with per‑set logs, change highlighting, and certainty indicators (translucent emojis show partial agreement; ⚠️ indicates conflicts).
-
-- **State Persistence**  
-  Filters, sort order, and expanded rows are preserved in the URL – you can bookmark or share a specific view.
+(videos below are outdated as they represent an older version that lacked history and multi-set classification, among other features. But it provides a quick introduction to the overall user interface)
 
 https://github.com/user-attachments/assets/a37ee7b6-27e8-459a-a092-be67ee769b5e
 
@@ -60,25 +51,40 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
 
 ## Usage
 
-0.  **Running the Application**:
+1.  **Running the Application**:
     - Ensure Python 3.12+ is installed.
-    - Download this repository and run `!browse_db.bat` on Windows (or the corresponding sh scripts, tested on Crostini and Ubuntu 24). A Virtual Environment with the according requirements will be automatically created if it doesn't yet exist. After startup, the application will be available at `http://127.0.0.1:5000`, and a browser window should open to this address automatically. After the .venv is created, also optionally start `!queue_manager.bat` and your vLLM endpoint (see example) to allow for paper classification/verification *(browsing an existing database doesn't require that)*.
-    - Albeit untested, this should run fine in Mac, by adjusting the startup script accordingly
-    - Look at the help page in the Web application itself for more instructions about the Web interface itself (Note: those instructions are currently outdated, some functionality has been changed or added).
+    - Download this repository and run `!browse_db.bat` on Windows (or the corresponding `.sh` scripts on Linux/macOS). A Virtual Environment with the required dependencies will be automatically created.
+    - The application will be available at `http://127.0.0.1:5001` (or your configured port).
+    - To enable AI classification, start `!queue_manager.bat` and your OpenAI-compatible LLM endpoint (tested with local vLLM, may run as well with cloud-based APIs to reasoning models, still untested). Browsing and editing an existing database does not require the queue manager.
 
-2.  **Database Setup**:
-    - You can import a BibTeX file directly from the web interface after the application is running. If no database is found on startup, the application will copy `fallback.sqlite` to the data directory to ensure it can launch for the first import or a backup restore.
-### 3. LLM Integration
+2.  **Domain & Database Setup**:
+    - Configure your domain taxonomy, UI theme, and LLM prompts in `domain_config.yaml`, and general settings in `config.yaml`.
+    - Import a BibTeX (`.bib`) or IEEE Xplore CSV file directly from the web interface. If no database exists, the app initializes a fresh schema.
 
-- Start an **OpenAI‑compatible inference server** (e.g., vLLM, llama.cpp, TabbyAPI) running a reasoning model. *vLLM is strongly recommended for high‑throughput batch processing*
-- Configure the server URL in `shared/config.py` (variable `LLM_SERVER_URL`, default `http://localhost:8086`).
-- In the web UI, use the **Batch Tasks** menu to trigger classification/verification:
-  - **Classify / Verify** individual papers via buttons in the detail row.
-  - Batch modes: `all`, `remaining`, `no_features` (papers lacking features), `on_topic_implementation`, and **Consensus** (re‑classify until verifier agrees).
+3.  **LLM Integration**:
+    - Start an **OpenAI‑compatible inference server** (vLLM is strongly recommended for high‑throughput batch processing).
+    - Configure the server URL and API keys in `config.yaml`.
+    - Use the **Batch Tasks** menu in the web UI to trigger classifications, verifications, or consensus runs across your dataset.
 
-### 4. Interactive Help
+4.  **Interactive Help**:
+    - Click the **?** button in the top‑right corner for a detailed guide on symbols, keyboard shortcuts (F1 for help, F3 for search, Ctrl+S to save), and UI features.
 
-Click the **?** button in the top‑right corner for a detailed guide on symbols, keyboard shortcuts (F1 for help, F3 for search, Ctrl+S to save), and all UI features.
+---
+
+
+## Licensing
+This project uses a modular licensing approach to balance open scientific research with the protection of our product development efforts:
+
+*   **Core Backend & Scientific Artifacts:** The backend pipeline, queue manager, analysis scripts, and reproduction data (everything outside the `/web` directory) are licensed under the **Apache License 2.0**. You are free to use, modify, and distribute these components for any purpose, including commercial applications.
+*   **Web UI:** The web interface and user experience components located in the `/web` directory are licensed under the **PolyForm Noncommercial License 1.0.0**. You may use, modify, and run the frontend for non-commercial purposes (including academic research, peer review, and personal use). Commercial use of the frontend requires a separate licensing agreement with the authors.
+
+## Third-Party Software and Licenses
+
+This project bundles several third-party open-source libraries. While the core ResearchParsa application is licensed as described above, these bundled libraries retain their original licenses:
+
+*   **PDF.js** (`web/static/pdfjs/`): Licensed under the Apache License 2.0 (Mozilla Foundation). Our custom autosave integration (`autosave.js`) is also released under Apache 2.0 to maintain compatibility.
+*   **Chart.js, D3.js, Pako, etc.** (`web/static/libs/`): Licensed under their respective MIT/ISC licenses.
+*   **Inter Tight & Twemoji Mozilla Fonts** (`web/static/css/fonts/`): Licensed under the SIL Open Font License and CC-BY 4.0, respectively.
 
 ---
 

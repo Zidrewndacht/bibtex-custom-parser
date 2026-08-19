@@ -1,0 +1,26 @@
+# config.yaml
+# General Configuration for Research Parsa
+
+# Web App and Queue Manager:
+frontend_port: 5001
+queue_manager_port: 6001
+
+default_year_from: 2021
+default_year_to: 2026
+default_min_page_count: 4
+
+
+# vLLM endpoint:
+llm_server_url: "http://localhost:8086"
+llm_api_key: null   #optional, unused for local vLLM instance.
+
+# Concurrency Limits - example values for 2x24GB on Qwen3.6 27B vLLM 0.26
+max_concurrent_workers_classify: 75
+max_concurrent_workers_verify: 80
+max_concurrent_workers_reclassify: 70
+min_concurrent_workers: 70
+
+
+# Consensus limits:
+max_consensus_iterations: 8
+fresh_classify_fallback_iteration: 4

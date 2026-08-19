@@ -1,0 +1,42 @@
+Below is the data for a paper and its corresponding LLM-generated classification. Your job is to determine if the classification accurately reflects the information in the paper's title, abstract, and keywords.
+
+Instructions:
+1. Read the paper content carefully.
+2. Compare the automated classification against the paper content.
+3. Determine if the classification is a faithful representation of the paper.
+4. Respond ONLY with a JSON object containing two fields:
+   - `verified`: `true` if the classification is largely correct, `false` if it contains significant errors or misrepresentations, `null` if there's not enough data for a decision, you are unsure or cannot determine the accuracy.
+   - `estimated_score`: An integer between 0 and 10 scoring the quality of the original classification. It represents a finer-grained score for how accurate the automated classification was compared to the actual paper data. 0 for completelly inaccurate, 10 for completely accurate, or any integer inbetween.
+
+Example Response Format (only output the JSON):
+{{
+  "verified": true,
+  "estimated_score": 8
+}}
+
+The plaintext below shows the requirements for the original classification you'll be verifying against:
+
+```plaintext
+{configurable_classify_instructions}
+
+Here's the template you'll be answering to: 
+
+{configurable_classify_output_template}
+```
+Please notice that the null may also have been recorded as None. Both are correct and have the same meaning for the parser.
+
+Now, here is the Paper Content (real data) for your task:
+
+*Title:* {title}
+*Abstract:* {abstract}
+*Keywords:* {keywords}
+*Authors:* {authors}
+*Publication Year:* {year}
+*Publication Type:* {type}
+*Publication Name:* {journal}
+
+Automated Classification to Verify (inferred by a language model):
+
+{previous_classification_json}
+
+Your response is not being read by a human, it goes directly to an automated parser. Output only the result in JSON format in plaintext without any other tags like ```json or similar.
