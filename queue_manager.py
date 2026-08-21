@@ -1,4 +1,4 @@
-# run_queue.py
+# queue_manager.py
 import os
 import sys
 import signal
@@ -29,9 +29,9 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     app = create_queue_app(db_path)
-    
+
     _log_to_file('dispatcher.log', event='startup', llm_server=config.LLM_SERVER_URL, http_api=f"{config.QUEUE_MANAGER_HOST}:{config.QUEUE_MANAGER_PORT}")
-    
+
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} ResearchParsa Queue Manager Starting")
     log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} {'=' * 52}")
@@ -43,15 +43,30 @@ def main():
     dispatcher_thread = threading.Thread(target=dispatcher_loop, daemon=True)
     dispatcher_thread.start()
 
-    try:
-        app.run(
-            host=config.QUEUE_MANAGER_HOST,
-            port=config.QUEUE_MANAGER_PORT,
-            threaded=True,
-            debug=False
-        )
-    except KeyboardInterrupt:
-        pass
+    if config.DEBUG_MODE:
+        log(f"{_color_prefix('STARTUP:', Colors.DISPATCHER)} Running Queue Manager in Flask DEBUG mode.")
+        try:
+            app.run(
+                host=config.QUEUE_MANAGER_HOST,
+                port=config.QUEUE_MANAGER_PORT,
+                threaded=True,
+                debug=True,
+                use_reloader=False  # CRITICAL: Prevents duplicate dispatcher threads on hot-reload
+            )
+        except KeyboardInterrupt:
+            pass
+    else:
+        from waitress import serve
+        try:
+            serve(
+                app,
+                host=config.QUEUE_MANAGER_HOST,
+                port=config.QUEUE_MANAGER_PORT,
+                threads=config.QUEUE_MANAGER_WAITRESS_THREADS,
+                channel_timeout=7200
+            )
+        except KeyboardInterrupt:
+            pass
 
 if __name__ == '__main__':
     main()

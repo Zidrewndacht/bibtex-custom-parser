@@ -9,6 +9,8 @@ import shutil
 import threading
 from datetime import datetime, timezone
 
+DEBUG_MODE = False  # True = Flask Dev Server (auto-reload). False = Waitress (Production).
+
 # --- Paths and Directories ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
@@ -23,28 +25,21 @@ def ensure_config_files():
     """Copy example configuration files if the actual ones do not exist."""
     if not os.path.exists(CONFIG_PATH):
         if os.path.exists(EXAMPLE_CONFIG_PATH):
-            try:
-                shutil.copy(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
-                print(f"[Init] Created {CONFIG_PATH} from example.")
-            except Exception as e:
-                print(f"[Warning] Failed to copy {EXAMPLE_CONFIG_PATH}: {e}")
+            shutil.copy(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+            print(f"[Init] Created {CONFIG_PATH} from example.")
         else:
-            print(f"[Warning] {CONFIG_PATH} not found and example config missing at {EXAMPLE_CONFIG_PATH}.")
+            raise RuntimeError(f"Fatal: {CONFIG_PATH} not found and example config missing at {EXAMPLE_CONFIG_PATH}.")
             
     if not os.path.exists(DOMAIN_CONFIG_PATH):
         if os.path.exists(EXAMPLE_DOMAIN_CONFIG_PATH):
-            try:
-                shutil.copy(EXAMPLE_DOMAIN_CONFIG_PATH, DOMAIN_CONFIG_PATH)
-                print(f"[Init] Created {DOMAIN_CONFIG_PATH} from example.")
-            except Exception as e:
-                print(f"[Warning] Failed to copy {EXAMPLE_DOMAIN_CONFIG_PATH}: {e}")
+            shutil.copy(EXAMPLE_DOMAIN_CONFIG_PATH, DOMAIN_CONFIG_PATH)
+            print(f"[Init] Created {DOMAIN_CONFIG_PATH} from example.")
         else:
-            print(f"[Warning] {DOMAIN_CONFIG_PATH} not found and example config missing at {EXAMPLE_DOMAIN_CONFIG_PATH}.")
+            raise RuntimeError(f"Fatal: {DOMAIN_CONFIG_PATH} not found and example config missing at {EXAMPLE_DOMAIN_CONFIG_PATH}.")
 
 # Ensure files exist before proceeding to load them
 ensure_config_files()
 
-LLM_API_KEY = None # Will be overwritten by config loader
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 DATABASE_FILE = os.path.join(DATA_DIR, 'db.sqlite')
@@ -54,64 +49,56 @@ ANNOTATED_PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf_annotated')
 os.makedirs(ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)
 PERFORMANCE_LOG_FILE = os.path.join(DATA_DIR, 'performance_log.jsonl')
 
-# --- 1. General Config Loader ---
+# ==============================================================================
+# 1. GENERAL CONFIG LOADER (config.yaml)
+# ==============================================================================
 def load_general_config():
-    defaults = {
-        'default_year_from': 2016, 'default_year_to': 2025, 'default_min_page_count': 4,
-        'frontend_port': 5001,
-        'llm_server_url': "http://localhost:8086", 
-        'llm_api_key': None,
-        'queue_manager_host': "localhost", 'queue_manager_port': 6001,
-        'max_concurrent_workers_classify': 60, 'max_concurrent_workers_verify': 90,
-        'max_concurrent_workers_reclassify': 48, 'min_concurrent_workers': 32,
-        'max_consensus_iterations': 15, 'fresh_classify_fallback_iteration': 8,
-    }
-    try:
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                cfg = yaml.safe_load(f)
-                if cfg and isinstance(cfg, dict):
-                    defaults.update(cfg)
-    except Exception as e:
-        print(f"Warning: Could not load {CONFIG_PATH}. Using defaults. Error: {e}")
-    return defaults
+    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
+    if not cfg or not isinstance(cfg, dict):
+        raise RuntimeError(f"Fatal: {CONFIG_PATH} is empty or invalid YAML.")
+    return cfg
 
 _general_config = load_general_config()
 
-# Map loaded YAML keys to Python constants
-DEFAULT_YEAR_FROM = _general_config.get('default_year_from', 2016)
-DEFAULT_YEAR_TO = _general_config.get('default_year_to', 2025)
-DEFAULT_MIN_PAGE_COUNT = _general_config.get('default_min_page_count', 4)
-FRONTEND_PORT = _general_config.get('frontend_port', 5001)
+# --- User-set settings (No defaults. Raises KeyError if user deleted them) ---
+DEFAULT_YEAR_FROM = _general_config['default_year_from']
+DEFAULT_YEAR_TO = _general_config['default_year_to']
+DEFAULT_MIN_PAGE_COUNT = _general_config['default_min_page_count']
 
-LLM_SERVER_URL = _general_config.get('llm_server_url', "http://localhost:8086")
-LLM_API_KEY = _general_config.get('llm_api_key', None)
-QUEUE_MANAGER_HOST = _general_config.get('queue_manager_host', "localhost")
-QUEUE_MANAGER_PORT = _general_config.get('queue_manager_port', 6001)
-QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"
+FRONTEND_PORT = _general_config['frontend_port']
+FRONTEND_HOST = '0.0.0.0'                  # Intentionally hardcoded setting (not meant to be user-set) - do not move to YAML
+FRONTEND_WAITRESS_THREADS = 16             # Intentionally hardcoded setting (not meant to be user-set) - do not move to YAML
 
-MAX_CONCURRENT_WORKERS_CLASSIFY = _general_config.get('max_concurrent_workers_classify', 70)
-MAX_CONCURRENT_WORKERS_VERIFY = _general_config.get('max_concurrent_workers_verify', 75)
-MAX_CONCURRENT_WORKERS_RECLASSIFY = _general_config.get('max_concurrent_workers_reclassify', 70)
-MIN_CONCURRENT_WORKERS = _general_config.get('min_concurrent_workers', 65)
+QUEUE_MANAGER_PORT = _general_config['queue_manager_port']
+QUEUE_MANAGER_HOST = "localhost"
+QUEUE_MANAGER_URL = f"http://{QUEUE_MANAGER_HOST}:{QUEUE_MANAGER_PORT}"    # Intentionally hardcoded to localhost - do not change
+QUEUE_MANAGER_WAITRESS_THREADS = 32        # Intentionally hardcoded setting (not meant to be user-set) - do not move to YAML
 
-MAX_CONSENSUS_ITERATIONS = _general_config.get('max_consensus_iterations', 8)
-FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config.get('fresh_classify_fallback_iteration', 4)
+MAX_CONCURRENT_WORKERS_CLASSIFY = _general_config['max_concurrent_workers_classify']
+MAX_CONCURRENT_WORKERS_VERIFY = _general_config['max_concurrent_workers_verify']
+MAX_CONCURRENT_WORKERS_RECLASSIFY = _general_config['max_concurrent_workers_reclassify']
+MIN_CONCURRENT_WORKERS = _general_config['min_concurrent_workers']
+
+MAX_CONSENSUS_ITERATIONS = _general_config['max_consensus_iterations']
+FRESH_CLASSIFY_FALLBACK_ITERATION = _general_config['fresh_classify_fallback_iteration']
+
+LLM_SERVER_URL = _general_config['llm_server_url']
+LLM_API_KEY = _general_config.get('llm_api_key')  # Allowed to be null/missing
 
 
-
-
+# ==============================================================================
+# 2. DOMAIN CONFIG & PROMPT ENGINE (domain_config.yaml)
+# ==============================================================================
 def _load_text_file(path):
     """Helper to load text files safely."""
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        print(f"Fatal Error: Template file '{path}' not found.")
-        raise
+        raise RuntimeError(f"Fatal: Template file '{path}' not found.")
     except Exception as e:
-        print(f"Fatal Error: Could not read template file '{path}': {e}")
-        raise
+        raise RuntimeError(f"Fatal: Could not read template file '{path}': {e}")
 
 def assemble_prompt_templates(prompts_cfg):
     """
@@ -121,73 +108,73 @@ def assemble_prompt_templates(prompts_cfg):
     """
     base_templates_dir = os.path.join(BASE_DIR, 'prompt_templates', 'base_templates')
     
-    # 1. Resolve configurable paths from YAML (with sensible fallback defaults)
-    classify_inst_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_instructions', 'prompt_templates/configurable_classify_instructions.txt'))
-    output_tmpl_path = os.path.join(BASE_DIR, prompts_cfg.get('classify_output_template', 'prompt_templates/configurable_classify_output_template.txt'))
-    few_shot_path = os.path.join(BASE_DIR, prompts_cfg.get('few_shot_examples', 'prompt_templates/configurable_few_shot_examples.txt'))
-    
+    classify_inst_path = os.path.join(BASE_DIR, prompts_cfg['classify_instructions'])
+    output_tmpl_path = os.path.join(BASE_DIR, prompts_cfg['classify_output_template'])
+    few_shot_path = os.path.join(BASE_DIR, prompts_cfg['few_shot_examples'])
+
+
     # 2. Load configurable sub-templates
     classify_inst = _load_text_file(classify_inst_path)
     output_tmpl = _load_text_file(output_tmpl_path)
     few_shot = _load_text_file(few_shot_path)
-    
+
     # 3. Load fixed base templates
     classify_base = _load_text_file(os.path.join(base_templates_dir, 'classify_base_template.txt'))
     verify_base = _load_text_file(os.path.join(base_templates_dir, 'verify_base_template.txt'))
     reclassify_base = _load_text_file(os.path.join(base_templates_dir, 'reclassify_base_template.txt'))
-    
+
     # 4. Assemble final strings verbatim
     # Classify
     final_classify = classify_base.replace('{configurable_classify_instructions}', classify_inst)
     final_classify = final_classify.replace('{configurable_classify_output_template}', output_tmpl)
     final_classify = final_classify.replace('{configurable_few_shot_examples}', few_shot)
-    
+
     # Verify
     final_verify = verify_base.replace('{configurable_classify_instructions}', classify_inst)
     final_verify = final_verify.replace('{configurable_classify_output_template}', output_tmpl)
-    
+
     # Reclassify (Reuses classify_instructions as designed)
     final_reclassify = reclassify_base.replace('{configurable_classify_instructions}', classify_inst)
     final_reclassify = final_reclassify.replace('{configurable_classify_output_template}', output_tmpl)
     final_reclassify = final_reclassify.replace('{configurable_few_shot_examples}', few_shot)
-    
+
     return final_classify, final_verify, final_reclassify
 
-
-# --- 2. Domain Config & Dynamic Theme/Prompt Engine ---
 def generate_theme_css(domain_config):
     """Dynamically converts the 'theme' dict into CSS :root variables."""
     theme = domain_config.get('theme', {})
     if not theme or not isinstance(theme, dict):
         return ""
-    
     css_vars = []
     for key, value in theme.items():
         if value is not None:
             css_var = "--" + str(key).replace('_', '-')
             css_vars.append(f"    {css_var}: {value};")
-            
     if css_vars:
         return ":root {\n" + "\n".join(css_vars) + "\n}"
     return ""
 
 def load_domain_config():
-    try:
-        with open(DOMAIN_CONFIG_PATH, 'r', encoding='utf-8') as f:
-            cfg = yaml.safe_load(f)
-            if not cfg or not isinstance(cfg, dict):
-                cfg = {}
-    except Exception as e:
-        print(f"Error loading domain config: {e}")
-        cfg = {}
+    with open(DOMAIN_CONFIG_PATH, 'r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
         
-    cfg.setdefault("domain_name", "Unknown")
-    cfg.setdefault("groups", [])
-    cfg.setdefault("editable_fields", [])
+    if not cfg or not isinstance(cfg, dict):
+        raise RuntimeError(f"Fatal: {DOMAIN_CONFIG_PATH} is empty or invalid YAML.")
+
+    # Validate required keys exist (raises KeyError immediately if missing)
+    cfg['domain_name']
+    cfg['groups']
+    cfg['editable_fields']
+    prompts_cfg = cfg['prompts']
     
-    # --- Automatically calculate min/max widths based on dynamic columns ---
+    required_prompts = ['classify_instructions', 'classify_output_template', 'few_shot_examples']
+    for key in required_prompts:
+        if key not in prompts_cfg:
+            raise RuntimeError(f"Fatal: 'prompts' section in {DOMAIN_CONFIG_PATH} is missing required key: '{key}'")
+
+    # Automatically calculate min/max widths based on dynamic columns
     total_dynamic = 0
-    for group in cfg.get('groups', []):
+    for group in cfg['groups']:
         filter_type = group.get('filter_type')
         if filter_type == 'tri_state':
             total_dynamic += 1
@@ -197,7 +184,7 @@ def load_domain_config():
     extra_cells = max(0, total_dynamic - 9)
     min_width = 1140 + (extra_cells * 27)
     max_width = max(1880, min_width + 720)
-    
+
     # Inject into theme dict so generate_theme_css picks them up as CSS variables
     theme = cfg.get('theme', {})
     if not isinstance(theme, dict):
@@ -205,27 +192,22 @@ def load_domain_config():
     theme['min_width'] = f"{min_width}px"
     theme['max_width'] = f"{max_width}px"
     cfg['theme'] = theme
-    # ----------------------------------------------------------------------
 
     # Assemble Prompt Templates
-    prompts_cfg = cfg.get('prompts', {})
     try:
         assembled_classify, assembled_verify, assembled_reclassify = assemble_prompt_templates(prompts_cfg)
         cfg['PROMPT_TEMPLATE'] = assembled_classify
         cfg['VERIFIER_TEMPLATE'] = assembled_verify
         cfg['RECLASSIFY_PROMPT_TEMPLATE'] = assembled_reclassify
     except Exception as e:
-        print(f"Fatal: Failed to assemble prompt templates: {e}")
-        import sys
-        sys.exit(1)
-    
+        raise RuntimeError(f"Fatal: Failed to assemble prompt templates: {e}")
+
     # Inject generated CSS into the config dictionary for templates to use
     cfg["theme_css"] = generate_theme_css(cfg)
     return cfg
 
 _domain_config = load_domain_config()
 
-# Expose prompt paths globally for the queue manager and LLM callers
 PROMPT_TEMPLATE = _domain_config.get('PROMPT_TEMPLATE')
 VERIFIER_TEMPLATE = _domain_config.get('VERIFIER_TEMPLATE')
 RECLASSIFY_PROMPT_TEMPLATE = _domain_config.get('RECLASSIFY_PROMPT_TEMPLATE')

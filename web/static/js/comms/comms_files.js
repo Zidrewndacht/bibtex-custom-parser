@@ -135,7 +135,7 @@ document.addEventListener('click', function (event) {
         // Add event listener for when a file is selected
         pdfFileInput.onchange = function (e) {
             if (e.target.files.length > 0) {
-                updateTableRowWithPDFData(paperId, data.pdf_filename, data.pdf_state);            
+                uploadPDFForPaper(paperId);
             }
         };
 
