@@ -1,15 +1,18 @@
 # web/routes_ui.py
 import json
 import sqlite3
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
-from shared import db
-from shared import config
+
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+
+from shared import config, db
+
 from . import export_logic
 
 ui_bp = Blueprint('ui', __name__)
 
 # Load domain config once at module level
 from shared.config import load_domain_config
+
 domain_config = load_domain_config()
 
 # web/routes_ui.py

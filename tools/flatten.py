@@ -205,9 +205,7 @@ def should_ignore_file(file_path):
             # It's a file extension pattern
             if path.suffix.lower() == pattern[1:]:
                 return True
-        elif file_name == pattern:
-            return True
-        elif pattern in str(path):
+        elif file_name == pattern or pattern in str(path):
             return True
     
     return False
@@ -237,7 +235,7 @@ def read_file_with_fallback_encoding(file_path):
                 return content
         except UnicodeDecodeError:
             continue
-        except Exception as e:
+        except Exception:
             # print(f"DEBUG: Error reading {file_path} with encoding {encoding}: {e}")
             continue
     

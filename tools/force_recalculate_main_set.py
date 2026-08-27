@@ -1,11 +1,12 @@
 # standalone debug tool, used during development.
-import sys
 import os
+import sys
 
 # Ensure the shared modules can be imported
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from shared import db, config
+from shared import config, db
+
 
 def main():
     db_path = config.DATABASE_FILE

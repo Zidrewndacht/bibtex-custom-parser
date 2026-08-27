@@ -9,17 +9,15 @@ narrowly-scoped URL: the paper's own year as the server-side year filter
 (fast render) and the paper ID as the search query (hides everything else).
 """
 
-from datetime import datetime
+import json
+import sqlite3
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 from flask import Blueprint, render_template
 
-from shared import config
 from meta import agreement_core
-
-import sqlite3
-import json
-from datetime import datetime, timezone
+from shared import config
 
 agreement_bp = Blueprint('agreement', __name__)
 

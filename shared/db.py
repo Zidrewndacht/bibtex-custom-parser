@@ -1,10 +1,9 @@
 # shared/db.py
-import sqlite3
 import json
 import os
+import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from . import config  # Replaces 'import globals'
 
 _db_path = None
 
@@ -126,7 +125,7 @@ def init_db(db_path):
             cursor = test_conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='papers';")
             if not cursor.fetchone():
-                print(f"[Init] Database file exists but 'papers' table is missing (empty or incomplete DB).")
+                print("[Init] Database file exists but 'papers' table is missing (empty or incomplete DB).")
                 needs_rebuild = True
             else:
                 # --- BOOT-TIME CLEANUP: Remove placeholder if real papers exist ---
@@ -149,7 +148,7 @@ def init_db(db_path):
             needs_rebuild = True
 
     if needs_rebuild:
-        print(f"[Init] Rebuilding database schema and placeholder...")
+        print("[Init] Rebuilding database schema and placeholder...")
         # Delete the corrupted/empty file so SQLite creates a completely fresh one
         try:
             os.remove(_db_path)

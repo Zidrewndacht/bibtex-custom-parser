@@ -4,15 +4,16 @@
 # Assumes the v1.2 database schema already exists.
 # wait, is this still for v1.2?! Apparently it's already v1.4 and this comment is stale.
 
+import csv
+import os
+import re
 import sqlite3
+import sys
+
 import bibtexparser
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.customization import homogenize_latex_encoding
-import re
-import csv
-from typing import List
-import sys
-import os
+
 # from shared import config
 
 def parse_authors(authors_str):
@@ -177,7 +178,7 @@ def extract_month_from_date(date_str: str) -> str:
         pass
     return ""
 
-def convert_csv_to_bibtex(csv_file_path: str) -> List[str]:
+def convert_csv_to_bibtex(csv_file_path: str) -> list[str]:
     """Convert a single CSV file to BibTeX entries."""
     bibtex_entries = []
     with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
@@ -472,7 +473,7 @@ def import_bibtex(bib_file, db_path):
         
         try:
             columns = ', '.join(data.keys())
-            placeholders = ', '.join([f":{k}" for k in data.keys()])
+            placeholders = ', '.join([f":{k}" for k in data])
             insert_query = f"INSERT INTO papers ({columns}) VALUES ({placeholders})"
             cursor.execute(insert_query, data)
         except Exception as e:

@@ -2,9 +2,15 @@
 import json
 import threading
 from collections import deque
+
 from shared import config, db
+
 from .logging_utils import (
-    Colors, _color_prefix, _color_queue_mode, log, log_file_queue_status
+    Colors,
+    _color_prefix,
+    _color_queue_mode,
+    log,
+    log_file_queue_status,
 )
 
 # ============================================================================

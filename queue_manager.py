@@ -1,16 +1,17 @@
 # queue_manager.py
-import os
-import sys
-import signal
-import threading
 import argparse
+import os
+import signal
+import sys
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from shared import config
 from queue_manager import create_queue_app
 from queue_manager.dispatcher import dispatcher_loop
-from queue_manager.logging_utils import log, Colors, _color_prefix, _log_to_file
+from queue_manager.logging_utils import Colors, _color_prefix, _log_to_file, log
+from shared import config
+
 
 def main():
     parser = argparse.ArgumentParser(description="ResearchParsa - Queue Manager")

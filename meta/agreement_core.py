@@ -16,9 +16,7 @@ majority); the guard only affects partially classified or failed states.
 
 import json
 import sqlite3
-
 from collections import Counter
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -54,7 +52,7 @@ def relevance_stratum_key(label: str) -> str:
 # FIELD DISCOVERY (from domain_config)
 # ============================================================================
 
-def discover_boolean_fields(domain_config: dict) -> List[str]:
+def discover_boolean_fields(domain_config: dict) -> list[str]:
     """
     Build the list of boolean (tri-state) fields from domain_config groups.
     'is_offtopic' is always included as a universal field required for
@@ -63,7 +61,7 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
     Excludes fields with render_type 'text_presence' — those are derived
     from text data on the front-end, not purely inferred tri-state values.
     """
-    fields: List[str] = ['is_offtopic']
+    fields: list[str] = ['is_offtopic']
     for group in domain_config.get('groups', []):
         ft = group.get('filter_type')
         if ft == 'tri_state':
@@ -85,7 +83,7 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
 
 
 def get_field_categories(domain_config: dict,
-                         boolean_fields: List[str]) -> List[Tuple[str, List[str]]]:
+                         boolean_fields: list[str]) -> list[tuple[str, list[str]]]:
     """
     Groups boolean fields into three categories based on JSON structure:
       - Root-level fields (no dot in path) -> "Main classification"
@@ -114,11 +112,11 @@ def get_field_categories(domain_config: dict,
 
     return categories
 
-def build_field_label_map(domain_config: dict) -> Dict[str, str]:
+def build_field_label_map(domain_config: dict) -> dict[str, str]:
     """Map full JSON paths to their configured display labels, VERBATIM
     (no case changes). Callers fall back to format_field_name() for paths
     without a configured label."""
-    labels: Dict[str, str] = {'is_offtopic': 'Off-topic'}
+    labels: dict[str, str] = {'is_offtopic': 'Off-topic'}
     for group in domain_config.get('groups', []):
         parent = group.get('json_path', '') or ''
         ft = group.get('filter_type')
@@ -134,7 +132,7 @@ def build_field_label_map(domain_config: dict) -> Dict[str, str]:
                 labels[full_path] = fdef.get('label') or key
     return labels
 
-def averaged_relevance(papers: Dict[str, Dict[int, Dict]], paper_id: str) -> Optional[float]:
+def averaged_relevance(papers: dict[str, dict[int, dict]], paper_id: str) -> float | None:
     """Average relevance score across the 3 runs (mirrors recalculate_main_set)."""
     if paper_id not in papers:
         return None
@@ -143,12 +141,12 @@ def averaged_relevance(papers: Dict[str, Dict[int, Dict]], paper_id: str) -> Opt
     return sum(valid) / len(valid) if valid else None
 
 def category_display_names(domain_config: dict,
-                           categories: List[Tuple[str, List[str]]]
-                           ) -> List[Tuple[str, List[str]]]:
+                           categories: list[tuple[str, list[str]]]
+                           ) -> list[tuple[str, list[str]]]:
     """Categories with configured group friendly names (verbatim) in place of
     the structural names, for HTML display only. The original list (used by the
     LaTeX builder/CLI) is not modified."""
-    group_names: Dict[str, str] = {}
+    group_names: dict[str, str] = {}
     for group in domain_config.get('groups', []):
         path = group.get('json_path', '')
         name = group.get('friendly_name') or group.get('label')
@@ -186,7 +184,7 @@ def format_field_name(field: str) -> str:
 # ============================================================================
 
 def wilson_score_interval(successes: int, n: int,
-                          confidence: float = 0.95) -> Tuple[float, float]:
+                          confidence: float = 0.95) -> tuple[float, float]:
     if n == 0:
         return 0.0, 100.0
     z = stats.norm.ppf((1 + confidence) / 2)
@@ -215,7 +213,7 @@ def escape_latex_underscores(text: str) -> str:
     return text.replace('_', '\\_')
 
 
-def bin_relevance_score(relevance: Optional[int]) -> str:
+def bin_relevance_score(relevance: int | None) -> str:
     if relevance is None:
         return "Unknown"
     for low, high, label in RELEVANCE_BINS:
@@ -229,8 +227,8 @@ def bin_relevance_score(relevance: Optional[int]) -> str:
 # ============================================================================
 
 def load_all_papers_from_single_db(db_path: str,
-                                   boolean_fields: List[str]
-                                   ) -> Dict[str, Dict[int, Dict]]:
+                                   boolean_fields: list[str]
+                                   ) -> dict[str, dict[int, dict]]:
     """
     Read every paper's three set_N_llm JSON blobs and encode each
     boolean field as 2 (True), 1 (False), 0 (None/unknown).
@@ -243,12 +241,12 @@ def load_all_papers_from_single_db(db_path: str,
     rows = cursor.fetchall()
     conn.close()
 
-    papers: Dict[str, Dict[int, Dict]] = {}
+    papers: dict[str, dict[int, dict]] = {}
     for row in rows:
         paper_id = str(row['id'])
         row_dict = dict(row)
 
-        sets_data: Dict[int, Dict] = {}
+        sets_data: dict[int, dict] = {}
         for set_num in (1, 2, 3):
             blob_key = f'set_{set_num}_llm'
             try:
@@ -258,7 +256,7 @@ def load_all_papers_from_single_db(db_path: str,
             except (json.JSONDecodeError, TypeError):
                 blob = {}
 
-            encoded: Dict = {}
+            encoded: dict = {}
 
             for field in boolean_fields:
                 val = get_val_by_path(blob, field)
@@ -287,7 +285,7 @@ def load_all_papers_from_single_db(db_path: str,
     return papers
 
 
-def analyze_llm_logs(db_path: str, paper_ids: List[str]) -> Dict:
+def analyze_llm_logs(db_path: str, paper_ids: list[str]) -> dict:
     """
     Analyzes the full history of LLM logs for the given papers.
     Counts invalid entries (including superseded ones) and tracks runs to consensus.
@@ -437,7 +435,7 @@ def analyze_llm_logs(db_path: str, paper_ids: List[str]) -> Dict:
 # 3-RUN AGREEMENT LOGIC
 # ============================================================================
 
-def classify_3run_agreement(values: List[int]) -> str:
+def classify_3run_agreement(values: list[int]) -> str:
     counts = Counter(values)
     if len(counts) == 1:
         return 'perfect'
@@ -466,8 +464,8 @@ def classify_3run_agreement(values: List[int]) -> str:
         return 'uncertain_biased_uncertain'
 
 
-def analyze_field_agreement(papers: Dict[str, Dict[int, Dict]], field: str,
-                            paper_ids: List[str]) -> Dict:
+def analyze_field_agreement(papers: dict[str, dict[int, dict]], field: str,
+                            paper_ids: list[str]) -> dict:
     perfect_count = 0
     uncertain_biased_certain_count = 0
     uncertain_biased_uncertain_count = 0
@@ -554,9 +552,9 @@ def analyze_field_agreement(papers: Dict[str, Dict[int, Dict]], field: str,
     }
 
 
-def analyze_stratum(papers: Dict[str, Dict[int, Dict]], paper_ids: List[str],
-                   fields: List[str], stratum_name: str, db_path: str,
-                   verbose: bool = True, analyze_logs: bool = True) -> Dict:
+def analyze_stratum(papers: dict[str, dict[int, dict]], paper_ids: list[str],
+                   fields: list[str], stratum_name: str, db_path: str,
+                   verbose: bool = True, analyze_logs: bool = True) -> dict:
     if verbose:
         print(f"  Analyzing {stratum_name} ({len(paper_ids)} papers)...")
 
@@ -685,9 +683,9 @@ def analyze_stratum(papers: Dict[str, Dict[int, Dict]], paper_ids: List[str],
     }
 
 
-def run_analysis(papers: Dict[str, Dict[int, Dict]], fields: List[str],
+def run_analysis(papers: dict[str, dict[int, dict]], fields: list[str],
                  db_path: str, verbose: bool = True,
-                 log_analysis_strata=None) -> Dict:
+                 log_analysis_strata=None) -> dict:
     """Run stratified 3-run agreement analysis with relevance bins.
 
     Eligibility: a paper participates only if its 3-run off-topic vote is decisive
@@ -705,9 +703,9 @@ def run_analysis(papers: Dict[str, Dict[int, Dict]], fields: List[str],
     all_paper_ids = list(papers.keys())
 
     # Stratify by off-topic status (decisive majority vote across 3 sets)
-    on_topic_ids: List[str] = []
-    off_topic_ids: List[str] = []
-    undetermined_ids: List[str] = []
+    on_topic_ids: list[str] = []
+    off_topic_ids: list[str] = []
+    undetermined_ids: list[str] = []
     for paper_id in all_paper_ids:
         votes = [papers[paper_id][sn].get('is_offtopic', 0) for sn in (1, 2, 3)]
         yes_votes = votes.count(2)
@@ -725,7 +723,7 @@ def run_analysis(papers: Dict[str, Dict[int, Dict]], fields: List[str],
               f"{len(undetermined_ids)} excluded (undetermined off-topic)")
 
     # Stratify on-topic papers by relevance bin (using set_1 relevance)
-    relevance_strata: Dict[str, List[str]] = {}
+    relevance_strata: dict[str, list[str]] = {}
     for low, high, label in RELEVANCE_BINS:
         relevance_strata[relevance_stratum_key(label)] = [
             pid for pid in on_topic_ids
@@ -762,14 +760,14 @@ def run_analysis(papers: Dict[str, Dict[int, Dict]], fields: List[str],
 # OUTLIER COLLECTION (web report)
 # ============================================================================
 
-def collect_top_contradictory_papers(papers: Dict[str, Dict[int, Dict]],
-                                     fields: List[str],
-                                     paper_ids: List[str],
-                                     top_n: int = 10) -> List[Dict]:
+def collect_top_contradictory_papers(papers: dict[str, dict[int, dict]],
+                                     fields: list[str],
+                                     paper_ids: list[str],
+                                     top_n: int = 10) -> list[dict]:
     """Counts, per paper, how many fields show a Yes<->No contradiction across
     the 3 runs. Returns the top-N papers sorted by contradiction count."""
     counter: Counter = Counter()
-    details: Dict[str, List[str]] = {}
+    details: dict[str, list[str]] = {}
 
     for paper_id in paper_ids:
         contra_fields = []
@@ -806,7 +804,7 @@ def _num(v, default=0):
         return default
     return int(f) if f.is_integer() else f
 
-def stratum_summary(s: Dict) -> Dict:
+def stratum_summary(s: dict) -> dict:
     """Normalizes a stratum result dict (empty or full) into a uniform,
     JSON-safe shape for the web report."""
     def g(key, default=0):
@@ -854,9 +852,9 @@ def stratum_summary(s: Dict) -> Dict:
     }
 
 
-def category_summaries(results: Dict,
-                       categories: List[Tuple[str, List[str]]],
-                       field_labels: Optional[Dict[str, str]] = None) -> List[Dict]:
+def category_summaries(results: dict,
+                       categories: list[tuple[str, list[str]]],
+                       field_labels: dict[str, str] | None = None) -> list[dict]:
     """Per-category agreement summaries for the on-topic stratum (HTML report)."""
     on_topic = results['on_topic_only']
     field_results = on_topic['field_results']
@@ -913,9 +911,9 @@ def category_summaries(results: Dict,
 # LATEX TABLE GENERATION
 # ============================================================================
 
-def build_latex_tables(results: Dict,
-                       categories: List[Tuple[str, List[str]]],
-                       include_relevance_table: bool = False) -> List[Tuple[str, str]]:
+def build_latex_tables(results: dict,
+                       categories: list[tuple[str, list[str]]],
+                       include_relevance_table: bool = False) -> list[tuple[str, str]]:
     """Build LaTeX tables for the Elsevier two-column template.
     Returns a list of (table_name, latex_string) tuples."""
     tables = []
@@ -1182,8 +1180,8 @@ def build_latex_tables(results: Dict,
     return tables
 
 
-def generate_latex_tables(results: Dict, output_path: str,
-                          categories: List[Tuple[str, List[str]]]):
+def generate_latex_tables(results: dict, output_path: str,
+                          categories: list[tuple[str, list[str]]]):
     """CLI convenience wrapper: writes all LaTeX tables to a .tex file."""
     tables = build_latex_tables(results, categories)
     with open(output_path, 'w', encoding='utf-8') as f:
@@ -1201,8 +1199,8 @@ def generate_latex_tables(results: Dict, output_path: str,
 # CLI PRESENTATION
 # ============================================================================
 
-def print_summary(results: Dict,
-                  categories: List[Tuple[str, List[str]]]):
+def print_summary(results: dict,
+                  categories: list[tuple[str, list[str]]]):
     """Print human-readable summary with confidence intervals."""
     print("\n" + "=" * 90)
     print("3-RUN AGREEMENT ANALYSIS - SUMMARY")
@@ -1216,9 +1214,9 @@ def print_summary(results: Dict,
               f"off-topic status undetermined (no decisive 3-run majority)")
 
     # --- Relevance strata ---
-    print(f"\n🎯 BY RELEVANCE SCORE (On-Topic Papers Only)")
-    print(f"   Testing: Does lower relevance correlate with "
-          f"higher uncertainty/contradiction?")
+    print("\n🎯 BY RELEVANCE SCORE (On-Topic Papers Only)")
+    print("   Testing: Does lower relevance correlate with "
+          "higher uncertainty/contradiction?")
     print("-" * 90)
 
     for low, high, label in RELEVANCE_BINS:
@@ -1337,13 +1335,13 @@ def print_summary(results: Dict,
             invalid_log = log_stats['invalid_entries']
             invalid_pct = log_stats['invalid_pct']
             invalid_fmt = format_with_ci(invalid_pct, invalid_log, total_log)
-            print(f"\n   📋 LOG ENTRY VALIDITY:")
+            print("\n   📋 LOG ENTRY VALIDITY:")
             print(f"   🗑️  Invalid entries (valid=False): "
                   f"{invalid_fmt:37s} Data generation issue")
 
             per_set = log_stats.get('per_set', {})
             if per_set:
-                print(f"\n   └─ By set:")
+                print("\n   └─ By set:")
                 for set_name, set_stats in per_set.items():
                     set_invalid_fmt = format_with_ci(
                         set_stats['invalid_pct'],
@@ -1354,7 +1352,7 @@ def print_summary(results: Dict,
         # Consensus / Runs stats
         consensus_stats = s.get('consensus_stats', {})
         if consensus_stats and consensus_stats.get('num_sets_analyzed', 0) > 0:
-            print(f"\n   🔄 CONSENSUS / RUNS STATS:")
+            print("\n   🔄 CONSENSUS / RUNS STATS:")
             print(f"      Total classification attempts: {consensus_stats['total_classify_runs']:,}")
             print(f"      Avg attempts per set:            {consensus_stats['avg_runs']:.2f}")
             print(f"      Max attempts for a single set:   {consensus_stats['max_runs']} "
@@ -1362,8 +1360,8 @@ def print_summary(results: Dict,
 
         # By-category breakdown (on-topic only)
         if not s['field_results'].empty and stratum_name == 'on_topic_only':
-            print(f"\n   📋 ALL FIELDS - Sorted by perfect agreement "
-                  f"(best → worst):")
+            print("\n   📋 ALL FIELDS - Sorted by perfect agreement "
+                  "(best → worst):")
 
             for group_name, group_fields in categories:
                 group_df = s['field_results'][
@@ -1408,7 +1406,7 @@ def print_summary(results: Dict,
                           f"U:{u_pct:5.1f}%")
 
     # --- Interpretation guide ---
-    print(f"\n" + "=" * 90)
+    print("\n" + "=" * 90)
     print("INTERPRETATION GUIDE")
     print("=" * 90)
 
@@ -1450,7 +1448,7 @@ On-Topic Results (n={n_obs:,} observations - CI not shown due to small sample):
     print("=" * 90 + "\n")
 
 
-def generate_latex_macros(results: Dict, categories: List[Tuple[str, List[str]]], output_path: str):
+def generate_latex_macros(results: dict, categories: list[tuple[str, list[str]]], output_path: str):
     """Generates a .tex file with \newcommand definitions for key statistics."""
     import pandas as pd
     

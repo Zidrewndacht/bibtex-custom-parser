@@ -1,13 +1,15 @@
 # web/__init__.py
-from flask import Flask
 import logging
 
+from flask import Flask
+
 from . import filters
-from .routes_ui import ui_bp
+from .routes_agreement import agreement_bp
 from .routes_data import data_bp
 from .routes_files import files_bp
-from .routes_agreement import agreement_bp
 from .routes_queue_logs import queue_logs_bp
+from .routes_ui import ui_bp
+
 
 def create_web_app(db_path):
     app = Flask(__name__, template_folder="templates", static_folder="static")

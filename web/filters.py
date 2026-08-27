@@ -1,6 +1,7 @@
 # web/filters.py
+
 from markupsafe import Markup
-import re
+
 
 # --- Jinja2-like filters ---
 def render_status(value):
@@ -23,9 +24,9 @@ def render_verified_by(value):
     Returns HTML string with emoji and tooltip if needed.
     """
     if value == 'user':
-        return f'<span title="User">👤</span>' # Human emoji
+        return '<span title="User">👤</span>' # Human emoji
     elif value is None or value == '':
-        return f'<span title="Unverified">❔</span>'
+        return '<span title="Unverified">❔</span>'
     else:
         # For any other string, value is a model name, show computer emoji with tooltip
         # Escape the model name for HTML attribute safety
@@ -44,9 +45,9 @@ def render_changed_by(value):
     Returns HTML string with emoji and tooltip if needed.
     """
     if value == 'user':
-        return f'<span title="User">👤</span>' # Human emoji
+        return '<span title="User">👤</span>' # Human emoji
     elif value is None or value == '':
-        return f'<span title="Unknown">❔</span>' # Question mark for null/empty
+        return '<span title="Unknown">❔</span>' # Question mark for null/empty
     else:
         # For any other string, value is a model name, show computer emoji with tooltip
         escaped_model_name = str(value).replace('"', '&quot;').replace("'", "&#39;")

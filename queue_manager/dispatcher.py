@@ -2,15 +2,19 @@
 import json
 import threading
 import time
+
 from shared import config
+
 from .logging_utils import (
-    log, log_file_dispatch, log_file_complete, log_file_error, 
-    Colors, _color_prefix
+    Colors,
+    _color_prefix,
+    log,
+    log_file_complete,
+    log_file_dispatch,
+    log_file_error,
 )
-from .state import (
-    state, log_queue_status, 
-    TASK_CLASSIFY, TASK_VERIFY, TASK_RECLASSIFY
-)
+from .state import TASK_CLASSIFY, TASK_RECLASSIFY, TASK_VERIFY, log_queue_status, state
+
 
 def _send_to_vllm_sync(task):
     """Synchronous vLLM call (runs in background thread)."""

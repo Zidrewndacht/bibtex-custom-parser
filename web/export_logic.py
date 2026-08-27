@@ -1,13 +1,16 @@
 # web/export_logic.py
-import os
 import base64
 import gzip
 import json
-import rjsmin
+import os
+
 import rcssmin
+import rjsmin
 from flask import render_template
 from markupsafe import Markup
+
 from shared import config
+
 
 def get_default_filter_values(hide_offtopic_param, year_from_param, year_to_param, min_page_count_param):
     """Extracts and validates filter parameters, returning default values if invalid/missing."""
@@ -267,11 +270,13 @@ def generate_xlsx_export_content(papers):
     import io
     import json
     from datetime import datetime
+
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.formatting.rule import ColorScaleRule
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.table import Table, TableStyleInfo
+
     from shared import config
 
     wb = Workbook()

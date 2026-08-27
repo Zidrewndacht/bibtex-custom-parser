@@ -13,10 +13,11 @@ Usage:
     python migrate_v1.2_to_v1.4.py <source_v1.2.db> <dest_v1.4.db>
 """
 
-import sqlite3
 import json
 import os
+import sqlite3
 import sys
+
 
 def parse_json(val):
     """Safely parse a JSON string into a dict, returning {} on failure."""
@@ -262,7 +263,7 @@ def migrate_db(src_path, dst_path):
     other_tables = src_cur.fetchall()
     for (table_name,) in other_tables:
         print(f"📋 Copying auxiliary table: {table_name}")
-        src_cur.execute(f"SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+        src_cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
         create_sql = src_cur.fetchone()[0]
         dst_cur.execute(create_sql)
         

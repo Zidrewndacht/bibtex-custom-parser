@@ -19,7 +19,6 @@ import sqlite3
 import sys
 from pathlib import Path
 
-
 PLACEHOLDER_TITLE = (
     "Database is missing or empty. Import BibTeX or restore from a backup "
     "to start working"

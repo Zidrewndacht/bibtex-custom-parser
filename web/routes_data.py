@@ -1,10 +1,12 @@
 # web/routes_data.py
 import os
 import tempfile
+
 import requests
-from flask import Blueprint, request, jsonify
-from shared import db
-from shared import config
+from flask import Blueprint, jsonify, request
+
+from shared import config, db
+
 from . import importer
 
 data_bp = Blueprint('data', __name__)
@@ -57,7 +59,7 @@ def classify_paper():
                 return jsonify({'status': 'started', 'message': f'Batch classification ({mode}) initiated.'})
         else:
             return jsonify({'status': 'error', 'message': 'Queue manager returned error'}), 500
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         # Queue manager unavailable
         return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
     
@@ -85,7 +87,7 @@ def verify_paper():
         else:
             return jsonify({'status': 'error', 'message': 'Queue manager returned error'}), 500
     
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         return jsonify({'status': 'error', 'message': 'Queue manager unavailable'}), 503
     
 @data_bp.route('/upload_bibtex', methods=['POST'])
@@ -118,7 +120,7 @@ def upload_bibtex():
         return jsonify({'status': 'success', 'message': f'{"BibTeX" if filename.endswith(".bib") else "CSV"} file imported successfully.'})
     except Exception as e:
         print(f"Error importing file: {e}")
-        return jsonify({'status': 'error', 'message': f'Import failed: {str(e)}'}), 500
+        return jsonify({'status': 'error', 'message': f'Import failed: {e!s}'}), 500
     finally:
         if tmp_file_path and os.path.exists(tmp_file_path):
             try: os.unlink(tmp_file_path)

@@ -1,15 +1,27 @@
 # queue/routes.py
-import os
 import json
+import os
 import threading
 from datetime import datetime, timezone
-from flask import Blueprint, request, jsonify
-from shared import config, db
-from .logging_utils import log, log_file_request, LOG_DIR, Colors, _color_prefix, _color_mode
 
+from flask import Blueprint, jsonify, request
+
+from shared import config, db
+
+from .logging_utils import (
+    LOG_DIR,
+    Colors,
+    _color_mode,
+    _color_prefix,
+    log,
+    log_file_request,
+)
 from .state import (
-    state, log_queue_status,
-    ClassificationStateMachine, VerificationStateMachine, ConsensusStateMachine
+    ClassificationStateMachine,
+    ConsensusStateMachine,
+    VerificationStateMachine,
+    log_queue_status,
+    state,
 )
 
 queue_bp = Blueprint('queue', __name__)
@@ -272,7 +284,7 @@ def handle_consensus_route():
         
         log(f"{_color_prefix('DB QUERY:', Colors.DB)} mode={_color_mode(mode)} found {len(paper_set_pairs)} paper×set pairs")
         if not paper_set_pairs:
-            log(f"WARNING: No paper×set pairs need consensus")
+            log("WARNING: No paper×set pairs need consensus")
             return jsonify({'status': 'queued', 'papers_queued': 0}), 200
 
         # 2. PREPARATION PHASE

@@ -1,14 +1,15 @@
 # browse_db.py
+import argparse
 import os
 import sys
-import argparse
 import threading
-import webbrowser
 import time
+import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from shared import config, db
 from web import create_web_app
+
 
 def open_browser(port):
     time.sleep(1.5)

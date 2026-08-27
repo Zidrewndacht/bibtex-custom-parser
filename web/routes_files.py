@@ -1,17 +1,27 @@
 # web/routes_files.py
-import os
 import io
-import tempfile
-import tarfile
-import shutil
-import zstandard as zstd
-from datetime import datetime
-from flask import Blueprint, request, jsonify, send_from_directory, send_file, Response, abort
-from shared import db
-from shared import config
-from . import export_logic
 import json
+import os
+import shutil
+import tarfile
+import tempfile
+from datetime import datetime
+
 import yaml
+import zstandard as zstd
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    jsonify,
+    request,
+    send_file,
+    send_from_directory,
+)
+
+from shared import config, db
+
+from . import export_logic
 
 files_bp = Blueprint('files', __name__)
 
@@ -188,7 +198,7 @@ def backup_database():
             
             return response
     except Exception as e:
-        print(f"Backup error: {str(e)}")
+        print(f"Backup error: {e!s}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @files_bp.route('/restore', methods=['POST'])
@@ -284,7 +294,7 @@ def restore_database():
             })
         
     except Exception as e:
-        print(f"Restore error: {str(e)}")
+        print(f"Restore error: {e!s}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @files_bp.route('/upload_pdf/<paper_id>', methods=['POST'])

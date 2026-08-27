@@ -1,13 +1,14 @@
 # shared/config.py
-import os
-import sys
-import yaml
-import requests
 import json
+import os
 import re
 import shutil
+import sys
 import threading
 from datetime import datetime, timezone
+
+import requests
+import yaml
 
 DEBUG_MODE = False  # True = Flask Dev Server (auto-reload). False = Waitress (Production).
 
@@ -365,7 +366,7 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
         response_data = response.json()
         model_name_from_response = response_data.get('model', model_name)
         
-        if 'choices' in response_data and response_data['choices']:
+        if response_data.get('choices'):
             message = response_data['choices'][0]['message']
             reasoning_content_raw = message.get('reasoning', '')
             if reasoning_content_raw is None or reasoning_content_raw == '':
@@ -391,27 +392,27 @@ def send_prompt_to_llm(prompt_text, server_url_base=None, model_name="default", 
             return None, model_name_from_response, None
 
     except requests.exceptions.ConnectionError as e:
-        error_msg = f"Connection Error: Could not connect to LLM server at {server_url_base}. {str(e)}"
+        error_msg = f"Connection Error: Could not connect to LLM server at {server_url_base}. {e!s}"
         print(f"Error sending {context}request to LLM server: {error_msg}")
         return None, model_name, error_msg
     except requests.exceptions.Timeout as e:
-        error_msg = f"Timeout Error: LLM server did not respond within the timeout period. {str(e)}"
+        error_msg = f"Timeout Error: LLM server did not respond within the timeout period. {e!s}"
         print(f"Error sending {context}request to LLM server: {error_msg}")
         return None, model_name, error_msg
     except requests.exceptions.RequestException as e:
-        error_msg = f"Request Error: {str(e)}"
+        error_msg = f"Request Error: {e!s}"
         if hasattr(e, 'response') and e.response:
             error_msg += f"\nResponse Text: {e.response.text}"
         print(f"Error sending {context}request to LLM server: {error_msg}")
         return None, model_name, error_msg
     except json.JSONDecodeError as e:
-        error_msg = f"JSON Decode Error: {str(e)}"
+        error_msg = f"JSON Decode Error: {e!s}"
         if 'response' in locals():
             error_msg += f"\nResponse Text: {response.text}"
         print(f"Error decoding JSON {context}response: {error_msg}")
         return None, model_name, error_msg
     except Exception as e:
-        error_msg = f"Unexpected Error: {type(e).__name__}: {str(e)}"
+        error_msg = f"Unexpected Error: {type(e).__name__}: {e!s}"
         print(f"Error during {context}LLM request: {error_msg}")
         return None, model_name, error_msg
 

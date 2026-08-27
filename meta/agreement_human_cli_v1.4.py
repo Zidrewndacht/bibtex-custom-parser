@@ -10,12 +10,10 @@ import sqlite3
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
 from scipy import stats
-
 
 # ============================================================================
 # Constants
@@ -28,7 +26,7 @@ PLACEHOLDER_TITLE = (
     "to start working"
 )
 
-OUTCOMES: List[Tuple[str, str]] = [
+OUTCOMES: list[tuple[str, str]] = [
     ("exact_match", "Exact Match"),
     ("partial_match", "Partial Match"),
     ("conflict", "Conflicts"),
@@ -42,7 +40,7 @@ OUTCOMES: List[Tuple[str, str]] = [
 # Config loading
 # ============================================================================
 
-def load_domain_config(config_path: Optional[str], ai_db_path: str) -> dict:
+def load_domain_config(config_path: str | None, ai_db_path: str) -> dict:
     """
     Load domain_config.yaml.
 
@@ -54,7 +52,7 @@ def load_domain_config(config_path: Optional[str], ai_db_path: str) -> dict:
       5. parent directory.
     """
 
-    def _load(path: Path) -> Optional[dict]:
+    def _load(path: Path) -> dict | None:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f)
@@ -104,7 +102,7 @@ def load_domain_config(config_path: Optional[str], ai_db_path: str) -> dict:
     return {}
 
 
-def discover_boolean_fields(domain_config: dict) -> List[str]:
+def discover_boolean_fields(domain_config: dict) -> list[str]:
     """
     Same field-discovery logic as the 3-run agreement script:
 
@@ -113,7 +111,7 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
     - include inclusion/none group fields as parent.key;
     - skip fields with render_type == 'text_presence'.
     """
-    fields: List[str] = ["is_offtopic"]
+    fields: list[str] = ["is_offtopic"]
 
     for group in domain_config.get("groups", []):
         ft = group.get("filter_type")
@@ -145,7 +143,7 @@ def discover_boolean_fields(domain_config: dict) -> List[str]:
 # Generic helpers
 # ============================================================================
 
-def get_val_by_path(d: Dict, path: str):
+def get_val_by_path(d: dict, path: str):
     """Safely get a value from a nested dict using dot-notation."""
     if not d or not path:
         return None
@@ -160,7 +158,7 @@ def get_val_by_path(d: Dict, path: str):
     return cur
 
 
-def parse_json_blob(blob) -> Dict:
+def parse_json_blob(blob) -> dict:
     """Parse a JSON blob column into a dict safely."""
     if not blob:
         return {}
@@ -206,7 +204,7 @@ def encode_tri_state(val) -> int:
 # ============================================================================
 
 def wilson_score_interval(successes: int, n: int,
-                          confidence: float = 0.95) -> Tuple[float, float]:
+                          confidence: float = 0.95) -> tuple[float, float]:
     if n == 0:
         return 0.0, 100.0
 
@@ -237,7 +235,7 @@ def format_with_ci(pct: float, count: int, total: int,
 # Alignment logic
 # ============================================================================
 
-def majority_value(values: List[int]) -> int:
+def majority_value(values: list[int]) -> int:
     """
     AI majority value from three encoded runs.
 
@@ -254,7 +252,7 @@ def majority_value(values: List[int]) -> int:
     return 0
 
 
-def classify_ai_internal_agreement(values: List[int]) -> str:
+def classify_ai_internal_agreement(values: list[int]) -> str:
     """
     Simplified 3-run AI agreement class:
 
@@ -276,7 +274,7 @@ def classify_ai_internal_agreement(values: List[int]) -> str:
     return "uncertain"
 
 
-def classify_human_ai_outcome(human_val: int, ai_values: List[int]) -> str:
+def classify_human_ai_outcome(human_val: int, ai_values: list[int]) -> str:
     """
     Mutually exclusive Human--AI alignment outcome.
 
@@ -319,8 +317,8 @@ def classify_human_ai_outcome(human_val: int, ai_values: List[int]) -> str:
 
 def load_alignment_data(user_db_path: str,
                         ai_db_path: str,
-                        fields: List[str],
-                        quiet: bool = False) -> Tuple[Dict[str, Dict], List[str]]:
+                        fields: list[str],
+                        quiet: bool = False) -> tuple[dict[str, dict], list[str]]:
     """
     Load both DBs and return only the exact intersection of paper IDs.
     """
@@ -364,7 +362,7 @@ def load_alignment_data(user_db_path: str,
         and ai_rows[pid].get("title") != PLACEHOLDER_TITLE
     ]
 
-    data: Dict[str, Dict] = {}
+    data: dict[str, dict] = {}
 
     for pid in common_ids:
         user_blob = parse_json_blob(user_rows[pid].get("classification"))
@@ -410,10 +408,10 @@ def load_alignment_data(user_db_path: str,
 # Analysis
 # ============================================================================
 
-def analyze_stratum(data: Dict[str, Dict],
-                    paper_ids: List[str],
-                    fields: List[str],
-                    stratum_name: str) -> Dict:
+def analyze_stratum(data: dict[str, dict],
+                    paper_ids: list[str],
+                    fields: list[str],
+                    stratum_name: str) -> dict:
     counts = Counter()
 
     for pid in paper_ids:
@@ -448,9 +446,9 @@ def analyze_stratum(data: Dict[str, Dict],
     return result
 
 
-def run_analysis(data: Dict[str, Dict],
-                 paper_ids: List[str],
-                 fields: List[str]) -> Dict:
+def run_analysis(data: dict[str, dict],
+                 paper_ids: list[str],
+                 fields: list[str]) -> dict:
     """
     Analyze the exact intersection set.
 
@@ -471,7 +469,7 @@ def run_analysis(data: Dict[str, Dict],
 # Output
 # ============================================================================
 
-def print_summary(results: Dict, fields: List[str], subset_label: str) -> None:
+def print_summary(results: dict, fields: list[str], subset_label: str) -> None:
     print("\n" + "=" * 90)
     print(f"HUMAN--AI ALIGNMENT SUMMARY ({subset_label})")
     print("=" * 90)
@@ -497,25 +495,25 @@ def print_summary(results: Dict, fields: List[str], subset_label: str) -> None:
     print("\n" + "=" * 90 + "\n")
 
 
-def generate_latex_table(results: Dict,
+def generate_latex_table(results: dict,
                          output_path: str,
                          subset_label: str) -> None:
     on = results["on_topic"]
     off = results["off_topic"]
     all_ = results["all"]
 
-    def cell(res: Dict, key: str) -> str:
+    def cell(res: dict, key: str) -> str:
         d = res[key]
         return rf"{d['pct']:.2f}\% ({d['count']:,})"
 
-    def ci(res: Dict, key: str) -> str:
+    def ci(res: dict, key: str) -> str:
         d = res[key]
         return (
             rf"\textit{{\footnotesize "
             rf"[{d['ci_lower']:.2f}\%, {d['ci_upper']:.2f}\%]}}"
         )
 
-    lines: List[str] = []
+    lines: list[str] = []
 
     lines.append(r"\begin{table*}[t]")
     lines.append(r"\centering")
@@ -567,7 +565,7 @@ def generate_latex_table(results: Dict,
 
     print(f"  LaTeX table saved to: {output_path}")
 
-def generate_human_latex_macros(results: Dict, subset_size: int, output_path: str) -> None:
+def generate_human_latex_macros(results: dict, subset_size: int, output_path: str) -> None:
     lines = [
         "% AUTO-GENERATED HUMAN-ALIGNMENT MACROS",
         f"\\newcommand{{\\StatHumanSubsetSize}}{{{subset_size}}}",

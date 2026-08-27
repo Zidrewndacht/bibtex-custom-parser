@@ -6,14 +6,15 @@ Power Usage vs. Paper Consensus Progress Visualization
 - DB path selectable, power CSV optional
 """
 
-import csv
-import sqlite3
 import argparse
+import csv
 import json
+import sqlite3
 from datetime import datetime
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
-from pathlib import Path
 
 # ============================================================================
 # CONFIGURATION - Paths relative to THIS script
@@ -216,7 +217,7 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     print(f"✅ Saved: {output_path}")
     
-    print(f"\n📊 Summary:")
+    print("\n📊 Summary:")
     print(f"   Papers processed: {rem_count[0] if rem_count else 0}")
     if times:
         print(f"   Duration: {times[-1]:.1f} min")
