@@ -23,19 +23,18 @@ from shared import config
 
 
 @pytest.fixture(autouse=True)
-def reset_seed_data(e2e_db_path, app_server, page): 
+def reset_seed_data(e2e_db_path, app_server):
     """
     Janitor fixture: Resets the DB to the pristine seed state before EVERY test.
     """
-    # Requesting `app_server` ensures the server is up.
-    # Requesting `e2e_db_path` gives us the exact string path safely.
     conn = sqlite3.connect(e2e_db_path)
     conn.execute("PRAGMA busy_timeout = 5000")
     cursor = conn.cursor()
     
-    # Wipe ALL papers including placeholder
-    cursor.execute("DELETE FROM papers")
-    # (no need to re-insert placeholder; seed papers are sufficient)
+    # CRITICAL FIX 1: Delete EVERYTHING, including the id='1' placeholder.
+    # The placeholder is only meant for empty databases. Since we seed p1-p5, 
+    # keeping id='1' pollutes the DOM and breaks sorting/search assertions.
+    cursor.execute("DELETE FROM papers") 
     
     # Re-insert the pristine seed papers
     for p in SEED_PAPERS:
@@ -44,15 +43,12 @@ def reset_seed_data(e2e_db_path, app_server, page):
         cursor.execute(f"INSERT INTO papers ({cols}) VALUES ({placeholders})", p)
     conn.commit()
     conn.close()
-    
-    # Reset the shared session page to the root URL before every test
-    page.goto(app_server)
-    page.wait_for_load_state("networkidle")
-    
     yield
 
+
+
 @pytest.fixture(autouse=True)
-def reset_browser_state(page):
+def reset_browser_state(page, app_server):
     """Reset browser UI state before each test."""
     # Close any open modals
     page.keyboard.press("Escape")
@@ -66,12 +62,15 @@ def reset_browser_state(page):
         search.fill("")
     page.wait_for_timeout(200)
 
-    # Reset URL to base (clears all filter/sort/detail state)
-    page.goto(page.url.split("?")[0])
+    # CRITICAL FIX 2: Always return to the root app URL. 
+    # The tests themselves (like test_html_export.py) will explicitly navigate 
+    # to their target pages (e.g., /static_export?download=0) as their first step.
+    # Using page.url.split("?")[0] is dangerous because if the previous test 
+    # was on /static_export, stripping the query string removes `download=0`, 
+    # triggering a file download and crashing Playwright before the next test starts.
+    page.goto(app_server)
     page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(300)
 
-    yield
 
 def _free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
