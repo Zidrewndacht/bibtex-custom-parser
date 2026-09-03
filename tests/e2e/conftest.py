@@ -173,7 +173,7 @@ def app_server(e2e_db_path):
     conn = sqlite3.connect(e2e_db_path)
     conn.execute("PRAGMA busy_timeout = 5000")
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM papers WHERE id != '1'")
+    cursor.execute("DELETE FROM papers")
     for p in SEED_PAPERS:
         cols = ", ".join(p.keys())
         placeholders = ", ".join(f":{k}" for k in p.keys())
@@ -219,7 +219,7 @@ def page(app_server, request): # Ensure 'request' is in the arguments
         page = context.new_page()
         
         if is_headed:
-            page.set_viewport_size({"width": 1880, "height": 1200})
+            page.set_viewport_size({"width": 1920, "height": 1440})
             
         page.goto(app_server)
         
