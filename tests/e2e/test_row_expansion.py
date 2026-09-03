@@ -1,5 +1,4 @@
 """Detail and History row expansion via AJAX."""
-import pytest
 
 
 class TestDetailRow:

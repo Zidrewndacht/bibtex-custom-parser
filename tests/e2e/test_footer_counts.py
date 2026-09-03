@@ -1,5 +1,6 @@
 from conftest import visible_ids
 
+
 class TestFooterCounts:
     def test_visible_count_matches_rows(self, page):
         page.wait_for_timeout(600)

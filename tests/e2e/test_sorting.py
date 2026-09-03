@@ -1,5 +1,4 @@
 """Column sorting: click headers, verify order and indicators."""
-import pytest
 from conftest import visible_ids
 
 

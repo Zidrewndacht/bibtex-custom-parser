@@ -1,8 +1,11 @@
 """Client-side filtering: tri-state checkboxes, inclusion, hide-approved."""
 
 import re
+
 from playwright.sync_api import expect
-from conftest import visible_ids, VISIBLE_ROW
+
+from conftest import VISIBLE_ROW, visible_ids
+
 
 class TestTriStateCheckbox:
     def test_initial_state_shows_all_ontopic(self, page):

@@ -1,6 +1,4 @@
 """URL serialization: filters, sort, and detail state survive reload."""
-import pytest
-from conftest import visible_ids
 
 
 class TestURLState:

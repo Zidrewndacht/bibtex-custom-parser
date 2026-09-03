@@ -1,4 +1,3 @@
-import pytest
 
 class TestCertaintyRendering:
     def test_conflict_shows_warning(self, page):

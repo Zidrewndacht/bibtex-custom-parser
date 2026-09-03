@@ -1,6 +1,6 @@
 import json
-import os
 import socket
+import sqlite3
 import threading
 import time
 
@@ -11,7 +11,7 @@ from werkzeug.serving import make_server
 # These imports are SAFE because root conftest.py already set the env vars
 from shared import db
 from web import create_web_app
-import sqlite3
+
 
 @pytest.fixture(scope="session")
 def e2e_db_path(tmp_path_factory):

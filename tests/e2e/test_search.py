@@ -1,5 +1,4 @@
 """Search box: filters visible + hidden data, F3 shortcut, clear button."""
-import pytest
 from conftest import visible_ids
 
 

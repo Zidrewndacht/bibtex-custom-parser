@@ -1,6 +1,5 @@
 
 """Modal open/close: Stats, About, Batch, Export."""
-import pytest
 
 
 class TestAboutModal:

@@ -102,7 +102,7 @@ def is_binary_file(file_path):
             for i in range(0, len(chunk) - 1, 2):
                 if i + 1 < len(chunk):
                     # UTF-16 LE: ASCII character followed by null byte
-                    if chunk[i] != 0 and chunk[i + 1] == 0:
+                    if chunk[i] != 0 and chunk[i + 1] == 0: #noqa SIM114
                         utf16_pattern_count += 1
                     # UTF-16 BE: null byte followed by ASCII character
                     elif chunk[i] == 0 and chunk[i + 1] != 0:

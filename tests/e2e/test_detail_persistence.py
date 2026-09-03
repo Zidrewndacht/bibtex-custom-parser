@@ -1,6 +1,6 @@
 """Tests that detail row edits are saved to the server and persist across reloads."""
-import pytest
 from playwright.sync_api import expect
+
 
 class TestFormSaveCorners:
     def test_numeric_fields_and_paywall_trigger(self, page):

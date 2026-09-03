@@ -1,7 +1,9 @@
 import json
+
 import pytest
-from shared import db
+
 from meta import agreement_core
+from shared import db
 
 
 @pytest.fixture()
