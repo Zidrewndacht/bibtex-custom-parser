@@ -11,7 +11,7 @@ init(autoreset=True)
 # FILE LOGGING (Append-only JSON lines, separate files by category)
 # ============================================================================
 
-LOG_DIR = "logs"
+LOG_DIR = os.environ.get("PARSA_LOG_DIR", "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 def _log_to_file(filename: str, **fields):
