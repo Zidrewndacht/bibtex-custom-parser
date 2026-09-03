@@ -12,12 +12,13 @@ import yaml
 
 DEBUG_MODE = False  # True = Flask Dev Server (auto-reload). False = Waitress (Production).
 
-# --- Paths and Directories ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
-DOMAIN_CONFIG_PATH = os.path.join(BASE_DIR, 'domain_config.yaml')
+# --- PATH OVERRIDES (Crucial for Test Isolation) ---
+# Allow environment variables to override default paths for testing/isolation
+BASE_DIR = os.environ.get("PARSA_BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# --- Example Config Paths ---
+CONFIG_PATH = os.environ.get("PARSA_CONFIG_PATH", os.path.join(BASE_DIR, 'config.yaml'))
+DOMAIN_CONFIG_PATH = os.environ.get("PARSA_DOMAIN_CONFIG_PATH", os.path.join(BASE_DIR, 'domain_config.yaml'))
+
 EXAMPLE_CONFIG_DIR = os.path.join(BASE_DIR, 'example_config')
 EXAMPLE_CONFIG_PATH = os.path.join(EXAMPLE_CONFIG_DIR, 'config.example.yaml')
 EXAMPLE_DOMAIN_CONFIG_PATH = os.path.join(EXAMPLE_CONFIG_DIR, 'domain_config.example.yaml')
@@ -41,12 +42,13 @@ def ensure_config_files():
 # Ensure files exist before proceeding to load them
 ensure_config_files()
 
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+DATA_DIR = os.environ.get("PARSA_DATA_DIR", os.path.join(BASE_DIR, 'data'))
 os.makedirs(DATA_DIR, exist_ok=True)
-DATABASE_FILE = os.path.join(DATA_DIR, 'db.sqlite')
-PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf')
+DATABASE_FILE = os.environ.get("PARSA_DATABASE_FILE", os.path.join(DATA_DIR, 'db.sqlite'))
+PDF_STORAGE_DIR = os.environ.get("PARSA_PDF_DIR", os.path.join(DATA_DIR, 'pdf'))
 os.makedirs(PDF_STORAGE_DIR, exist_ok=True)
-ANNOTATED_PDF_STORAGE_DIR = os.path.join(DATA_DIR, 'pdf_annotated')
+ANNOTATED_PDF_STORAGE_DIR = os.environ.get("PARSA_PDF_ANNOTATED_DIR", os.path.join(DATA_DIR, 'pdf_annotated'))
 os.makedirs(ANNOTATED_PDF_STORAGE_DIR, exist_ok=True)
 PERFORMANCE_LOG_FILE = os.path.join(DATA_DIR, 'performance_log.jsonl')
 

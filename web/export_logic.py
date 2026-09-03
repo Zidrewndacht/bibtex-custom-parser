@@ -407,7 +407,10 @@ def generate_xlsx_export_content(papers):
                 
             cert = None
             if cert_dict == 'main_certainty':
-                cert = get_val(certainty, key)
+                # main_certainty uses flat dot-notation keys (e.g., 'features.smt')
+                cert = certainty.get(key)
+                if cert is None:
+                    cert = get_val(certainty, key) # Fallback for nested
                 
             excel_val = format_excel_value(val, key)
             

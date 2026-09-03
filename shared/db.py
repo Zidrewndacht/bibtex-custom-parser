@@ -309,12 +309,21 @@ def update_paper_custom_fields(paper_id, data, changed_by="user"):
             # Automated paywall detection
             is_paywalled = 'paywalled' in str(current_user_trace).lower()
             has_pdf = bool(paper.get('pdf_filename'))
-            if is_paywalled and not has_pdf and paper.get('pdf_state') != "paywalled":
-                update_fields.append("pdf_state = ?")
-                update_values.append("paywalled")
-            elif not is_paywalled and not has_pdf and paper.get('pdf_state') == "paywalled":
-                update_fields.append("pdf_state = ?")
-                update_values.append("none")
+            
+            if has_pdf:
+                # PDF existence takes absolute priority. 
+                # If it was somehow marked paywalled, fix it to PDF.
+                if paper.get('pdf_state') == "paywalled":
+                    update_fields.append("pdf_state = ?")
+                    update_values.append("PDF")
+            else:
+                # No PDF exists: state depends entirely on the user's comment text
+                if is_paywalled and paper.get('pdf_state') != "paywalled":
+                    update_fields.append("pdf_state = ?")
+                    update_values.append("paywalled")
+                elif not is_paywalled and paper.get('pdf_state') == "paywalled":
+                    update_fields.append("pdf_state = ?")
+                    update_values.append("none")
             data.pop('user_trace')
 
         if 'verified' in data:
@@ -459,8 +468,21 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
                 main_output_log[path] = avg
                 continue
 
-            # --- NEW: Handle Text Fields (Strings) ---
-            is_text = any(isinstance(v, str) and v.strip() for v in values)
+            # --- Handle Text Fields (Strings) ---
+            # FIX: Exclude stringified booleans and numbers from being treated as text fields.
+            # Otherwise, LLMs returning "false" or "0" silently bypass boolean voting and get 'solid' certainty.
+            def _is_real_text(v):
+                if not isinstance(v, str): return False
+                s = v.strip().lower()
+                if s in ('true', 'false', 'yes', 'no', '1', '0', 'null', 'none', ''):
+                    return False
+                try:
+                    float(s)
+                    return False
+                except ValueError:
+                    return True
+
+            is_text = any(_is_real_text(v) for v in values)
             if is_text:
                 seen_lower = set()
                 unique_vals = []
