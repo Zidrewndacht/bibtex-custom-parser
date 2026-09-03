@@ -37,3 +37,4 @@ config.yaml
 domain_config.yaml
 meta/agreement_3sets_cli_v1.4.py
 TODO
+.coverage

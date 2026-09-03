@@ -879,7 +879,10 @@ tr.filter-hidden {
 
 
 .modal-small-content {
-    width: calc(var(--min-width) - 100px);
+    /* why? This breaks the about modal when the configured amount of columns is small*/
+    /*width: calc(var(--min-width) - 100px); */
+    width: 1530px;
+    min-width: 1530px;
     grid-template-columns: 1fr 320px;
     /*! min-width: calc(var(--min-width) - 0); */
 }

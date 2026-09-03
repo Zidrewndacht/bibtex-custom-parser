@@ -18,9 +18,12 @@ def e2e_db_path(tmp_path_factory):
     """Provides the temporary database path for the entire test session."""
     return str(tmp_path_factory.mktemp("e2e") / "test.sqlite")
 
-# 4. Update reset_seed_data to request e2e_db_path directly
+
+from shared import config
+
+
 @pytest.fixture(autouse=True)
-def reset_seed_data(e2e_db_path, app_server):
+def reset_seed_data(e2e_db_path, app_server, page): 
     """
     Janitor fixture: Resets the DB to the pristine seed state before EVERY test.
     """
@@ -39,9 +42,12 @@ def reset_seed_data(e2e_db_path, app_server):
         cols = ", ".join(p.keys())
         placeholders = ", ".join(f":{k}" for k in p.keys())
         cursor.execute(f"INSERT INTO papers ({cols}) VALUES ({placeholders})", p)
-        
     conn.commit()
     conn.close()
+    
+    # Reset the shared session page to the root URL before every test
+    page.goto(app_server)
+    page.wait_for_load_state("networkidle")
     
     yield
 
@@ -166,7 +172,9 @@ SEED_PAPERS = [
 # 3. Update app_server to request e2e_db_path
 @pytest.fixture(scope="session")
 def app_server(e2e_db_path):
-    """Starts the Flask server and seeds the initial data."""
+    # Point the global config to the test DB so /agreement_report works
+    config.DATABASE_FILE = e2e_db_path 
+    
     db.init_db(e2e_db_path)
     
     # Initial seed

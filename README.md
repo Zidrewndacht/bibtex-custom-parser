@@ -69,6 +69,9 @@ https://github.com/user-attachments/assets/3a12f927-1050-485e-b6f7-5df151685a58
 4.  **Interactive Help**:
     - Click the **?** button in the top‑right corner for a detailed guide on symbols, keyboard shortcuts (F1 for help, F3 for search, Ctrl+S to save), and UI features.
 
+5. **Testing**:
+    - This uses Pytest, Playwright, pytest-xdist and pytest-cov coverage for unit, integration and E2E testing. To run: `pytest --cov=. --cov-report=term-missing -n auto` for headless testing with coverage report or `python -m pytest -v --headed --slow-mo 500` for Playwright tests with a visible browser.
+    
 ---
 
 

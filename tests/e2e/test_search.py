@@ -1,8 +1,9 @@
 # tests/e2e/test_search.py
 """Search box: filters visible + hidden data, F3 shortcut, clear button."""
-import pytest
 from playwright.sync_api import expect
-from conftest import visible_ids, VISIBLE_ROW
+
+from conftest import VISIBLE_ROW, visible_ids
+
 
 class TestSearch:
     def test_search_by_title(self, page):

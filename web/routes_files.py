@@ -133,6 +133,10 @@ def _restore_user_prompt_templates(temp_dir: str, extracted_domain_config_path: 
 def backup_database():
     """Creates a backup of the database and related files."""
     try:
+        # CRITICAL FIX: Checkpoint WAL to ensure all data is flushed to the main DB file
+        with db.get_db() as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"{timestamp}.parsa.tzst"
         
