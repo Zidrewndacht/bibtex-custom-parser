@@ -206,7 +206,7 @@ def convert_csv_to_bibtex(csv_file_path: str) -> list[str]:
                           entry.startswith(f"@book{{{key}") for entry in bibtex_entries):
                     key = f"{original_key}{counter}"
                     counter += 1
-                
+              
                 # Determine entry type using the Document Identifier field
                 doc_identifier = row.get("Document Identifier", "").strip().lower()
                 if "conference" in doc_identifier:

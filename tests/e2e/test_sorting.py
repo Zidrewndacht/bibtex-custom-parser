@@ -10,7 +10,7 @@ class TestBasicSorting:
         # First click: DESC (newest first)
         header.click()
         page.wait_for_timeout(600)
-        ids = visible_ids(page)
+        visible_ids(page)
         years = page.eval_on_selector_all(
             "tr[data-paper-id]:not(.filter-hidden)",
             "rows => rows.map(r => r.cells[2].textContent.trim())"

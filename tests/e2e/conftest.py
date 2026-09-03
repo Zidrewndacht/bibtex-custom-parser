@@ -39,7 +39,7 @@ def reset_seed_data(e2e_db_path, app_server):
     # Re-insert the pristine seed papers
     for p in SEED_PAPERS:
         cols = ", ".join(p.keys())
-        placeholders = ", ".join(f":{k}" for k in p.keys())
+        placeholders = ", ".join(f":{k}" for k in p)
         cursor.execute(f"INSERT INTO papers ({cols}) VALUES ({placeholders})", p)
     conn.commit()
     conn.close()
@@ -183,7 +183,7 @@ def app_server(e2e_db_path):
     cursor.execute("DELETE FROM papers")
     for p in SEED_PAPERS:
         cols = ", ".join(p.keys())
-        placeholders = ", ".join(f":{k}" for k in p.keys())
+        placeholders = ", ".join(f":{k}" for k in p)
         cursor.execute(f"INSERT INTO papers ({cols}) VALUES ({placeholders})", p)
     conn.commit()
     conn.close()

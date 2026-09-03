@@ -35,7 +35,7 @@ class TestDetailRow:
         toggle.click()
         page.wait_for_timeout(1000)
 
-        history = page.locator("tr[data-paper-id='p2']")
+        page.locator("tr[data-paper-id='p2']")
         # History row is two siblings after main (detail + history)
         history_row = page.evaluate("""() => {
             const main = document.querySelector("tr[data-paper-id='p2']");

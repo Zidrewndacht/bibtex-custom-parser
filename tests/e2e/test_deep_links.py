@@ -49,7 +49,7 @@ class TestDeepLinkNavigation:
         page.wait_for_timeout(1500)  # Give time for history to expand
 
         # The history row should be expanded
-        p1_main = page.locator("tr[data-paper-id='p1']")
+        page.locator("tr[data-paper-id='p1']")
         history_expanded = page.evaluate("""() => {
             const main = document.querySelector("tr[data-paper-id='p1']");
             if (!main) return false;

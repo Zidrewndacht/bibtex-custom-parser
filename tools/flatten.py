@@ -88,7 +88,7 @@ def is_binary_file(file_path):
             return False  # Empty file is not binary
         
         # Check for UTF-16 BOM
-        if chunk.startswith(b'\xff\xfe') or chunk.startswith(b'\xfe\xff'):
+        if chunk.startswith((b'\xff\xfe', b'\xfe\xff')):
             # This is UTF-16 with BOM, treat as text
             return False
         
@@ -129,10 +129,7 @@ def is_binary_file(file_path):
         printable_ratio = printable_chars / len(chunk) if len(chunk) > 0 else 0
         
         # If less than 70% is printable, consider it binary
-        if printable_ratio < 0.7:
-            return True
-        else:
-            return False
+        return printable_ratio < 0.7
                 
     except Exception:
         return True

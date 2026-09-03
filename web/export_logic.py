@@ -589,7 +589,7 @@ def generate_xlsx_export_content(papers):
         if not paper_paths:
             continue
             
-        for path in sorted(list(paper_paths)):
+        for path in sorted(paper_paths):
             v1 = get_val(s1, path)
             v2 = get_val(s2, path)
             v3 = get_val(s3, path)

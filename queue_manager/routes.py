@@ -118,7 +118,7 @@ def handle_classify_route():
                 state.enqueue(task)
             total_tasks += 1
 
-        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        unique_papers = len({p[0] for p in paper_set_pairs})
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
@@ -199,7 +199,7 @@ def handle_verify_route():
                 state.enqueue(task)
             total_tasks += 1
 
-        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        unique_papers = len({p[0] for p in paper_set_pairs})
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200
@@ -300,7 +300,7 @@ def handle_consensus_route():
                 state.enqueue(task)
                 total_tasks += 1
 
-        unique_papers = len(set(p[0] for p in paper_set_pairs))
+        unique_papers = len({p[0] for p in paper_set_pairs})
         log(f"{_color_prefix('BATCH ENQUEUE:', Colors.BATCH)} papers={unique_papers} tasks={total_tasks}")
         log_queue_status()
         return jsonify({'status': 'queued', 'papers_queued': len(paper_set_pairs), 'tasks_queued': total_tasks}), 200

@@ -49,7 +49,7 @@ def classify_paper():
             timeout=None  # No timeout for single-paper requests
         )
         if response.status_code == 200:
-            result = response.json()
+            response.json()
             if mode == 'id':
                 # Single paper - fetch updated data and return
                 updated_data = db.fetch_updated_paper_data(paper_id)
@@ -78,7 +78,7 @@ def verify_paper():
         )
         
         if response.status_code == 200:
-            result = response.json()
+            response.json()
             if mode == 'id':
                 updated_data = db.fetch_updated_paper_data(paper_id)
                 return jsonify(updated_data)

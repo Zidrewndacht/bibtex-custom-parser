@@ -176,7 +176,7 @@ def plot(power_data, remaining_data, output_path, has_power=True):
     C_REM = '#1f77b4'
     C_PWR = "#c7290d"
     
-    fig, ax1 = plt.subplots(figsize=(7, 5))
+    _fig, ax1 = plt.subplots(figsize=(7, 5))
     
     ax1.set_xlabel('Elapsed Time (minutes)', fontsize=14, fontweight='bold')
     # ax1.set_ylabel('Remaining Papers', fontsize=14, fontweight='bold', color=C_REM)
