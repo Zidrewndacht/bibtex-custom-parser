@@ -1,0 +1,12 @@
+frontend_port: 5001
+queue_manager_port: 6001
+default_year_from: 2020
+default_year_to: 2026
+default_min_page_count: 1
+llm_server_url: "http://localhost:8086"
+max_concurrent_workers_classify: 10
+max_concurrent_workers_verify: 10
+max_concurrent_workers_reclassify: 10
+min_concurrent_workers: 10
+max_consensus_iterations: 3
+fresh_classify_fallback_iteration: 2

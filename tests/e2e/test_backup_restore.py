@@ -99,8 +99,12 @@ class TestRestore:
         file_chooser = fc_info.value
         file_chooser.set_files(backup_path)
 
-        # Wait for restore to complete
-        page.wait_for_timeout(3000)
+        # Wait for the actual restore response before proceeding
+        with page.expect_response(
+            lambda resp: "/restore" in resp.url and resp.status == 200,
+            timeout=10000
+        ):
+            file_chooser.set_files(backup_path)
 
         # Step 4: Verify data was restored (modification should be gone)
         page.reload(wait_until="networkidle")

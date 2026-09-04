@@ -50,24 +50,20 @@ def reset_seed_data(e2e_db_path, app_server):
 @pytest.fixture(autouse=True)
 def reset_browser_state(page, app_server):
     """Reset browser UI state before each test."""
-    # Close any open modals
+    # Close any open modals (best effort before teardown)
     page.keyboard.press("Escape")
     page.wait_for_timeout(100)
-    page.keyboard.press("Escape")  # double-tap for stacked modals
+    page.keyboard.press("Escape")
     page.wait_for_timeout(100)
 
-    # Clear search
-    search = page.locator("#search-input")
-    if search.count() > 0:
-        search.fill("")
-    page.wait_for_timeout(200)
-
-    # CRITICAL FIX 2: Always return to the root app URL. 
-    # The tests themselves (like test_html_export.py) will explicitly navigate 
-    # to their target pages (e.g., /static_export?download=0) as their first step.
-    # Using page.url.split("?")[0] is dangerous because if the previous test 
-    # was on /static_export, stripping the query string removes `download=0`, 
-    # triggering a file download and crashing Playwright before the next test starts.
+    # CRITICAL FIX: Force a hard navigation.
+    # Playwright/Chromium will silently skip reloading if the target URL 
+    # is identical (or effectively identical) to the current URL. 
+    # Navigating to 'about:blank' guarantees the current DOM is completely torn down.
+    page.goto("about:blank")
+    
+    # Now navigate to the app. This guarantees a fresh HTML load from the server, 
+    # wiping all client-side JS state, open modals, and filled search boxes.
     page.goto(app_server)
     page.wait_for_load_state("networkidle")
 

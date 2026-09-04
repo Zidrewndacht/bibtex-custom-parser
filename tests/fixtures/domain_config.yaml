@@ -1,0 +1,73 @@
+# tests/fixtures/domain_config.yaml
+
+domain_name: "Test Domain"
+
+editable_fields:
+  - label: "Test Area"
+    json_path: "test_area"
+  - label: "Test Model"
+    json_path: "technique.model"
+    stats_list: true
+  - json_path: test_text
+    label: Test Text
+    stats_list: false
+
+groups:
+  # 1. Single-field tri-state (No friendly_name to save header space)
+  - name: "test_tri"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "is_test_bool"
+    label: "Test Bool"
+    header_class: "inferred-header"
+
+  # 2. Single-field tri-state (No friendly_name)
+  - name: "test_survey"
+    friendly_name: ""
+    filter_type: tri_state
+    json_path: "is_survey"
+    label: "Survey"
+    header_class: "inferred-header"
+
+  # 3. Multi-field inclusion (Short friendly_name)
+  - name: "test_inclusion"
+    friendly_name: "Features"
+    filter_type: inclusion
+    json_path: "features"
+    header_class: "inferred-header-2"
+    fields:
+      - key: "feat_a"
+        label: "Feature A"
+        highlight: true
+      - key: "feat_b"
+        label: "Feature B"
+        highlight: true
+      - key: "feat_c"
+        label: "Feature C"
+        highlight: true
+      - key: "other"
+        label: "Other"
+        render_type: text_presence
+        highlight: true
+
+  # 4. Multi-field none (Short friendly_name)
+  - name: "test_none"
+    friendly_name: "Techniques"
+    filter_type: none
+    json_path: "technique"
+    header_class: "inferred-header-3"
+    fields:
+      - key: "method_x"
+        label: "Method X"
+      - key: "method_y"
+        label: "Method Y"
+      - key: "method_z"
+        label: "Method Z"
+
+prompts:
+  classify_instructions: prompt_templates/configurable_classify_instructions.txt
+  classify_output_template: prompt_templates/configurable_classify_output_template.txt
+  few_shot_examples: prompt_templates/configurable_few_shot_examples.txt
+
+theme:
+  primary_ui_color: "hsl(188, 31%, 29%)"

@@ -33,8 +33,8 @@ backup_before_restore.parsa.tzst
 flattened_code.txt
 flattened_code.md
 
-config.yaml
-domain_config.yaml
+/config.yaml
+/domain_config.yaml
 meta/agreement_3sets_cli_v1.4.py
 TODO
 .coverage

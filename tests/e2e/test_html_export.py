@@ -95,8 +95,6 @@ class TestHTMLExportFiltering:
         page.wait_for_timeout(600)
         
         cb = page.locator(".tri-state-checkbox[data-filter-group='test_tri']")
-        if cb.count() == 0: 
-            pytest.skip("test_tri group not in export")
             
         cb.click(force=True)
         page.wait_for_timeout(600)

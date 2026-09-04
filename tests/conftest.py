@@ -1,6 +1,6 @@
+# tests/conftest.py
 import json
 import os
-
 import pytest
 
 # ==============================================================================
@@ -9,13 +9,31 @@ import pytest
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures')
 
+# Ensure test fixtures actually exist because otherwise the application code 
+# would default to config.sample.yaml and domain_config.sample.yaml, which are NOT
+# test subjects.
+REQUIRED_TEST_FIXTURES = [
+    os.path.join(FIXTURES_DIR, 'config.yaml'),
+    os.path.join(FIXTURES_DIR, 'domain_config.yaml')
+]
+
+for fixture_path in REQUIRED_TEST_FIXTURES:
+    if not os.path.exists(fixture_path):
+        # Using pytest.UsageError stops the entire test session immediately 
+        # with a highly visible red error block.
+        raise pytest.UsageError(
+            f"\n\nFATAL: Test fixture missing at:\n  {fixture_path}\n\n"
+            "Tests cannot run with production fallback data. "
+            "Please ensure the synthetic test fixtures are committed to version control.\n"
+        )
+
+# --- NOW safe to set env vars and import app code ---
 os.environ["PARSA_BASE_DIR"] = ROOT_DIR
 os.environ["PARSA_CONFIG_PATH"] = os.path.join(FIXTURES_DIR, 'config.yaml')
 os.environ["PARSA_DOMAIN_CONFIG_PATH"] = os.path.join(FIXTURES_DIR, 'domain_config.yaml')
 os.environ["PARSA_DATA_DIR"] = os.path.join(FIXTURES_DIR, 'dummy_data')
 os.makedirs(os.environ["PARSA_DATA_DIR"], exist_ok=True)
 
-# --- NOW safe to import app code ---
 from shared import config, db
 
 

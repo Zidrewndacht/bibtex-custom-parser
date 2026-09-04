@@ -16,22 +16,23 @@ class TestTriStateCheckbox:
     def test_cycle_tri_state_checkbox(self, page):
         # Matches the 'test_tri' group in the synthetic domain config
         cb = page.locator(".tri-state-checkbox[data-filter-group='test_tri']")
-        
+    
         # State 1: only_true -> hides p4 (is_test_bool=False)
-        cb.click(force=True)
+        # FIX: Use JS .click() to bypass headless Chromium's transformed-checkbox click bug
+        cb.evaluate("el => el.click()")
         page.wait_for_timeout(400)
         ids = visible_ids(page)
         assert "p4" not in ids
-
+    
         # State 2: only_false -> only p4
-        cb.click(force=True)
+        cb.evaluate("el => el.click()")
         page.wait_for_timeout(400)
         ids = visible_ids(page)
         assert "p4" in ids
         assert "p1" not in ids
-
+    
         # State 3: back to all
-        cb.click(force=True)
+        cb.evaluate("el => el.click()")
         page.wait_for_timeout(400)
         ids = visible_ids(page)
         assert len(ids) >= 4
