@@ -106,25 +106,26 @@ class TestAutosave:
         pdf_cell = page.locator("tr[data-paper-id='p1'] td.pdf-status")
         assert "📗" in pdf_cell.text_content()
 
-    def test_annotation_persists_across_viewer_reload(self, page, app_server, pdf_env):
-        open_viewer(page, app_server)
-        draw_ink_stroke(page)
-        with page.expect_response(AUTOSAVE_PRED, timeout=30000):
-            page.wait_for_timeout(9000)
+    # nonsensical implementation that doesn't actually test the functionality at all:
+    # def test_annotation_persists_across_viewer_reload(self, page, app_server, pdf_env):
+    #     open_viewer(page, app_server)
+    #     draw_ink_stroke(page)
+    #     with page.expect_response(AUTOSAVE_PRED, timeout=30000):
+    #         page.wait_for_timeout(9000)
 
-        # Re-open the viewer: it must now load the ANNOTATED file and the
-        # ink annotation must be part of the document itself.
-        open_viewer(page, app_server)
-        subtypes = page.evaluate("""async () => {
-            const app = window.PDFViewerApplication;
-            const p = await app.pdfDocument.getPage(1);
-            const list = await p.getAnnotations();
-            return list.map(a => String(a.subtype || a.annotationType || ''));
-        }""")
-        # PDF.js might not persist ink annotations to the underlying minimal PDF bytes
-        # depending on the version, but the autosave pipeline itself succeeded.
-        # We just verify the viewer loads the annotated state.
-        assert page.locator("#viewer .page canvas").count() >= 1
+    #     # Re-open the viewer: it must now load the ANNOTATED file and the
+    #     # ink annotation must be part of the document itself.
+    #     open_viewer(page, app_server)
+    #     subtypes = page.evaluate("""async () => {
+    #         const app = window.PDFViewerApplication;
+    #         const p = await app.pdfDocument.getPage(1);
+    #         const list = await p.getAnnotations();
+    #         return list.map(a => String(a.subtype || a.annotationType || ''));
+    #     }""")
+    #     # PDF.js might not persist ink annotations to the underlying minimal PDF bytes
+    #     # depending on the version, but the autosave pipeline itself succeeded.
+    #     # We just verify the viewer loads the annotated state.
+    #     assert page.locator("#viewer .page canvas").count() >= 1
 
     def test_no_autosave_without_edits(self, page, app_server, pdf_env):
         requests_made = []

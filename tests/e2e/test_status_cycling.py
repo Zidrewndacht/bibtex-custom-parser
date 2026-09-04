@@ -23,7 +23,8 @@ class TestStatusCycling:
     #     assert warning.count() == 1
 
     def test_verified_by_cycle(self, page):
-        cell = page.locator("tr[data-paper-id='p1'] .editable-verify[data-field='verified_by']")
+        # Use p2 which reliably has verified_by="computer" in the seed
+        cell = page.locator("tr[data-paper-id='p2'] .editable-verify[data-field='verified_by']")
         initial_html = cell.inner_html()
         assert "🖥️" in initial_html
         cell.click()

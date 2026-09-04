@@ -7,15 +7,16 @@ from playwright.sync_api import expect
 
 class TestHTMLExportLoads:
     def test_export_page_loads(self, page, app_server):
-        # Added hide_offtopic=0 to ensure all 5 seed papers are included
-        page.goto(f"{app_server}/static_export?download=0&hide_offtopic=0")
+        # Pass explicit year range to include p6 (2019), which is outside the default config range
+        page.goto(f"{app_server}/static_export?download=0&hide_offtopic=0&year_from=2000&year_to=2030&min_page_count=0")
+
         # Wait for the decompressed page to render the table (handles document.write delay)
         page.wait_for_selector("#papersTable", timeout=15000)
         
         table = page.locator("#papersTable")
         expect(table).to_be_visible()
         rows = page.locator("#papersTable tbody tr[data-paper-id]")
-        assert rows.count() >= 5
+        assert rows.count() >= 6
 
     def test_export_contains_all_papers(self, page, app_server):
         page.goto(f"{app_server}/static_export?download=0&hide_offtopic=0")

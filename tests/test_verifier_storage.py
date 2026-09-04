@@ -14,12 +14,12 @@ def paper(test_db):
     return "p1"
 
 
-def test_float_score_silently_truncated(paper):
+def test_float_score_rounded(paper):
     db.update_set_verifier(paper, 1, {"verified": True, "estimated_score": 7.9},
                            model_name="m", reasoning_trace="", json_result="{}",
                            valid=True)
     blob = json.loads(db.get_paper_by_id(paper)["set_1_llm"])
-    assert blob["estimated_score"] == 7      # 7.9 → 7, no warning
+    assert blob["estimated_score"] == 8      # 7.9 rounds to 8
 
 
 def test_string_int_score_coerced(paper):

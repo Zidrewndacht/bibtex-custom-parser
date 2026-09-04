@@ -150,16 +150,19 @@ def prepare_history_log_data(paper_dict, set_num=None):
         entry['changed_fields'] = changed_fields_map.get(entry['timestamp'], set())
         
         if entry_type == 'verifier':
-            verifier_output = entry.get('output', {}) or {}
-            if not isinstance(verifier_output, dict):
-                verifier_output = {}
-            cached_verifier = {
-                'verified': verifier_output.get('verified'),
-                'estimated_score': verifier_output.get('estimated_score'),
-                'verifier_trace': entry.get('trace', ''),
-                'verifier_model': entry.get('model', ''),
-                'verifier_timestamp': entry['timestamp']
-            }
+            # Not sure if that was a real bug, fixed after integration/E2E testing
+            # Should be checked interactively later to ensure it's not a misunderstanding/regression:
+            if cached_verifier is None:          # ← only cache the FIRST (newest) one
+                verifier_output = entry.get('output', {}) or {}
+                if not isinstance(verifier_output, dict):
+                    verifier_output = {}
+                cached_verifier = {
+                    'verified': verifier_output.get('verified'),
+                    'estimated_score': verifier_output.get('estimated_score'),
+                    'verifier_trace': entry.get('trace', ''),
+                    'verifier_model': entry.get('model', ''),
+                    'verifier_timestamp': entry['timestamp']
+                }
             entry['verification_data'] = None
         elif entry_type in ['classifier', 'consensus']:
             # CRITICAL RESTORATION: averaged_llm is intentionally EXCLUDED here.

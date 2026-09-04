@@ -12,6 +12,8 @@ deliberate improvement: papers whose off-topic status has no decisive 3-run majo
 reported as "undetermined", instead of being silently counted as on-topic. In a fully
 classified database the two rules are identical (three binary votes always produce a
 majority); the guard only affects partially classified or failed states.
+
+Note: This still has some "features/techniques" code that's NOT completely domain-agnostic.
 """
 
 import json
@@ -260,9 +262,9 @@ def load_all_papers_from_single_db(db_path: str,
 
             for field in boolean_fields:
                 val = get_val_by_path(blob, field)
-                if val is True or val == 1:
+                if val is True:
                     encoded[field] = 2
-                elif val is False or val == 0:
+                elif val is False:
                     encoded[field] = 1
                 else:
                     encoded[field] = 0

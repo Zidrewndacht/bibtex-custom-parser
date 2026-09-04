@@ -57,7 +57,7 @@ class TestDeepLinkNavigation:
         # strips server-side params from the browser's address bar.
         year_from = page.locator("#year-from").input_value()
         year_to = page.locator("#year-to").input_value()
-        assert year_from == "2024" or year_to == "2024", \
+        assert year_from == "2024" and year_to == "2024", \
             f"Expected year filter to be 2024, got from={year_from}, to={year_to}"
 
     def test_focus_paper_nonexistent_shows_alert(self, page, app_server):

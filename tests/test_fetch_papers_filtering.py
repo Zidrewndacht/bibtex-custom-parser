@@ -1,23 +1,15 @@
 import pytest
-
 from shared import db
 
+# After write-time normalization, the classification column only ever
+# contains JSON true, false, null, or a missing key.
 CASES = [
-    # (classification JSON, expected visible when hide_offtopic=True)
     ('{"is_offtopic": true}',     False),
     ('{"is_offtopic": false}',    True),
-    ('{"is_offtopic": 1}',        False),
-    ('{"is_offtopic": 0}',        True),
-    ('{"is_offtopic": "true"}',   False),
-    ('{"is_offtopic": "false"}',  True),
-    ('{"is_offtopic": "False"}',  True),
-    ('{"is_offtopic": "FALSE"}',  False),   # ← not in the IN list → hidden
-    ('{"is_offtopic": "True"}',   False),
     ('{"is_offtopic": null}',     True),
-    ('{}',                        True),    # key missing → json_extract NULL
-    (None,                        True),    # column NULL
+    ('{}',                        True),   # key missing → json_extract NULL
+    (None,                        True),   # column NULL
 ]
-
 
 @pytest.mark.parametrize("classification_json, expect_visible", CASES)
 def test_hide_offtopic_filtering(test_db, classification_json, expect_visible):

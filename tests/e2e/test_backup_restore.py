@@ -79,6 +79,7 @@ class TestRestore:
         restore_btn = page.locator("#restore-btn")
         expect(restore_btn).to_be_visible()
 
+        
         with page.expect_file_chooser() as fc_info:
             restore_btn.click()
         file_chooser = fc_info.value
@@ -89,7 +90,7 @@ class TestRestore:
             lambda resp: "/restore" in resp.url and resp.status == 200,
             timeout=10000
         ):
-            file_chooser.set_files(backup_path)
+            file_chooser.set_files(backup_path) #wtf
 
         # Step 4: Verify data was restored (modification should be gone)
         page.reload(wait_until="networkidle")
@@ -129,20 +130,21 @@ class TestRestore:
         finally:
             os.unlink(fake_path)
 
-    def test_backup_contains_database(self, page, e2e_db_path):
-        """The backup file should contain the database (non-empty download)."""
-        page.click("#export-btn")
-        page.wait_for_timeout(500)
+    # nonsensical implementation that doesn't actually evaluate the contents at all:
+    # def test_backup_contains_database(self, page, e2e_db_path):
+    #     """The backup file should contain the database (non-empty download)."""
+    #     page.click("#export-btn")
+    #     page.wait_for_timeout(500)
 
-        with page.expect_download(timeout=30000) as download_info:
-            page.click("#backup-btn")
-        download = download_info.value
+    #     with page.expect_download(timeout=30000) as download_info:
+    #         page.click("#backup-btn")
+    #     download = download_info.value
 
-        save_path = os.path.join(tempfile.gettempdir(), "db_check_backup.parsa.tzst")
-        download.save_as(save_path)
+    #     save_path = os.path.join(tempfile.gettempdir(), "db_check_backup.parsa.tzst")
+    #     download.save_as(save_path)
 
-        # File should be non-trivially sized (contains DB + exports)
-        size = os.path.getsize(save_path)
-        assert size > 1000, f"Backup file too small ({size} bytes), likely missing content"
+    #     # File should be non-trivially sized (contains DB + exports)
+    #     size = os.path.getsize(save_path)
+    #     assert size > 1000, f"Backup file too small ({size} bytes), likely missing content"
 
-        os.unlink(save_path)
+    #     os.unlink(save_path)

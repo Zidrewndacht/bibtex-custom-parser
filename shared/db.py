@@ -112,6 +112,46 @@ def _generate_schema_and_placeholder(db_path):
     conn.close()
 
 
+def _get_val_by_path(d, path):
+    if not d or not path: return None
+    keys = path.split('.')
+    for k in keys:
+        if isinstance(d, dict) and k in d: d = d[k]
+        else: return None
+    return d
+
+def _set_val_by_path(d, path, val):
+    keys = path.split('.')
+    for k in keys[:-1]:
+        d = d.setdefault(k, {})
+    d[keys[-1]] = val
+
+_BOOL_TRUE  = {1, "1", "true", "True", "TRUE", "yes", "Yes", "on", "On"}
+_BOOL_FALSE = {0, "0", "false", "False", "FALSE", "no", "No", "off", "Off"}
+
+def normalize_llm_blob(blob: dict, boolean_paths: list[str] | None,
+                       numeric_paths: list[str] | tuple[str, ...] = ("relevance", "estimated_score")) -> dict:
+    if not isinstance(blob, dict):
+        return blob
+    
+    if boolean_paths:
+        for path in boolean_paths:
+            val = _get_val_by_path(blob, path)
+            if val is True or val is False or val is None: continue
+            if val in _BOOL_TRUE: _set_val_by_path(blob, path, True)
+            elif val in _BOOL_FALSE: _set_val_by_path(blob, path, False)
+
+    for path in numeric_paths:
+        val = _get_val_by_path(blob, path)
+        if isinstance(val, (int, float)): continue
+        if isinstance(val, str):
+            try:
+                num = float(val)
+                _set_val_by_path(blob, path, int(num) if num == int(num) else num)
+            except ValueError:
+                pass
+    return blob
+
 def init_db(db_path):
     global _db_path
     _db_path = db_path
@@ -489,8 +529,12 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
                 # Iterating in order (Set 1 -> Set 3) ensures Set 1's capitalization is kept
                 for v in values:
                     if isinstance(v, str):
+                        import re
                         # Strip whitespace and trailing commas/periods to prevent false mismatches
                         cleaned = v.strip().rstrip(',.')
+                        # Normalize comma spacing and general whitespace so "CNN,RNN" matches "CNN, RNN"
+                        cleaned = re.sub(r'\s*,\s*', ', ', cleaned)
+                        cleaned = re.sub(r'\s+', ' ', cleaned)
                         if not cleaned:
                             continue
                         lower_v = cleaned.lower()
@@ -522,7 +566,7 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
         
         score_valid = [v for v in score_values if v is not None]
         main_score = sum(score_valid) / len(score_valid) if score_valid else None
-        final_score = int(main_score) if main_score is not None else None
+        final_score = int(round(main_score)) if main_score is not None else None
         main_classification['estimated_score'] = final_score
         main_output_log['estimated_score'] = final_score
 
@@ -534,7 +578,7 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
 
         class_json = json.dumps(main_classification)
         cert_json = json.dumps(certainty_map)
-        
+        #Fix: add user_override_count = 0
         cursor.execute("""
             UPDATE papers SET
                 classification = ?,
@@ -544,7 +588,8 @@ def recalculate_main_set(paper_id, changed_by="LLM_Averaged", create_log_entry=T
                 changed_by = ?,
                 verified = ?,
                 estimated_score = ?,
-                verified_by = ?
+                verified_by = ?,
+                user_override_count = 0
             WHERE id = ?
         """, (class_json, class_json, cert_json, changed_timestamp, changed_by, sql_verified, final_score, main_verified_by, paper_id))
    
@@ -594,15 +639,18 @@ def fetch_updated_paper_data(paper_id):
             }
         return {'status': 'error', 'message': 'Paper not found after update.'}
 
-def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid, log_type="classifier", reset_verification=False, invalid_reason=None):
+
+def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, json_result, valid, log_type="classifier", reset_verification=False, invalid_reason=None, boolean_fields=None):
     with get_db() as conn:
         cursor = conn.cursor()
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         
-        # 1. Save the raw LLM output directly to the set blob
+        # Normalize at write time (safe even if boolean_fields is None)
+        llm_data = normalize_llm_blob(llm_data, boolean_fields)
+
         update_fields = [f"set_{set_num}_llm = ?"]
         update_values = [json.dumps(llm_data)]
-        
+
         # 2. Handle Log
         cursor.execute(f"SELECT set_{set_num}_llm_log FROM papers WHERE id = ?", (paper_id,))
         row = cursor.fetchone()
@@ -621,7 +669,7 @@ def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, j
             log_entry["invalid_reason"] = invalid_reason
             
         existing_log.append(log_entry)
-        
+
         update_fields.append(f"set_{set_num}_llm_log = ?")
         update_values.append(json.dumps(existing_log))
         
@@ -640,7 +688,7 @@ def update_set_verifier(paper_id, set_num, llm_data, model_name, reasoning_trace
         except: existing_blob = {}
         
         if 'verified' in llm_data: existing_blob['verified'] = llm_data['verified']
-        if 'estimated_score' in llm_data: existing_blob['estimated_score'] = int(llm_data['estimated_score'])
+        if 'estimated_score' in llm_data: existing_blob['estimated_score'] = int(round(float(llm_data['estimated_score'])))
             
         cursor.execute(f"UPDATE papers SET set_{set_num}_llm = ? WHERE id = ?", (json.dumps(existing_blob), paper_id))
         
