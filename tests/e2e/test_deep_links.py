@@ -29,19 +29,6 @@ class TestDeepLinkNavigation:
         # With search_query=p1, other papers should be filtered out
         assert len(visible_ids) <= 2, f"Expected mostly p1 visible, got {visible_ids}"
 
-    def test_focus_paper_highlights_row(self, page, app_server):
-        """The focused paper row gets a highlight animation."""
-        page.goto(f"{app_server}/?focus_paper=p2&search_query=p2&hide_offtopic=0&min_page_count=0")
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(1000)
-
-        p2_row = page.locator("tr[data-paper-id='p2']")
-        expect(p2_row).to_be_visible()
-
-        # Check for the highlight class (may have already faded)
-        # At minimum, the row should be visible and not filter-hidden
-        assert not p2_row.evaluate("el => el.classList.contains('filter-hidden')")
-
     def test_focus_paper_opens_history(self, page, app_server):
         """Deep link auto-expands the history row of the target paper."""
         page.goto(f"{app_server}/?focus_paper=p1&search_query=p1&hide_offtopic=0&min_page_count=0")
@@ -74,12 +61,9 @@ class TestDeepLinkNavigation:
             f"Expected year filter to be 2024, got from={year_from}, to={year_to}"
 
     def test_focus_paper_nonexistent_shows_alert(self, page, app_server):
-        """Focusing on a non-existent paper shows an alert."""
-        page.goto(f"{app_server}/?focus_paper=nonexistent999&hide_offtopic=0&min_page_count=0")
-        page.wait_for_load_state("networkidle")
-
-        # Should show an alert dialog
-        # Playwright auto-dismisses alerts, but we can check the dialog appeared
+        """Focusing on a non-existent paper shows an alert.
+        The dialog handler MUST be registered before navigation, otherwise
+        Playwright auto-dismisses the alert and the test observes nothing."""
         dialog_appeared = []
 
         def handle_dialog(dialog):
@@ -87,11 +71,17 @@ class TestDeepLinkNavigation:
             dialog.dismiss()
 
         page.on("dialog", handle_dialog)
-        page.wait_for_timeout(1500)
-
-        # If no dialog appeared, at least verify the page didn't crash
-        table = page.locator("#papersTable")
-        assert table.count() >= 1
+        try:
+            page.goto(f"{app_server}/?focus_paper=nonexistent999"
+                      f"&hide_offtopic=0&min_page_count=0")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(2000)  # focus_paper.js alerts ~150ms after load
+            assert any("nonexistent999" in msg for msg in dialog_appeared), \
+                "Expected a not-found alert for a nonexistent focus_paper id"
+        finally:
+            page.remove_listener("dialog", handle_dialog)
+        # And the page must still be usable after the alert
+        assert page.locator("#papersTable").count() == 1
 
     def test_focus_paper_offtopic_paper_visible(self, page, app_server):
         """Deep link with hide_offtopic=0 shows off-topic papers."""

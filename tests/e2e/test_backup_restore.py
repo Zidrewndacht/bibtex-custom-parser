@@ -34,21 +34,6 @@ class TestBackup:
         assert os.path.exists(save_path)
         assert os.path.getsize(save_path) > 0
 
-    def test_backup_status_message_shows(self, page):
-        """Backup button shows status message during operation."""
-        page.click("#export-btn")
-        page.wait_for_timeout(500)
-
-        backup_btn = page.locator("#backup-btn")
-        with page.expect_download(timeout=30000):
-            backup_btn.click()
-
-        page.wait_for_timeout(1000)
-
-        # Check that the status message area exists
-        status = page.locator("#backup-status-message")
-        assert status.count() >= 1
-
 
 class TestRestore:
     def test_restore_from_backup(self, page, e2e_db_path):

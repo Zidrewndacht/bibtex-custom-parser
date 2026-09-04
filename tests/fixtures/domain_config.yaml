@@ -1,5 +1,3 @@
-# tests/fixtures/domain_config.yaml
-
 domain_name: "Test Domain"
 
 editable_fields:
@@ -13,7 +11,7 @@ editable_fields:
     stats_list: false
 
 groups:
-  # 1. Single-field tri-state (No friendly_name to save header space)
+  # 1. Single-field tri-state
   - name: "test_tri"
     friendly_name: ""
     filter_type: tri_state
@@ -21,7 +19,7 @@ groups:
     label: "Test Bool"
     header_class: "inferred-header"
 
-  # 2. Single-field tri-state (No friendly_name)
+  # 2. Single-field tri-state
   - name: "test_survey"
     friendly_name: ""
     filter_type: tri_state
@@ -29,7 +27,7 @@ groups:
     label: "Survey"
     header_class: "inferred-header"
 
-  # 3. Multi-field inclusion (Short friendly_name)
+  # 3. Multi-field inclusion group #1
   - name: "test_inclusion"
     friendly_name: "Features"
     filter_type: inclusion
@@ -50,7 +48,25 @@ groups:
         render_type: text_presence
         highlight: true
 
-  # 4. Multi-field none (Short friendly_name)
+  # 4. Multi-field inclusion group #2 (NEW - required to test multi-group
+  #    inclusion semantics: OR across groups, any-field within a group)
+  - name: "test_inclusion2"
+    friendly_name: "Methods"
+    filter_type: inclusion
+    json_path: "methods"
+    header_class: "inferred-header-2"
+    fields:
+      - key: "appr_p"
+        label: "Approach P"
+        highlight: true
+      - key: "appr_q"
+        label: "Approach Q"
+        highlight: true
+      - key: "appr_r"
+        label: "Approach R"
+        highlight: true
+
+  # 5. Multi-field none (no checkbox, header only)
   - name: "test_none"
     friendly_name: "Techniques"
     filter_type: none

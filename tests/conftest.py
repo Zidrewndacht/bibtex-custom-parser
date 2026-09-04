@@ -2,6 +2,7 @@
 import json
 import os
 import pytest
+import tempfile
 
 # ==============================================================================
 # MUST execute BEFORE any app imports
@@ -28,13 +29,23 @@ for fixture_path in REQUIRED_TEST_FIXTURES:
         )
 
 # --- NOW safe to set env vars and import app code ---
+
 os.environ["PARSA_BASE_DIR"] = ROOT_DIR
 os.environ["PARSA_CONFIG_PATH"] = os.path.join(FIXTURES_DIR, 'config.yaml')
 os.environ["PARSA_DOMAIN_CONFIG_PATH"] = os.path.join(FIXTURES_DIR, 'domain_config.yaml')
-os.environ["PARSA_DATA_DIR"] = os.path.join(FIXTURES_DIR, 'dummy_data')
+
+# ==============================================================================
+# CRITICAL FIX: Isolate the filesystem per pytest-xdist worker.
+# Previously, all workers shared 'tests/fixtures/dummy_data', meaning parallel 
+# workers would see each other's uploaded/annotated PDFs on disk, causing 
+# race conditions (e.g. serve_pdf mutating state based on another worker's files).
+# ==============================================================================
+_worker_data_dir = tempfile.mkdtemp(prefix="parsa_test_data_")
+os.environ["PARSA_DATA_DIR"] = _worker_data_dir
 os.makedirs(os.environ["PARSA_DATA_DIR"], exist_ok=True)
 
 from shared import config, db
+
 
 
 @pytest.fixture()

@@ -306,6 +306,10 @@ function performSort(sortBy, direction, visibleMainRows = null) {
             // FIX: read from the actual commented cell, not the title column
             const cell = mainRow.querySelector('[data-field="user_comment_state"]');
             cellValue = SYMBOL_SORT_WEIGHTS[cell?.textContent.trim()] ?? 0;
+        } else if (sortBy === 'journal') {
+            // FIX: Explicitly read the journal cell, not the title cell
+            const cell = mainRow.cells[journalCellIndex];
+            cellValue = cell ? cell.textContent.trim() : '';
         } else if (isEditableStatusSort) {
             // FIX: certainty-aware sort — conflicts grouped, partial agreement differentiated
             const cell = mainRow.querySelector(`[data-field="${sortBy}"]`);
@@ -329,8 +333,7 @@ function performSort(sortBy, direction, visibleMainRows = null) {
             const cell = mainRow.cells[titleCellIndex];
             cellValue = cell ? cell.textContent.trim() : '';
         }
-        // ... rest of sortData (detailRow, historyRow, rowGroup) unchanged ...
-
+        
         const detailRow = mainRow.nextElementSibling && mainRow.nextElementSibling.classList.contains('detail-row') ? mainRow.nextElementSibling : null;
         const historyRow = detailRow && detailRow.nextElementSibling && detailRow.nextElementSibling.classList.contains('history-row') ? detailRow.nextElementSibling : null;
 

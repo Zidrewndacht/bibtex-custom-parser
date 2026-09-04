@@ -111,8 +111,6 @@ class TestHTMLExportFiltering:
         page.wait_for_timeout(600)
         
         cb = page.locator(".inclusion-checkbox[data-filter-group='test_inclusion']")
-        if cb.count() == 0: 
-            pytest.skip("test_inclusion group not in export")
             
         cb.evaluate("el => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }")
         page.wait_for_timeout(600)
