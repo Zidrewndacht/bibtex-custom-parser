@@ -1,19 +1,8 @@
-# tests/e2e/test_pdf_upload.py
-"""Tests for PDF upload functionality.
-
-Verifies that:
-- Uploading a PDF updates the paper's pdf_state and pdf_filename
-- The uploaded PDF is servable
-- The UI updates to show the PDF link
-- Orphaned PDF scenarios are handled correctly
-"""
 import os
 import tempfile
-
 import pytest
 from playwright.sync_api import expect
 
-# Minimal valid PDF (1 blank page)
 MINIMAL_PDF = b"""%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -49,6 +38,17 @@ def temp_pdf_file():
         os.unlink(path)
 
 
+def _upload_and_wait(page, upload_link, file_path, paper_id="p3"):
+    """Click the upload link, choose a file, and wait for the server response."""
+    with page.expect_file_chooser() as fc_info:
+        upload_link.click()
+    with page.expect_response(
+        lambda resp: f"/upload_pdf/{paper_id}" in resp.url and resp.status == 200,
+        timeout=10000,
+    ):
+        fc_info.value.set_files(file_path)
+
+
 class TestPDFUpload:
     def test_upload_pdf_updates_state(self, page, temp_pdf_file):
         """Uploading a PDF changes pdf_state to 'PDF' and shows 📕."""
@@ -59,19 +59,13 @@ class TestPDFUpload:
 
         p3_row = page.locator("tr[data-paper-id='p3']")
         pdf_cell = p3_row.locator("td").first
-
         # Should show ❔ initially
         expect(pdf_cell).to_have_text("❔")
 
         # Click the upload link and handle the file chooser
         upload_link = pdf_cell.locator(".pdf-upload-link")
-        with page.expect_file_chooser() as fc_info:
-            upload_link.click()
-        file_chooser = fc_info.value
-        file_chooser.set_files(temp_pdf_file)
+        _upload_and_wait(page, upload_link, temp_pdf_file)
 
-        # Wait for the upload to complete and UI to update
-        page.wait_for_timeout(1500)
 
         # The cell should now show 📕 with a link
         expect(pdf_cell).to_contain_text("📕")
@@ -85,13 +79,8 @@ class TestPDFUpload:
 
         p3_row = page.locator("tr[data-paper-id='p3']")
         upload_link = p3_row.locator("td .pdf-upload-link")
+        _upload_and_wait(page, upload_link, temp_pdf_file)
 
-        with page.expect_file_chooser() as fc_info:
-            upload_link.click()
-        file_chooser = fc_info.value
-        file_chooser.set_files(temp_pdf_file)
-
-        page.wait_for_timeout(1500)
 
         # Reload and verify state persisted
         page.reload(wait_until="networkidle")
@@ -116,10 +105,7 @@ class TestPDFUpload:
         assert "❔" in initial_text, "p3 should start with no PDF"
 
         upload_link = p3_pdf.locator(".pdf-upload-link")
-        with page.expect_file_chooser() as fc_info:
-            upload_link.click()
-        fc_info.value.set_files(temp_pdf_file)
-        page.wait_for_timeout(1500)
+        _upload_and_wait(page, upload_link, temp_pdf_file)
 
         # Verify it changed to PDF
         expect(p3_pdf).to_contain_text("📕")
@@ -135,19 +121,15 @@ class TestPDFUploadEdgeCases:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"not a pdf")
             txt_path = f.name
-
         try:
             p3_row = page.locator("tr[data-paper-id='p3']")
             upload_link = p3_row.locator("td .pdf-upload-link")
 
             with page.expect_file_chooser() as fc_info:
                 upload_link.click()
-            file_chooser = fc_info.value
-            file_chooser.set_files(txt_path)
-
+            fc_info.value.set_files(txt_path)
             page.wait_for_timeout(1000)
 
-            # Should still show ❔ (upload rejected)
             pdf_cell = p3_row.locator("td").first
             expect(pdf_cell).to_have_text("❔")
         finally:
@@ -160,15 +142,10 @@ class TestPDFUploadEdgeCases:
 
         p3_row = page.locator("tr[data-paper-id='p3']")
         upload_link = p3_row.locator("td .pdf-upload-link")
+        _upload_and_wait(page, upload_link, temp_pdf_file)
 
-        with page.expect_file_chooser() as fc_info:
-            upload_link.click()
-        fc_info.value.set_files(temp_pdf_file)
-        page.wait_for_timeout(2000)
-
-        # The upload link should be GONE (replaced by a real link)
-        assert upload_link.count() == 0, "Upload link should be replaced after successful upload"
-
-        # A real PDF link should exist
+        assert upload_link.count() == 0, \
+            "Upload link should be replaced after successful upload"
         pdf_link = p3_row.locator("td a")
-        assert pdf_link.count() >= 1, "A working PDF link should exist after upload"
+        assert pdf_link.count() >= 1, \
+            "A working PDF link should exist after upload"

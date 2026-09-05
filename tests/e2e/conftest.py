@@ -49,7 +49,7 @@ INITIAL_DOM_ORDER = ["p4", "p1", "p2", "p5", "p6"]
 # Corrected expectations based on actual UI rendering (conflict = ⚠️, not ✔️)
 TRI_ONLY_TRUE = {"test_tri": {"p1", "p5"},          # p2 is conflict (⚠️), so hidden in only_true
                  "test_survey": {"p2", "p6"}}
-TRI_ONLY_FALSEISH = {"test_tri": {"p2", "p4", "p6"}, # keeps ❌, ❔, AND ⚠️
+TRI_ONLY_FALSEISH = {"test_tri": {"p2", "p4", "p6"}, # keeps ❌, ❔, AND ⚠️. This is by design. It's not "only false", it's "only non-true".
                      "test_survey": {"p1", "p4", "p5"}}
 
 # Expected ASC order per data-sort key, for the default visible set ON_TOPIC.

@@ -1,3 +1,5 @@
+"Excel export is an abandoned best-effort feature. Tests may be obsolete ornot meaningful; no one cares."
+
 import json
 from io import BytesIO
 

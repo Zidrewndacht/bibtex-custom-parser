@@ -326,3 +326,5 @@ OK              Essentially include the corresponding meta scripts in the fronte
                 Adds a colored entry in the main log with the report but does NOT recalculates main set.
 
         Add multilingual UI support
+
+        Fix regression: detail row animation missing *sometimes*?

@@ -19,15 +19,19 @@ class TestHTMLExportLoads:
         assert rows.count() >= 6
 
     def test_export_contains_all_papers(self, page, app_server):
-        page.goto(f"{app_server}/static_export?download=0&hide_offtopic=0")
+        # Pass explicit year range so p6 (2019) is included.
+        # Without it, the default config year range excludes p6.
+        page.goto(
+            f"{app_server}/static_export"
+            f"?download=0&hide_offtopic=0&year_from=2000&year_to=2035&min_page_count=0"
+        )
         page.wait_for_selector("#papersTable", timeout=15000)
-        
         ids = page.eval_on_selector_all(
             "#papersTable tbody tr[data-paper-id]",
             "rows => rows.map(r => r.getAttribute('data-paper-id'))"
         )
-        for pid in ["p1", "p2", "p3", "p4", "p5"]:
-            assert pid in ids
+        for pid in ["p1", "p2", "p3", "p4", "p5", "p6"]:
+            assert pid in ids, f"{pid} missing from export"
 
     def test_export_hides_offtopic_by_default(self, page, app_server):
         page.goto(f"{app_server}/static_export?download=0&hide_offtopic=1")

@@ -80,9 +80,12 @@ class TestCellCyclingServerSide:
         assert db_reader("p2")["verified_by"] == "user"
 
     def test_conflict_cell_click_resolves_to_true(self, page, db_reader):
-        """Conflict cells have no .emoji-content; the click handler falls back
-        to the ❔-default cycle (-> 'true'). Pin the actual behavior: a request
-        IS sent and the conflict is resolved server-side to solid-true."""
+        """Clicking a conflict cell is the user's way of resolving the
+        disagreement.  The click starts the standard status cycle from the
+        unknown state (❔ → ✔️), so the first click resolves the field to
+        True with solid certainty.  A new 'user' entry is appended to the
+        history log, recording the resolution.  The conflict is not
+        silently erased — it is adjudicated by the user. This is designed behaviour."""
         requests_made = []
         page.on("request",
                 lambda r: requests_made.append(r.url)

@@ -5,14 +5,15 @@ class TestURLState:
     def test_search_persisted_in_url(self, page):
         page.fill("#search-input", "solder")
         page.wait_for_timeout(600)
-
         url = page.url
-        assert "search=solder" in url or "search_query=solder" in url
+        # The client-side serializer always uses the 'search' key.
+        # 'search_query' is a server-side deep-link param and never
+        # appears in client-serialized URLs.
+        assert "search=solder" in url
 
     def test_sort_persisted_in_url(self, page):
         page.locator("th[data-sort='year']").click()
         page.wait_for_timeout(600)
-
         url = page.url
         assert "sort_by=year" in url
 
@@ -21,7 +22,6 @@ class TestURLState:
         toggle = page.locator("tr[data-paper-id='p1'] .toggle-btn:not(.history-btn)")
         toggle.click()
         page.wait_for_timeout(1000)
-
         url = page.url
         assert "open_details=" in url
         assert "p1" in url
@@ -32,11 +32,9 @@ class TestURLState:
         toggle.click()
         page.wait_for_timeout(1000)
 
-        # Reload
         page.reload(wait_until="networkidle")
         page.wait_for_timeout(1500)
 
-        # Detail row for p1 should be expanded again
         is_expanded = page.evaluate("""() => {
             const main = document.querySelector("tr[data-paper-id='p1']");
             if (!main) return false;

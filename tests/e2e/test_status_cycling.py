@@ -17,11 +17,6 @@ class TestStatusCycling:
         page.wait_for_timeout(800)
         assert cell.text_content() == "✔️"
 
-    # def test_conflict_cell_not_editable(self, page):
-    #     cell = page.locator("tr[data-paper-id='p2'] [data-field='is_test_bool']")
-    #     warning = cell.locator(".conflict-warning")
-    #     assert warning.count() == 1
-
     def test_verified_by_cycle(self, page):
         # Use p2 which reliably has verified_by="computer" in the seed
         cell = page.locator("tr[data-paper-id='p2'] .editable-verify[data-field='verified_by']")
