@@ -492,27 +492,151 @@ def get_required_classification_fields():
             
     return list(fields)
 
+# --- Tri-state boolean validation -----------------------------------------
+# A boolean field may be answered in many spellings of true/false, or as an
+# explicit "don't know" (null). Anything else ("2", "maybe", 7, a list, ...)
+# is an unusable answer and is rejected so the run is retried.
+# _TRUE_STRINGS/_FALSE_STRINGS mirror shared/db.py's _BOOL_TRUE/_BOOL_FALSE
+# (case is folded here); keep them in sync if you extend either.
+
+_TRUE_STRINGS  = {"1", "true", "yes", "on"}
+_FALSE_STRINGS = {"0", "false", "no", "off"}
+_NULL_STRINGS  = {"", "null", "none", "unknown"}
+
+def _tri_state_verdict(value):
+    """Classify an LLM answer for a boolean field -> 'true'/'false'/'null'/'unusable'."""
+    if value is True:  return "true"
+    if value is False: return "false"
+    if value is None:  return "null"                 # third state, NOT cast to False
+    if isinstance(value, (int, float)):              # bool already handled above
+        if value == 1: return "true"
+        if value == 0: return "false"
+        return "unusable"                            # 2, 7, 0.5, ...
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in _TRUE_STRINGS:  return "true"
+        if s in _FALSE_STRINGS: return "false"
+        if s in _NULL_STRINGS:  return "null"
+        return "unusable"                            # "maybe", "2", "mostly", ...
+    return "unusable"                                # list, dict, ...
+
+def _get_path(d, path):
+    cur = d
+    for key in path.split("."):
+        if isinstance(cur, dict) and key in cur:
+            cur = cur[key]
+        else:
+            return None
+    return cur
+
+def _has_path(d, path):
+    """Distinguish 'present-but-null' (valid) from 'absent'."""
+    cur, keys = d, path.split(".")
+    for key in keys[:-1]:
+        if isinstance(cur, dict) and key in cur:
+            cur = cur[key]
+        else:
+            return False
+    return isinstance(cur, dict) and keys[-1] in cur
+
 # Export these for the dispatcher and history renderer
 REQUIRED_CLASSIFICATION_FIELDS = get_required_classification_fields()
 REQUIRED_VERIFIER_FIELDS = ['verified', 'estimated_score']
+
+def get_boolean_classification_fields():
+    """JSON paths declared boolean (tri-state) by the domain config.
+    Mirrors meta.agreement_core.discover_boolean_fields exactly, so
+    write-time normalization and read-time voting can never drift apart.
+    Text-presence fields are excluded."""
+    fields = ['is_offtopic']
+    for group in _domain_config.get('groups', []):
+        ft = group.get('filter_type')
+        if ft == 'tri_state':
+            path = group.get('json_path', '')
+            if path and path not in fields:
+                fields.append(path)
+        elif ft in ('inclusion', 'none'):
+            parent = group.get('json_path', '') or ''
+            for fdef in group.get('fields', []):
+                if fdef.get('render_type') == 'text_presence':
+                    continue
+                key = fdef.get('key', '')
+                if not key:
+                    continue
+                full_path = f"{parent}.{key}" if parent else key
+                if full_path not in fields:
+                    fields.append(full_path)
+    return fields
+
+
+_BOOL_STRINGS = ('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
 
 def validate_llm_output(llm_data, task_type):
     """
     Unified validation for all LLM outputs.
     Returns: (is_valid: bool, invalid_reason: str or None)
+
+    Field classes:
+      * Universal mandatory fields (is_offtopic, relevance, verified,
+        estimated_score) require a decisive answer: null is INVALID, and
+        unusable values ("2", "maybe", ...) are INVALID -> retry.
+      * Domain boolean fields are TRI-STATE: any true/false/null spelling is
+        accepted (null = legitimate "unknown"), unusable values are INVALID.
     """
     if not isinstance(llm_data, dict):
         return False, "Output is not a dictionary"
-    
-    if task_type == 'verify':
-        required = REQUIRED_VERIFIER_FIELDS
-    else:
-        required = get_required_classification_fields()
-        
+
+    required = REQUIRED_VERIFIER_FIELDS if task_type == 'verify' else get_required_classification_fields()
     missing = [f for f in required if f not in llm_data]
     if missing:
         return False, f"Missing required fields: {', '.join(missing)}"
-        
+
+    if task_type == 'verify':
+        # verified: mandatory boolean decision (null not allowed)
+        v = llm_data.get('verified')
+        verdict = _tri_state_verdict(v)
+        if verdict == 'unusable':
+            return False, f"Field 'verified' answered {v!r}, which is neither true nor false"
+        if verdict == 'null':
+            return False, "Field 'verified' is required and must not be null"
+        # estimated_score: mandatory number (null not allowed)
+        s = llm_data.get('estimated_score')
+        if isinstance(s, bool) or s is None:
+            return False, "Field 'estimated_score' is required and must be a number"
+        try:
+            float(s)
+        except (TypeError, ValueError):
+            return False, f"Field 'estimated_score' must be a number, got {s!r}"
+        return True, None
+
+    # ---- classify ----
+    # is_offtopic: mandatory boolean (null and unusable both invalid)
+    iso = llm_data.get('is_offtopic')
+    iso_verdict = _tri_state_verdict(iso)
+    if iso_verdict == 'unusable':
+        return False, f"Field 'is_offtopic' answered {iso!r}, which is neither true nor false"
+    if iso_verdict == 'null':
+        return False, "Field 'is_offtopic' is required and must not be null"
+
+    # relevance: mandatory number (null and non-numeric both invalid)
+    rel = llm_data.get('relevance')
+    if isinstance(rel, bool) or rel is None:
+        return False, "Field 'relevance' is required and must be a number"
+    try:
+        float(rel)
+    except (TypeError, ValueError):
+        return False, f"Field 'relevance' must be a number, got {rel!r}"
+
+    # Domain boolean fields: tri-state (accept true/false/null, reject unusable)
+    for path in get_boolean_classification_fields():
+        if path == 'is_offtopic':
+            continue                       # already enforced as mandatory above
+        if not _has_path(llm_data, path):
+            continue                       # absent domain field == unknown, acceptable
+        value = _get_path(llm_data, path)
+        if _tri_state_verdict(value) == 'unusable':
+            return False, f"Field '{path}' answered {value!r}, which is neither true, false, nor null"
+
     return True, None
 
 def reload_domain_config():

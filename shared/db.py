@@ -4,6 +4,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from shared import config   
 
 _db_path = None
 
@@ -644,8 +645,13 @@ def update_set_cache(paper_id, set_num, llm_data, model_name, reasoning_trace, j
     with get_db() as conn:
         cursor = conn.cursor()
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        
-        # Normalize at write time (safe even if boolean_fields is None)
+
+        # Normalize at write time. Default to the domain-declared boolean
+        # fields so stringified booleans from the LLM ("false", "1", ...) are
+        # stored as real JSON booleans; otherwise they'd vote as NULL in
+        # recalculate_main_set / agreement_core despite being stamped valid.
+        if boolean_fields is None:
+            boolean_fields = config.get_boolean_classification_fields()
         llm_data = normalize_llm_blob(llm_data, boolean_fields)
 
         update_fields = [f"set_{set_num}_llm = ?"]
@@ -687,8 +693,18 @@ def update_set_verifier(paper_id, set_num, llm_data, model_name, reasoning_trace
         try: existing_blob = json.loads(row[0]) if row and row[0] else {}
         except: existing_blob = {}
         
-        if 'verified' in llm_data: existing_blob['verified'] = llm_data['verified']
-        if 'estimated_score' in llm_data: existing_blob['estimated_score'] = int(round(float(llm_data['estimated_score'])))
+        if 'verified' in llm_data:
+            v = llm_data['verified']
+            # Normalize stringified/integer booleans to real JSON booleans so
+            # the consensus state machine and the /consensus SQL gate agree.
+            if v is not True and v is not False:
+                if v in _BOOL_TRUE:
+                    v = True
+                elif v in _BOOL_FALSE:
+                    v = False
+            existing_blob['verified'] = v
+        if 'estimated_score' in llm_data:
+            existing_blob['estimated_score'] = int(round(float(llm_data['estimated_score'])))
             
         cursor.execute(f"UPDATE papers SET set_{set_num}_llm = ? WHERE id = ?", (json.dumps(existing_blob), paper_id))
         

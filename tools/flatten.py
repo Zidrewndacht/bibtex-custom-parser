@@ -307,7 +307,7 @@ def main():
     FILE_LIST = [
         # # Root files
         "browse_db.py",
-        # "queue_manager.py",
+        "queue_manager.py",
         # "README.md",
         # "LICENSE",
         
@@ -317,11 +317,11 @@ def main():
         # "prompt_templates/verify_template.txt",
         
         # # # Queue manager module
-        # "queue_manager/__init__.py",
-        # "queue_manager/dispatcher.py",
-        # "queue_manager/logging_utils.py",
-        # "queue_manager/routes.py",
-        # "queue_manager/state.py",
+        "queue_manager/__init__.py",
+        "queue_manager/dispatcher.py",
+        "queue_manager/logging_utils.py",
+        "queue_manager/routes.py",
+        "queue_manager/state.py",
 
         # Meta module
         "meta/agreement_core.py",
@@ -352,25 +352,25 @@ def main():
         "web/static/js/comms/comms_rendering.js",
         "web/static/js/comms/comms_save.js",
         "web/static/js/comms/comms_views.js",
-        "web/static/js/filtering/filtering_actions.js",
-        "web/static/js/filtering/filtering_engine.js",
-        "web/static/js/filtering/filtering_init.js",
-        "web/static/js/filtering/filtering_state.js",
-        "web/static/js/ghpages.js",
-        "web/static/js/stats/stats_core.js",
-        "web/static/js/stats/stats_generic.js",
+        # "web/static/js/filtering/filtering_actions.js",
+        # "web/static/js/filtering/filtering_engine.js",
+        # "web/static/js/filtering/filtering_init.js",
+        # "web/static/js/filtering/filtering_state.js",
+        # "web/static/js/ghpages.js",
+        # "web/static/js/stats/stats_core.js",
+        # "web/static/js/stats/stats_generic.js",
         # "web/static/js/stats/stats_domain.js",
-        "web/static/js/stats/stats_charts.js",
-        "web/static/js/stats/stats_latex.js",
+        # "web/static/js/stats/stats_charts.js",
+        # "web/static/js/stats/stats_latex.js",
 
         # "web/static/css/style.css",
         # "web/static/css/agreement_report.css",
         # "web/static/css/fonts.css",
         
         # Web static pdfjs files (kept as previously specified)
-        "web/static/pdfjs/web/autosave.js",
-        "web/static/pdfjs/web/viewer.html",
-        "web/static/pdfjs/web/viewer_mods.css",
+        # "web/static/pdfjs/web/autosave.js",
+        # "web/static/pdfjs/web/viewer.html",
+        # "web/static/pdfjs/web/viewer_mods.css",
         
         # Web templates
         "web/templates/agreement_report.html",
@@ -383,11 +383,11 @@ def main():
         "web/templates/shared/history_table.html",
         "web/templates/shared/paper_cells.html",
         "web/templates/shared/papers_table_tfoot.html",
-        "web/templates/shared/stats_modal_content.html",
-        "web/templates/shared/table_colgroup.html",
-        "web/templates/static_export/loader.html",
-        "web/templates/static_export/index_static_export.html",
-        "web/templates/static_export/papers_table_static_export.html"
+        # "web/templates/shared/stats_modal_content.html",
+        # "web/templates/shared/table_colgroup.html",
+        # "web/templates/static_export/loader.html",
+        # "web/templates/static_export/index_static_export.html",
+        # "web/templates/static_export/papers_table_static_export.html"
     ]
     
     # Remove any non-existent files from the list

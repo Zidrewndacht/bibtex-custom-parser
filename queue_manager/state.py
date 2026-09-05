@@ -232,6 +232,16 @@ class ConsensusStateMachine:
         # (These exist in every domain by design)
         is_offtopic = prev_class.get('is_offtopic')
         verified = prev_class.get('verified')
+        # Legacy-blob hardening: normalize stringified booleans on read so this
+        # transition logic matches the /consensus batch SQL gate, which treats
+        # verified IN (0, 'false', 'False') as unsettled. New writes are
+        # normalized in db.update_set_verifier and never produce these.
+        if isinstance(verified, str):
+            s = verified.strip().lower()
+            if s in ('true', '1', 'yes', 'on'):
+                verified = True
+            elif s in ('false', '0', 'no', 'off'):
+                verified = False
         score = prev_class.get('estimated_score')
 
         if is_offtopic is None:
